@@ -1,0 +1,51 @@
+{
+  "name": "MotoStix",
+  "short_name": "MotoStix",
+  "description": "Your ultimate destination for unique motorcycle stickers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#ffffff",
+  "scope": "/",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Shop All Products",
+      "short_name": "Shop",
+      "description": "Browse all stickers and products",
+      "url": "/products",
+      "icons": [
+        {
+          "src": "/icons/shortcut-shop-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Your Orders",
+      "short_name": "Orders",
+      "description": "View your order history",
+      "url": "/user/orders",
+      "icons": [
+        {
+          "src": "/icons/shortcut-orders-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+cat > .gitignore << 'EOF'
+# Env files (never commit)
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Node / Next
+node_modules
+.next
+dist
+coverage
+.turbo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+EOF

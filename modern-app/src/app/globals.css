@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@layer base {
+  :root {
+    /* Calm, slightly darker light-mode */
+    --background: 210 16% 95.5%; /* was 210 20% 98% */
+    --foreground: 215 15% 18%;
+
+    --card: 0 0% 100%; /* cards stay white for contrast pop */
+    --card-foreground: var(--foreground);
+
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--foreground);
+
+    --primary: 217 91.2% 59.8%;
+    --primary-foreground: 210 20% 98%;
+
+    /* Distinct support tones (ladder below background) */
+    --secondary: 215 15% 88%; /* subtle “panel” bg */
+    --secondary-foreground: 224 71% 10%;
+
+    --muted: 210 12% 92.5%; /* inputs / subdued blocks */
+    --muted-foreground: 215 16% 40%;
+
+    --accent: 210 10% 90%; /* hover over muted/secondary */
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 214 18% 82%; /* darker than before for definition */
+    --input: 214 18% 82%;
+    --ring: 217 91.2% 59.8%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 220 14.3% 9.8%; /* Very dark background */
+    --foreground: 210 20% 98%;
+    --card: var(--background);
+    --card-foreground: var(--foreground);
+    --popover: 224 71.4% 4.1%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 210 20% 98%;
+    --primary-foreground: 220.9 39.3% 11%;
+    /* --- FIX: Make secondary, muted, and accent distinct --- */
+    --secondary: 215 27.9% 16.9%; /* Keep this as a distinct dark color */
+    --secondary-foreground: 210 20% 98%;
+    --muted: 215 27.9% 13.9%; /* Make muted slightly darker/lighter than card */
+    --muted-foreground: 217.9 10.6% 64.9%;
+    --accent: 215 27.9% 20.9%; /* Make accent a slightly lighter dark gray for hovers etc. */
+    --accent-foreground: 210 20% 98%;
+    /* --- */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 27.9% 20%; /* Adjust border to match new shades if needed */
+    --input: 215 27.9% 26.9%;
+    --ring: 216 12.2% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+/* globals.css */
+.shadcn-sidebar-mobile {
+  background-color: var(--card); /* Changed from --background */
+}
+/* ================================ */
+/* Global Form Styling System       */
+/* ================================ */
+
+/* Larger, confident labels (your preference) */
+.form-label-lg {
+  @apply text-base font-medium;
+}
+
+/* Make all form labels consistent everywhere 
+   (ShadCN FormLabel uses label[data-slot="label"]) */
+label.form-label,
+label[data-slot="label"] {
+  @apply text-base font-medium;
+}
+
+/* Larger descriptions under form fields */
+.form-description-lg {
+  @apply text-sm text-muted-foreground;
+}
+
+/* Consistent spacing between FormItem sections */
+.form-item-spacing {
+  @apply space-y-2;
+}
+
+/* Improve the look of form inputs */
+.input-lg {
+  @apply h-11 px-4 text-base;
+}
+
+/* Improve the look of textareas */
+.textarea-lg {
+  @apply text-base p-4;
+}
+
+/* Optional: Standardize select triggers */
+.select-trigger-lg {
+  @apply h-11 px-4 text-base;
+}
+
+/* Make file inputs look better */
+.input-file-lg {
+  @apply h-11 text-base cursor-pointer;
+}
+
+/* For icon + label rows */
+.form-label-with-icon {
+  @apply flex items-center gap-2 text-base font-medium;
+}

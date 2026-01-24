@@ -1,0 +1,117 @@
+rules_version = '2';
+// SECURE PRODUCTION RULES - VERSION 3 (Force Update)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helper Functions ----
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function getUserRole() {
+      return isAuthenticated()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == "admin";
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isOwnerOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    // ---- Users Collection (LOCKED DOWN) ----
+    match /users/{userId} {
+      // 1. LIST: Only Admins can download the full list.
+      allow list: if isAdmin();
+
+      // 2. GET: Public can ONLY see Featured users. Owners/Admins see themselves.
+      allow get: if isAdmin()
+                 || isOwner(userId)
+                 || (resource.data.get("isFeatured", false) == true);
+
+      allow update: if isOwnerOrAdmin(userId);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAdmin();
+    }
+
+    // ---- Business Collections ----
+    match /businessTeams/{docId} {
+      allow read, write: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+    match /businessInventory/{docId} {
+      allow read, write: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+    match /businessCustomers/{docId} {
+      allow read, write: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // ---- Jobs Collection (PRIVACY FIX INCLUDED) ----
+    match /jobs/{jobId} {
+      // READ: Only Owner, Admin, or if Job is OPEN (protects completed job addresses)
+      allow read: if isOwner(resource.data.customerId) 
+                  || isAdmin() 
+                  || (isAuthenticated() && resource.data.status == 'open');
+
+      allow create: if isAuthenticated()
+        && (getUserRole() in ['customer', 'admin'])
+        && request.resource.data.customerId == request.auth.uid;
+
+      allow update, delete: if isAuthenticated()
+        && (resource.data.customerId == request.auth.uid || isAdmin());
+
+      match /quotes/{quoteId} {
+        allow create: if isAuthenticated()
+          && getUserRole() == 'tradesperson'
+          && request.resource.data.tradespersonId == request.auth.uid
+          && get(/databases/$(database)/documents/jobs/$(jobId)).data.status == 'open';
+
+        allow read: if isOwnerOrAdmin(get(/databases/$(database)/documents/jobs/$(jobId)).data.customerId)
+          || (isAuthenticated() && resource.data.tradespersonId == request.auth.uid);
+
+        allow update: if isAuthenticated()
+          && resource.data.tradespersonId == request.auth.uid
+          && resource.data.status == 'pending';
+      }
+    }
+
+    // ---- Chats Collection ----
+    match /chats/{jobId} {
+      allow read, update, delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.customerId ||
+        request.auth.uid == resource.data.tradespersonId ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        request.auth.uid == request.resource.data.customerId ||
+        request.auth.uid == request.resource.data.tradespersonId
+      );
+
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && (
+          get(/databases/$(database)/documents/chats/$(jobId)).data.customerId == request.auth.uid ||
+          get(/databases/$(database)/documents/chats/$(jobId)).data.tradespersonId == request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    // ---- Reviews & Notifications ----
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.customerId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.customerId == request.auth.uid || isAdmin());
+    }
+
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if false;
+    }
+  }
+}

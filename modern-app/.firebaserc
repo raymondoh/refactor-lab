@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "dev": "plumbers-portal-dev",
+    "prod": "plumbers-portal"
+  },
+  "targets": {},
+  "etags": {}
+}
