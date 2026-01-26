@@ -1,9 +1,9 @@
-import { getOnSaleProducts, getAllProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 
 export default async function SaleProductsDebugPage() {
   // Test both functions
-  const saleProducts = await getOnSaleProducts(10);
-  const allProducts = await getAllProducts({ limit: 5 });
+  const saleProducts = await adminProductService.getOnSaleProducts(10);
+  const allProducts = await adminProductService.getAllProducts({ limit: 5 });
 
   return (
     <div className="p-8 max-w-4xl mx-auto">

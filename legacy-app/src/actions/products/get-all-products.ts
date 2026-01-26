@@ -1,21 +1,28 @@
 "use server";
 
-import { getAllProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import type { ProductFilterOptions } from "@/types/product";
 
 // Get all products with optional filters
 export async function getAllProductsAction(filters?: ProductFilterOptions) {
   try {
-    const result = await getAllProducts(filters);
-    return result;
+    const result = await adminProductService.getAllProducts(filters);
+
+    // Maintain existing return shape expected by callers:
+    // { success: true, data } | { success: false, error }
+    if (!result.success) {
+      return { success: false as const, error: result.error };
+    }
+
+    return { success: true as const, data: result.data };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error fetching products";
-    return { success: false, error: message };
+        ? error.message
+        : "Unknown error fetching products";
+    return { success: false as const, error: message };
   }
 }
 

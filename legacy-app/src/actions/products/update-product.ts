@@ -1,45 +1,32 @@
 "use server";
 
-import { updateProduct } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 import { revalidatePath } from "next/cache";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 // Update product (admin only)
 export async function updateProductAction(id: string, data: any) {
   try {
-    // Dynamic import to avoid build-time initialization
-    const { auth } = await import("@/auth");
-    const session = await auth();
+    const result = await adminProductService.updateProduct(id, data);
 
-    if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+    if (!result.success) {
+      return { success: false as const, error: result.error };
     }
 
-    // Check if user is admin
-    const { UserService } = await import("@/lib/services/user-service");
-    const userRole = await UserService.getUserRole(session.user.id);
+    // Revalidate relevant paths
+    revalidatePath("/admin/products");
+    revalidatePath("/products");
+    revalidatePath(`/products/${id}`);
 
-    if (userRole !== "admin") {
-      return { success: false, error: "Unauthorized. Admin access required." };
-    }
-
-    const result = await updateProduct(id, data);
-
-    if (result.success) {
-      // Revalidate relevant paths
-      revalidatePath("/admin/products");
-      revalidatePath("/products");
-      revalidatePath(`/products/${id}`);
-    }
-
-    return result;
+    // Maintain legacy return shape: { success, data: id }
+    return { success: true as const, data: result.data.id };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error updating product";
-    return { success: false, error: message };
+        ? error.message
+        : "Unknown error updating product";
+    return { success: false as const, error: message };
   }
 }
 

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, CheckCircle } from "lucide-react";
-import { resendEmailVerification } from "@/actions/auth/resend-verification";
+import { resendVerification } from "@/actions/auth/resend-verification";
 import { toast } from "sonner";
 
 export function ResendVerificationForm() {
@@ -26,7 +26,7 @@ export function ResendVerificationForm() {
     formData.append("email", email);
 
     try {
-      const result = await resendEmailVerification(formData);
+      const result = await resendVerification(formData);
 
       if (result.success) {
         setMessage({

@@ -1,3 +1,4 @@
+// legacy-app/src/actions/auth/firebase-auth.ts
 "use server";
 
 import { getAdminAuth } from "@/lib/firebase/admin/initialize";

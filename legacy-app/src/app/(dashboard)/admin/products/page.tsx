@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { redirect } from "next/navigation";
-import { getAllProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 import { getCategories, getFeaturedCategories } from "@/firebase/admin/categories";
 import { UserService } from "@/lib/services/user-service";
 import { AdminProductsClient } from "@/components/dashboard/admin/products/AdminProductsClient";
@@ -30,7 +30,7 @@ export default async function AdminProductsPage() {
     }
 
     // Fetch initial products data
-    const productsResult = await getAllProducts();
+    const productsResult = await adminProductService.getAllProducts();
     const products = productsResult.success ? productsResult.data : [];
 
     // Fetch categories data

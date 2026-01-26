@@ -1,4 +1,3 @@
-// src/lib/services/user-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { Timestamp } from "firebase-admin/firestore";
 import type { User, UserRole } from "@/types/user";
@@ -10,7 +9,7 @@ type ServiceResponse<T> = { success: true; data: T } | { success: false; error: 
 
 // User service class
 export class UserService {
-  // Get users with pagination
+  // Get users with pagination (general use; NOT admin gated)
   static async getUsers(
     limit = 10,
     startAfter?: string
@@ -20,7 +19,6 @@ export class UserService {
       lastVisible?: string;
     }>
   > {
-    "use server";
     try {
       const db = getAdminFirestore();
       let query = db.collection("users").orderBy("createdAt", "desc").limit(limit);
@@ -35,19 +33,17 @@ export class UserService {
       const snapshot = await query.get();
 
       const users: User[] = snapshot.docs.map(doc => {
-        const data = doc.data();
+        const data = doc.data() as any;
 
         return {
           id: doc.id,
           ...data,
           image: getUserImage(data),
-          // Properly serialize all timestamp fields
           createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
           updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
           lastLoginAt:
             data.lastLoginAt instanceof Timestamp ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt,
-          emailVerified:
-            data.emailVerified instanceof Timestamp ? data.emailVerified.toDate().toISOString() : data.emailVerified
+          emailVerified: Boolean(data.emailVerified) // ✅ boolean
         } as User;
       });
 
@@ -74,9 +70,7 @@ export class UserService {
 
   // Get current user (safely)
   static async getCurrentUser(): Promise<ServiceResponse<User>> {
-    "use server";
     try {
-      // Dynamic import to avoid build-time initialization
       const { auth } = await import("@/auth");
       const session = await auth();
 
@@ -90,19 +84,17 @@ export class UserService {
         success: true,
         data: {
           id: session.user.id,
-          // Highlight: Include firstName, lastName, and displayName from session.user
           firstName: session.user.firstName || "",
           lastName: session.user.lastName || "",
-          displayName: session.user.displayName || "", // Use displayName
-          name: session.user.name || "", // Keep for backward compatibility if needed
-
+          displayName: session.user.displayName || "",
+          name: session.user.name || "",
           email: session.user.email || "",
           image: getUserImage(session.user),
-          role: role,
-          bio: session.user.bio || "" // Ensure bio is also passed
+          role,
+          bio: session.user.bio || ""
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
@@ -115,11 +107,10 @@ export class UserService {
 
   // Get user role
   static async getUserRole(userId: string): Promise<UserRole> {
-    "use server";
     try {
       const db = getAdminFirestore();
       const userDoc = await db.collection("users").doc(userId).get();
-      const userData = userDoc.data();
+      const userData = userDoc.data() as any;
       return (userData?.role as UserRole) || "user";
     } catch (error: unknown) {
       const message = isFirebaseError(error)
@@ -129,9 +120,7 @@ export class UserService {
           : "Unknown error getting user role";
 
       console.error("Error getting user role:", message);
-      return "user"; // fallback default
+      return "user";
     }
   }
-
-  // Additional methods would go here...
 }

@@ -1,22 +1,23 @@
+// legacy-app/src/actions/data-privacy/export.ts
 "use server";
 
 import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/log/logActivity";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 
-// Export user data
 export async function exportUserData(prevState: any, formData: FormData) {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+      return { success: false as const, error: "Not authenticated" };
     }
 
     const userId = session.user.id;
     const format = (formData.get("format") as string) || "json";
+
     const db = getAdminFirestore();
 
     // Get user profile
@@ -24,15 +25,12 @@ export async function exportUserData(prevState: any, formData: FormData) {
     const userData = userDoc.data();
 
     if (!userData) {
-      return { success: false, error: "User data not found" };
+      return { success: false as const, error: "User data not found" };
     }
 
-    // Get user orders
-    const ordersSnapshot = await db.collection("orders").where("userId", "==", userId).get();
-    const orders = ordersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // ✅ Get user orders via service (no direct orders query here)
+    const ordersResult = await adminOrderService.getUserOrders(userId);
+    const orders = ordersResult.success ? ordersResult.data : [];
 
     // Get user likes
     const likesSnapshot = await db.collection("users").doc(userId).collection("likes").get();
@@ -48,7 +46,6 @@ export async function exportUserData(prevState: any, formData: FormData) {
       ...doc.data()
     }));
 
-    // Compile all data
     const exportData = {
       profile: {
         ...userData,
@@ -97,11 +94,15 @@ export async function exportUserData(prevState: any, formData: FormData) {
       userId,
       type: "data-export",
       description: "User data exported",
-      status: "success"
+      status: "success",
+      metadata: {
+        format,
+        includedOrders: orders.length
+      }
     });
 
     return {
-      success: true,
+      success: true as const,
       downloadUrl: signedUrl,
       message: `Your data has been exported in ${format.toUpperCase()} format`
     };
@@ -109,9 +110,10 @@ export async function exportUserData(prevState: any, formData: FormData) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error exporting user data";
+        ? error.message
+        : "Unknown error exporting user data";
+
     console.error("Error exporting user data:", message);
-    return { success: false, error: message };
+    return { success: false as const, error: message };
   }
 }

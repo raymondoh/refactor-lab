@@ -1,3 +1,4 @@
+// src/firebase/admin/auth.ts
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
@@ -29,8 +30,8 @@ export async function createUserInFirebase(userData: any) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error creating user";
+        ? error.message
+        : "Unknown error creating user";
     return { success: false, error: message };
   }
 }
@@ -63,31 +64,28 @@ export async function verifyAndCreateUser(userData: any) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error creating user";
+        ? error.message
+        : "Unknown error creating user";
     return { success: false, error: message };
   }
 }
 
-// Delete user as admin
+// Delete user as admin (Auth only)
+// Delete user as admin (Auth only)
 export async function deleteUserAsAdmin(userId: string) {
   try {
     const auth = getAdminAuth();
-    const db = getAdminFirestore();
 
-    // Delete from Firebase Auth
+    // Delete from Firebase Auth only
     await auth.deleteUser(userId);
-
-    // Delete from Firestore
-    await db.collection("users").doc(userId).delete();
 
     return { success: true };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error deleting user";
+        ? error.message
+        : "Unknown error deleting user";
     return { success: false, error: message };
   }
 }
@@ -110,8 +108,8 @@ export async function deleteUserImage(imageUrl: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error deleting user image";
+        ? error.message
+        : "Unknown error deleting user image";
     console.error("❌ Error deleting user image:", message);
     return { success: false, error: message };
   }
@@ -127,8 +125,8 @@ export async function getUser(userId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error getting user";
+        ? error.message
+        : "Unknown error getting user";
     return { success: false, error: message };
   }
 }
@@ -156,8 +154,8 @@ export async function updateUser(userId: string, userData: any) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error updating user";
+        ? error.message
+        : "Unknown error updating user";
     return { success: false, error: message };
   }
 }
@@ -172,8 +170,8 @@ export async function getUserByEmail(email: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error getting user by email";
+        ? error.message
+        : "Unknown error getting user by email";
     return { success: false, error: message };
   }
 }
@@ -189,8 +187,8 @@ export async function getUserFromToken(token: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error getting user from token";
+        ? error.message
+        : "Unknown error getting user from token";
     return { success: false, error: message };
   }
 }
@@ -205,8 +203,8 @@ export async function setCustomClaims(userId: string, claims: any) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error setting custom claims";
+        ? error.message
+        : "Unknown error setting custom claims";
     return { success: false, error: message };
   }
 }
@@ -221,8 +219,8 @@ export async function sendResetPasswordEmail(email: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error sending reset email";
+        ? error.message
+        : "Unknown error sending reset email";
     return { success: false, error: message };
   }
 }
@@ -237,8 +235,8 @@ export async function verifyIdToken(token: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error verifying token";
+        ? error.message
+        : "Unknown error verifying token";
     return { success: false, error: message };
   }
 }

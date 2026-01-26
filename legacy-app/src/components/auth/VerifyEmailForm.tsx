@@ -1,111 +1,87 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, ArrowRight, LoaderCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/firebase/client/firebase-client-init";
-import { applyActionCode } from "firebase/auth";
-import { updateEmailVerificationStatus } from "@/actions/auth/email-verification";
-import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+
+type VerifyStatus = "instructions" | "loading" | "success" | "error";
+
+type VerifyOk = {
+  success: true;
+  message: string;
+  role?: string;
+  redirectPath?: string;
+};
+
+type VerifyErr = { error: string; reason?: string | null } | { error: string };
 
 export function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [status, setStatus] = useState<"instructions" | "loading" | "success" | "error">("instructions");
+  const [status, setStatus] = useState<VerifyStatus>("instructions");
   const [errorMessage, setErrorMessage] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const verificationAttempted = useRef(false);
-  const processedCode = useRef<string | null>(null);
+  const attempted = useRef(false);
+  const lastToken = useRef<string | null>(null);
 
   useEffect(() => {
-    const mode = searchParams.get("mode");
-    const oobCode = searchParams.get("oobCode");
-    const continueUrl = searchParams.get("continueUrl") || "";
+    const token = searchParams.get("token");
 
-    if (verificationAttempted.current && processedCode.current === oobCode) return;
-
-    if (mode === "verifyEmail" && oobCode) {
-      verificationAttempted.current = true;
-      processedCode.current = oobCode;
-      setStatus("loading");
-
-      let userIdFromContinueUrl = "";
-      try {
-        const url = new URL(continueUrl);
-        userIdFromContinueUrl = url.searchParams.get("uid") || "";
-      } catch (e) {
-        console.error("Invalid continueUrl format:", e);
-      }
-
-      const verifyEmail = async () => {
-        try {
-          await applyActionCode(auth, oobCode);
-          const user = auth.currentUser;
-
-          if (user) {
-            await user.reload();
-            if (user.emailVerified) {
-              await updateEmailVerificationStatus({ userId: user.uid, verified: true });
-              setIsRedirecting(true);
-              router.push("/verify-success");
-            } else {
-              setStatus("error");
-              setErrorMessage("Email verification failed. Please try again.");
-            }
-          }
-        } catch (error: unknown) {
-          if (isFirebaseError(error)) {
-            console.error("FirebaseError:", error.code, error.message);
-
-            if (error.code === "auth/invalid-action-code") {
-              const user = auth.currentUser;
-
-              try {
-                await user?.reload();
-              } catch (reloadError) {
-                console.error("Reload error:", reloadError);
-              }
-
-              if (user?.emailVerified) {
-                await updateEmailVerificationStatus({ userId: user.uid, verified: true });
-                setIsRedirecting(true);
-                router.push("/verify-success");
-                return;
-              }
-
-              if (userIdFromContinueUrl) {
-                try {
-                  await updateEmailVerificationStatus({ userId: userIdFromContinueUrl, verified: true });
-                  setIsRedirecting(true);
-                  router.push("/verify-success");
-                  return;
-                } catch (firestoreError) {
-                  console.error("Firestore update fallback failed:", firestoreError);
-                }
-              }
-
-              setStatus("error");
-              setErrorMessage(
-                "This verification link has already been used. If you've already verified your email, you can log in."
-              );
-            } else {
-              setStatus("error");
-              setErrorMessage(firebaseError(error));
-            }
-          } else {
-            console.error("Unexpected error:", error);
-            setStatus("error");
-            setErrorMessage("An unexpected error occurred. Please try again.");
-          }
-        }
-      };
-
-      verifyEmail();
+    // If no token, show the instructions page (same UX as before)
+    if (!token) {
+      setStatus("instructions");
+      return;
     }
+
+    // Prevent duplicate calls in React strict mode / re-renders
+    if (attempted.current && lastToken.current === token) return;
+
+    attempted.current = true;
+    lastToken.current = token;
+
+    setStatus("loading");
+    setErrorMessage("");
+
+    const run = async () => {
+      try {
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+          cache: "no-store"
+        });
+
+        const data = (await res.json()) as VerifyOk | VerifyErr;
+
+        if (!res.ok) {
+          const msg =
+            "error" in data && typeof data.error === "string" ? data.error : "Invalid or expired verification link.";
+          setStatus("error");
+          setErrorMessage(msg);
+          return;
+        }
+
+        // Modern sometimes returns success:true even when token is expired/consumed (graceful case)
+        if ("success" in data && data.success) {
+          const redirectPath = data.redirectPath || "/dashboard";
+          setIsRedirecting(true);
+          router.push(redirectPath);
+          return;
+        }
+
+        // Fallback: treat as success but no redirect
+        setStatus("success");
+      } catch (e) {
+        setStatus("error");
+        setErrorMessage("An unexpected error occurred. Please try again.");
+      }
+    };
+
+    void run();
   }, [searchParams, router]);
 
   if (isRedirecting) {
@@ -161,9 +137,13 @@ export function VerifyEmailForm() {
             <p className="text-muted-foreground">{errorMessage}</p>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-8 space-y-3">
             <Button asChild className="w-full h-14 text-lg font-semibold">
               <Link href="/verify-email">Resend Verification Email</Link>
+            </Button>
+
+            <Button asChild variant="outline" className="w-full h-14 text-lg font-semibold">
+              <Link href="/login">Go to login</Link>
             </Button>
           </div>
         </div>
@@ -171,7 +151,7 @@ export function VerifyEmailForm() {
     );
   }
 
-  // Instructions state - show email sent message
+  // Instructions state (same as before)
   return (
     <div className="w-full">
       <div className="relative py-8 sm:py-10">
@@ -184,7 +164,7 @@ export function VerifyEmailForm() {
         <div className="text-center space-y-2 mb-6">
           <h1 className="text-3xl font-semibold tracking-tight">Check your email</h1>
           <p className="text-muted-foreground">
-            We've sent you a verification email. Please check your inbox and spam folder.
+            We&apos;ve sent you a verification email. Please check your inbox and spam folder.
           </p>
         </div>
 

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { getOrderById } from "@/firebase/admin/orders";
 import { UserOrderDetailCard } from "@/components/dashboard/user/orders/UserOrderDetailCard";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { Separator } from "@/components/ui/separator";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 
 export default async function UserOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,7 +14,13 @@ export default async function UserOrderDetailPage({ params }: { params: Promise<
 
     const { id } = await params;
 
-    const order = await getOrderById(id);
+    const result = await adminOrderService.getOrderById(id);
+
+    if (!result.success) return notFound();
+
+    const order = result.data;
+
+    // Not found if order doesn't exist OR doesn't belong to this user
     if (!order || order.userId !== session.user.id) return notFound();
 
     return (

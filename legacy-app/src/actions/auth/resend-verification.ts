@@ -15,7 +15,7 @@ const emailVerificationRequestSchema = z.object({
 });
 
 // Resend email verification
-export async function resendEmailVerification(formData: FormData) {
+export async function resendVerification(formData: FormData) {
   try {
     const email = formData.get("email") as string;
     const validatedFields = emailVerificationRequestSchema.safeParse({ email });
@@ -47,8 +47,8 @@ export async function resendEmailVerification(formData: FormData) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error resending verification email";
+        ? error.message
+        : "Unknown error resending verification email";
     console.error("Error resending verification email:", message);
     return { success: false, error: message };
   }

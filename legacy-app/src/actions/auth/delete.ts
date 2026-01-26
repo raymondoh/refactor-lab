@@ -62,14 +62,9 @@ export async function deleteUserAccount(userId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error deleting user account";
+        ? error.message
+        : "Unknown error deleting user account";
     console.error("Error deleting user account:", message);
     return { success: false, error: message };
   }
-}
-
-// Admin delete user function (alias for backward compatibility)
-export async function deleteUserAsAdmin(userId: string) {
-  return await deleteUserAccount(userId);
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserLikedProducts, likeProduct, unlikeProduct } from "@/firebase/admin/products";
+import { getUserLikedProducts, likeProduct, unlikeProduct } from "@/lib/services/like-service";
 
 export async function GET() {
   try {

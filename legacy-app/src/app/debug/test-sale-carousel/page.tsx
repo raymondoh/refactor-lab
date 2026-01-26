@@ -1,11 +1,11 @@
 import { ProductCarousel } from "@/components/shared/ProductCarousel";
-import { getOnSaleProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function TestSaleCarouselPage() {
-  const saleProducts = await getOnSaleProducts(10); // Get more to be sure
+  const saleProducts = await adminProductService.getOnSaleProducts(10); // Get more to be sure
   const fetchTime = new Date().toISOString();
 
   return (

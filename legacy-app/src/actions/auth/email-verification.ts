@@ -1,3 +1,4 @@
+// legacy-app/src/actions/auth/email-verification.ts
 "use server";
 
 // ================= Imports =================

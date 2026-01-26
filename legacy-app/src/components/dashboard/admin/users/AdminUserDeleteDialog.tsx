@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { SerializedUser } from "@/types/user";
 import { useSession } from "next-auth/react";
 import { SubmitButton } from "@/components/shared/SubmitButton";
-import { deleteUserAsAdmin } from "@/actions/auth/delete";
+import { deleteUserAccount } from "@/actions/user/admin";
 
 interface AdminUserDeleteDialogProps {
   user: SerializedUser;
@@ -31,7 +31,7 @@ export function AdminUserDeleteDialog({ user, open, onOpenChange, onSuccess }: A
       console.log("🧪 Attempting to delete user with UID:", user.id);
 
       // Updated: Pass only the userId string
-      const result = await deleteUserAsAdmin(user.id);
+      const result = await deleteUserAccount(user.id);
 
       if (result.success) {
         toast.success(`User ${user.name || user.email} deleted successfully.`);

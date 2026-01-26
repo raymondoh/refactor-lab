@@ -1,31 +1,28 @@
 "use server";
 
-import { createOrder as createOrderInDb } from "@/firebase/admin/orders";
-import { revalidatePath } from "next/cache";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import type { OrderData } from "@/types/order";
 
-// This action is now a simple pass-through. The auth() check has been removed.
-export async function createNewOrder(orderData: OrderData) {
-  console.log("🚀 createNewOrder called with:", JSON.stringify(orderData, null, 2));
-
+export async function createOrder(orderData: OrderData) {
   try {
-    const result = await createOrderInDb(orderData);
+    const result = await adminOrderService.createOrder(orderData);
 
-    if (result.success) {
-      // Revalidate paths to update user and admin order pages instantly
-      revalidatePath("/user/orders");
-      revalidatePath("/admin/orders");
+    if (!result.success) {
+      return { success: false as const, error: result.error };
     }
 
-    return result;
+    // Maintain legacy return shape: { success, orderId }
+    return { success: true as const, orderId: result.data.orderId };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
         : "Unknown error creating order";
-    return { success: false, error: message };
+    return { success: false as const, error: message };
   }
 }
 
+// Backward compat alias
+export { createOrder as createOrderInDb };

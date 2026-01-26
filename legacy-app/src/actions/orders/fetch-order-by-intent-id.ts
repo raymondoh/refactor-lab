@@ -1,18 +1,27 @@
 // src/actions/orders/fetch-order-by-payment-intent-id.ts
 "use server";
 
-import { getOrderByPaymentIntentId } from "@/firebase/admin/orders";
-import type { Order } from "@/types/order";
+import { adminOrderService } from "@/lib/services/admin-order-service";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 /**
  * Server Action to fetch an order by its Stripe Payment Intent ID.
  */
-export async function fetchOrderByPaymentIntentId(paymentIntentId: string): Promise<Order | null> {
+export async function fetchOrderByPaymentIntentId(paymentIntentId: string) {
   try {
-    const order = await getOrderByPaymentIntentId(paymentIntentId);
-    return order;
+    const result = await adminOrderService.getOrderByPaymentIntentId(paymentIntentId);
+
+    if (!result.success) {
+      return { success: false as const, error: result.error };
+    }
+
+    return { success: true as const, order: result.data };
   } catch (error) {
-    console.error("Failed to fetch order by payment intent ID in action:", error);
-    return null; // Or throw a more specific error, depending on desired client-side handling
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error fetching order by payment intent ID";
+    return { success: false as const, error: message };
   }
 }

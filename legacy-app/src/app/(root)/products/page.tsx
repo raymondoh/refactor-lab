@@ -7,7 +7,8 @@ import { ProductsGrid } from "@/components/products/ProductsGrid";
 import { ProductFilters } from "@/components/products/filters/ProductFilters";
 import { CategoryCardsWrapper } from "@/components/products/category-carousel/CategoryCardsWrapper";
 import { SubcategoryCardsWrapper } from "@/components/products/subcategory-carousel/SubcategoryCardsWrapper";
-import { getAllProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
+
 import { getCategories } from "@/firebase/admin/categories";
 import {
   type CategoryData,
@@ -185,7 +186,7 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
 
     // Fetch initial products
     // NEW: Pass the searchQuery to getAllProducts
-    const productsResult = await getAllProducts({
+    const productsResult = await adminProductService.getAllProducts({
       category: currentCategory,
       subcategory: currentSubcategory,
       query: searchQuery,

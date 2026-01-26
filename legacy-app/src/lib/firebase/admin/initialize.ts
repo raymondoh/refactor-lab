@@ -29,6 +29,7 @@ export function getAdminApp() {
   }
 
   // Initialize the app
+
   try {
     adminApp = initializeApp({
       credential: cert({

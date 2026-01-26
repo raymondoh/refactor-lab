@@ -1,6 +1,5 @@
-// src/app/api/products/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-import { getAllProducts, addProduct } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 import type { Product } from "@/types";
 import { logActivity } from "@/firebase/actions";
 
@@ -8,13 +7,11 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
-    // Helper to get boolean from search params
     const getBooleanParam = (param: string | null): boolean | undefined => {
       if (param === null) return undefined;
       return param === "true";
     };
 
-    // Helper to get array from comma-separated search params
     const getArrayParam = (param: string | null): string[] | undefined => {
       if (param === null) return undefined;
       return param
@@ -24,7 +21,6 @@ export async function GET(req: NextRequest) {
     };
 
     const filters: Product.ProductFilterOptions = {
-      // Existing filters
       category: searchParams.get("category") || undefined,
       subcategory: searchParams.get("subcategory") || undefined,
       material: searchParams.get("material") || undefined,
@@ -32,7 +28,6 @@ export async function GET(req: NextRequest) {
       isFeatured: getBooleanParam(searchParams.get("isFeatured")),
       stickySide: searchParams.get("stickySide") || undefined,
 
-      // Newly added filters from ProductFilterOptions
       designThemes: getArrayParam(searchParams.get("designThemes")),
       productType: searchParams.get("productType") || undefined,
       finish: searchParams.get("finish") || undefined,
@@ -44,18 +39,24 @@ export async function GET(req: NextRequest) {
       isNewArrival: getBooleanParam(searchParams.get("isNewArrival")),
       inStock: getBooleanParam(searchParams.get("inStock")),
       baseColor: searchParams.get("baseColor") || undefined,
-      query: searchParams.get("query") || undefined // NEW: Extract the 'query' parameter
+      query: searchParams.get("query") || undefined
     };
 
-    // Remove undefined keys to keep the filter object clean
+    // Remove undefined keys
     Object.keys(filters).forEach(key => {
       if (filters[key as keyof Product.ProductFilterOptions] === undefined) {
         delete filters[key as keyof Product.ProductFilterOptions];
       }
     });
 
-    const result = await getAllProducts(filters);
-    return NextResponse.json(result);
+    const result = await adminProductService.getAllProducts(filters);
+
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 500 });
+    }
+
+    // Maintain legacy API response shape: { success, data }
+    return NextResponse.json({ success: true, data: result.data }, { status: 200 });
   } catch (error) {
     console.error("Error in /api/products:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch products" }, { status: 500 });
@@ -64,7 +65,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -72,14 +72,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has permission (admin only for product creation)
     if (session.user.role !== "admin") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
     const data = await request.json();
 
-    // Check if we're getting a valid image URL
+    // Minimal safety (kept from original)
     if (!data.image || typeof data.image !== "string" || !data.image.startsWith("http")) {
       return NextResponse.json(
         {
@@ -91,13 +90,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await addProduct(data);
+    const result = await adminProductService.addProduct(data);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 400 });
     }
 
-    // Log activity if the logActivity function is available
+    // Log activity (best-effort)
     try {
       await logActivity({
         userId: session.user.id,
@@ -105,29 +104,34 @@ export async function POST(request: NextRequest) {
         description: `Created product: ${data.name}`,
         status: "success",
         metadata: {
-          productId: result.id,
+          productId: result.data.id,
           productName: data.name,
           price: data.price
         }
       });
     } catch (logError) {
       console.error("Failed to log activity:", logError);
-      // Continue execution even if logging fails
     }
 
-    return NextResponse.json(result);
+    // Maintain legacy response shape from old addProduct:
+    // { success: true, id, product }
+    return NextResponse.json({
+      success: true,
+      id: result.data.id,
+      product: result.data.product
+    });
   } catch (error) {
     console.error("[POST /api/products]", error);
-    let data;
 
+    // Safely attempt to read body for logging (clone)
+    let data: any;
     try {
-      data = await request.clone().json(); // Use clone() to avoid "body used already" error
-    } catch (parseError) {
-      console.error("Failed to parse request body:", parseError);
+      data = await request.clone().json();
+    } catch {
       data = { name: "Unknown" };
     }
 
-    // Log activity for failed product creation
+    // Log failed attempt (best-effort)
     try {
       const { auth } = await import("@/auth");
       const session = await auth();

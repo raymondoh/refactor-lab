@@ -1,4 +1,3 @@
-// types/user/admin.ts
 import type { User } from "./common";
 import type { ActionResponse } from "../common";
 import type { UserRole } from "./common";
@@ -19,13 +18,12 @@ export interface FetchUsersResponse extends ActionResponse {
   total?: number;
 }
 
-export interface UpdateUserResponse extends ActionResponse {}
+export interface FetchUserByIdResponse extends ActionResponse {
+  user?: User;
+}
 
-// Remove these unused types:
-// - SearchUsersResponse (for commented out searchUsers function)
-// - UpdateUserInput (not used anywhere)
-// - UpdateUserRoleInput (for commented out updateUserRole function)
-// - UpdateUserRoleResponse (for commented out updateUserRole function)
-// - UserSearchState (not used anywhere)
+export type UpdateUserResponse = ActionResponse;
 
-// Also remove the UserData interface at the bottom if it's not used elsewhere
+export type DeleteUserResponse = ActionResponse;
+
+export type DeleteUserAccountResponse = ActionResponse;
