@@ -2,7 +2,7 @@
 
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
 
 // Request account deletion
@@ -42,8 +42,8 @@ export async function requestAccountDeletion() {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error requesting account deletion";
+        ? error.message
+        : "Unknown error requesting account deletion";
     console.error("Error requesting account deletion:", message);
     return { success: false, error: message };
   }

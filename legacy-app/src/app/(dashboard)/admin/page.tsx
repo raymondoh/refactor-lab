@@ -1,4 +1,4 @@
-// src/app/(dashboard)/admin/page.tsx
+// legacy-app/src/app/(dashboard)/admin/page.tsx
 import type { Metadata } from "next";
 import { fetchAllActivityLogs } from "@/actions/dashboard";
 import { Separator } from "@/components/ui/separator";
@@ -11,10 +11,13 @@ import {
   AdminActivityPreview
 } from "@/components";
 import { redirect } from "next/navigation";
-import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { UserService } from "@/lib/services/user-service";
 import { serializeData } from "@/utils";
 import type { SerializedActivity } from "@/types/firebase";
+
+// ✅ Services
+import { adminUserService } from "@/lib/services/admin-user-service";
+import { adminActivityService } from "@/lib/services/admin-activity-service";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -37,15 +40,11 @@ export default async function AdminDashboardOverviewPage() {
       redirect("/not-authorized");
     }
 
-    // Fetch activity logs using the new action
+    // Fetch activity logs
     const result = await fetchAllActivityLogs(10);
-    console.log("[AdminDashboardOverviewPage] fetchActivityLogs result:", result);
-    // Highlight: Directly use result.logs, no more mapping needed
     const logs: SerializedActivity[] = result.success ? result.logs : [];
 
-    console.log("[AdminDashboardOverviewPage] Logs length:", logs.length);
-
-    // Fetch system stats for the admin dashboard
+    // System stats
     const systemStats = {
       totalUsers: 0,
       activeUsers: 0,
@@ -54,26 +53,24 @@ export default async function AdminDashboardOverviewPage() {
     };
 
     try {
-      const db = getAdminFirestore();
+      // ✅ Users stats via service
+      const stats = await adminUserService.getAdminUserStats();
+      if (!stats.success) {
+        console.error("Error fetching admin user stats:", stats.error);
+      } else {
+        const { totalUsers, activeUsers7d, newUsersToday } = stats.data;
+        systemStats.totalUsers = totalUsers;
+        systemStats.activeUsers = activeUsers7d;
+        systemStats.newUsersToday = newUsersToday;
+      }
 
-      const usersSnapshot = await db.collection("users").count().get();
-      systemStats.totalUsers = usersSnapshot.data().count;
+      // ✅ Activity count via service
+      const activityCountResult = await adminActivityService.countAll();
+      systemStats.totalActivities = activityCountResult.success ? activityCountResult.data.total : 0;
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const activeUsersSnapshot = await db.collection("users").where("lastLoginAt", ">=", sevenDaysAgo).count().get();
-      systemStats.activeUsers = activeUsersSnapshot.data().count;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const newUsersSnapshot = await db.collection("users").where("createdAt", ">=", today).count().get();
-      systemStats.newUsersToday = newUsersSnapshot.data().count;
-
-      const activitiesSnapshot = await db.collection("activity").count().get();
-      systemStats.totalActivities = activitiesSnapshot.data().count;
-      console.log("ACTIVITIES:", activitiesSnapshot.data().count);
+      if (!activityCountResult.success) {
+        console.error("Error fetching activity count:", activityCountResult.error);
+      }
     } catch (error) {
       console.error("Error fetching system stats:", error);
     }

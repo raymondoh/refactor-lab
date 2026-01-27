@@ -1,162 +1,56 @@
-// // src/app/api/ratings/route.ts
-
-// import { NextResponse } from "next/server";
-// import { FieldValue } from "firebase-admin/firestore"; // This import is correct for server-side FieldValue
-// import * as z from "zod";
-
-// // Define the schema for a new rating submission
-// const ratingSubmissionSchema = z.object({
-//   productId: z.string(),
-//   userId: z.string(),
-//   authorName: z.string().min(1, { message: "Author name is required." }),
-//   rating: z.number().int().min(1).max(5, { message: "Rating must be between 1 and 5." })
-// });
-
-// export async function POST(req: Request) {
-//   try {
-//     const body = await req.json();
-//     const validatedData = ratingSubmissionSchema.safeParse(body);
-
-//     if (!validatedData.success) {
-//       console.error("Rating submission validation error:", validatedData.error.errors);
-//       return NextResponse.json({ error: "Invalid rating data provided." }, { status: 400 });
-//     }
-
-//     const { productId, userId, authorName, rating } = validatedData.data;
-
-//     // --- CORRECTED FIREBASE ADMIN DB IMPORT ---
-//     const { adminDb } = await import("@/lib/firebase/admin/initialize"); // Dynamically import adminDb
-//     // --- END CORRECTED IMPORT ---
-
-//     const reviewsRef = getAdminFirestore().collection("reviews"); // Use adminDb
-//     const productsRef = getAdminFirestore().collection("products"); // Use adminDb
-//     const productDocRef = productsRef.doc(productId);
-
-//     await getAdminFirestore().runTransaction(async transaction => {
-//       // Use adminDb for transaction
-//       const productDoc = await transaction.get(productDocRef);
-
-//       if (!productDoc.exists) {
-//         throw new Error("Product not found.");
-//       }
-
-//       const productData = productDoc.data();
-//       const currentReviewCount = (productData?.reviewCount || 0) as number;
-//       const currentAverageRating = (productData?.averageRating || 0) as number;
-
-//       // 1. Add the new review document
-//       const newReviewDocRef = reviewsRef.doc();
-//       const newReview = {
-//         // No "Omit<Review, "id">" here as the type `Review` is not defined in your snippets. You'd need to define it.
-//         productId,
-//         userId,
-//         authorName,
-//         rating,
-//         reviewText: "",
-//         createdAt: FieldValue.serverTimestamp() // Use serverTimestamp() for consistency and atomic updates
-//       };
-//       transaction.set(newReviewDocRef, newReview);
-
-//       // 2. Calculate new average rating and total count
-//       const newTotalRatingSum = currentAverageRating * currentReviewCount + rating;
-//       const newReviewCount = currentReviewCount + 1;
-//       const newAverageRating = newTotalRatingSum / newReviewCount;
-
-//       // 3. Update the product document with new aggregated data
-//       transaction.update(productDocRef, {
-//         averageRating: newAverageRating,
-//         reviewCount: newReviewCount
-//       });
-//     });
-
-//     return NextResponse.json({ message: "Rating submitted successfully!" }, { status: 200 });
-//   } catch (error: any) {
-//     console.error("Failed to submit rating:", error);
-//     return NextResponse.json(
-//       { error: error.message || "An unexpected error occurred while submitting rating." },
-//       { status: 500 }
-//     );
-//   }
-// }
 // src/app/api/ratings/route.ts
-
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore"; // This import is correct for server-side FieldValue
-import * as z from "zod";
+import { z } from "zod";
 
-// Define the schema for a new rating submission
-const ratingSubmissionSchema = z.object({
-  productId: z.string(),
-  userId: z.string(),
-  authorName: z.string().min(1, { message: "Author name is required." }),
-  rating: z.number().int().min(1).max(5, { message: "Rating must be between 1 and 5." })
+import { adminRatingService } from "@/lib/services/admin-rating-service";
+import { auth } from "@/auth";
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" } as const;
+
+const submitRatingSchema = z.object({
+  productId: z.string().min(1),
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().optional(),
+  title: z.string().optional()
 });
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const validatedData = ratingSubmissionSchema.safeParse(body);
-
-    if (!validatedData.success) {
-      console.error("Rating submission validation error:", validatedData.error.errors);
-      return NextResponse.json({ error: "Invalid rating data provided." }, { status: 400 });
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
     }
 
-    const { productId, userId, authorName, rating } = validatedData.data;
+    const body = await req.json().catch(() => null);
+    const parsed = submitRatingSchema.safeParse(body);
 
-    // --- CORRECTED FIREBASE ADMIN DB IMPORT ---
-    // Replace this:
-    // const { adminDb } = await import("@/lib/firebase/admin/initialize"); // Dynamically import adminDb
-    // With this:
-    const { getAdminFirestore } = await import("@/lib/firebase/admin/initialize"); // Dynamically import getAdminFirestore
-    // --- END CORRECTED IMPORT ---
+    if (!parsed.success) {
+      const message = parsed.error.issues?.[0]?.message ?? "Invalid request";
+      return NextResponse.json({ success: false, error: message }, { status: 400, headers: NO_STORE_HEADERS });
+    }
 
-    const reviewsRef = getAdminFirestore().collection("reviews"); // Use getAdminFirestore()
-    const productsRef = getAdminFirestore().collection("products"); // Use getAdminFirestore()
-    const productDocRef = productsRef.doc(productId);
+    const { productId, rating, comment, title } = parsed.data;
 
-    await getAdminFirestore().runTransaction(async transaction => {
-      // Use getAdminFirestore()
-      const productDoc = await transaction.get(productDocRef);
-
-      if (!productDoc.exists) {
-        throw new Error("Product not found.");
-      }
-
-      const productData = productDoc.data();
-      const currentReviewCount = (productData?.reviewCount || 0) as number;
-      const currentAverageRating = (productData?.averageRating || 0) as number;
-
-      // 1. Add the new review document
-      const newReviewDocRef = reviewsRef.doc();
-      const newReview = {
-        productId,
-        userId,
-        authorName,
-        rating,
-        reviewText: "",
-        createdAt: FieldValue.serverTimestamp() // Use serverTimestamp() for consistency and atomic updates
-      };
-      transaction.set(newReviewDocRef, newReview);
-
-      // 2. Calculate new average rating and total count
-      const newTotalRatingSum = currentAverageRating * currentReviewCount + rating;
-      const newReviewCount = currentReviewCount + 1;
-      const newAverageRating = newTotalRatingSum / newReviewCount;
-
-      // 3. Update the product document with new aggregated data
-      transaction.update(productDocRef, {
-        averageRating: newAverageRating,
-        reviewCount: newReviewCount
-      });
+    const result = await adminRatingService.upsertReviewAndRecomputeProductAggregates({
+      productId,
+      userId: session.user.id,
+      rating,
+      comment,
+      title
     });
 
-    return NextResponse.json({ message: "Rating submitted successfully!" }, { status: 200 });
-  } catch (error: any) {
-    console.error("Failed to submit rating:", error);
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status ?? 500, headers: NO_STORE_HEADERS }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: result.data }, { headers: NO_STORE_HEADERS });
+  } catch {
     return NextResponse.json(
-      { error: error.message || "An unexpected error occurred while submitting rating." },
-      { status: 500 }
+      { success: false, error: "Failed to submit rating" },
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }

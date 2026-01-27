@@ -3,8 +3,6 @@ export const revalidate = 0;
 
 import { adminProductService } from "@/lib/services/admin-product-service";
 
-//import { getDesignThemes } from "@/firebase/admin/categories";
-
 export default async function HomepageDataDebugPage() {
   const fetchTime = new Date().toISOString();
 

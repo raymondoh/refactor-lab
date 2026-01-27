@@ -5,35 +5,46 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 import { CheckoutSuccess } from "./checkoutSuccess";
-import { fetchOrderByPaymentIntentId } from "@/actions/orders"; // Import the new action
-import type { Order } from "@/types/order"; // Import Order type
+import { fetchOrderByPaymentIntentId } from "@/actions/orders";
+import type { Order } from "@/types/order";
 
 export function CheckoutSuccessClient() {
   const searchParams = useSearchParams();
-  const paymentIntentId = searchParams.get("payment_intent_id"); // Get payment_intent_id
+  const paymentIntentId = searchParams.get("payment_intent_id");
+
   const { clearCart } = useCart();
+
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Clear cart once on mount
     clearCart();
 
     const fetchOrder = async () => {
-      if (paymentIntentId) {
-        try {
-          const fetchedOrder = await fetchOrderByPaymentIntentId(paymentIntentId);
-          setOrder(fetchedOrder);
-        } catch (error) {
-          console.error("Error fetching order details for success page:", error);
-          setOrder(null); // Ensure order is null on error
-        }
+      if (!paymentIntentId) {
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
+
+      try {
+        const result = await fetchOrderByPaymentIntentId(paymentIntentId);
+
+        if (!result.success) {
+          console.error("Failed to fetch order:", result.error);
+          setOrder(null);
+        } else {
+          setOrder(result.order ?? null);
+        }
+      } catch (error) {
+        console.error("Error fetching order details for success page:", error);
+        setOrder(null);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchOrder();
-  }, [clearCart, paymentIntentId]); // Include paymentIntentId in dependencies
+  }, [clearCart, paymentIntentId]);
 
   if (isLoading) {
     return (
@@ -46,6 +57,5 @@ export function CheckoutSuccessClient() {
     );
   }
 
-  // Pass the actual Firestore order.id to CheckoutSuccess for display
   return <CheckoutSuccess orderId={order?.id} />;
 }

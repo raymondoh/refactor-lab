@@ -2,7 +2,7 @@
 
 import { getAdminAuth } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 import { z } from "zod";
 
 // Schema for password reset request
@@ -69,8 +69,8 @@ export async function updatePassword(prevState: any, formData: FormData) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error updating password";
+        ? error.message
+        : "Unknown error updating password";
     console.error("Error updating password:", message);
     return { success: false, error: message };
   }

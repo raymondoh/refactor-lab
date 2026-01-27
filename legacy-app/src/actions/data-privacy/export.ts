@@ -3,7 +3,7 @@
 
 import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 import { adminOrderService } from "@/lib/services/admin-order-service";
 
 export async function exportUserData(prevState: any, formData: FormData) {

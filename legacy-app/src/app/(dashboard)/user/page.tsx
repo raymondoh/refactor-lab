@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { parseServerDate } from "@/utils/date-server";
 import type { User, SerializedUser } from "@/types/user";
 import { serializeUser } from "@/utils/serializeUser";
@@ -10,6 +9,7 @@ import { UserAccountPreview } from "@/components/dashboard/user/overview/UserAcc
 import { UserActivityPreview } from "@/components";
 import { Clock, UserIcon } from "lucide-react";
 import type { Firebase } from "@/types";
+import { userProfileService } from "@/lib/services/user-profile-service";
 
 // Helper function to convert ActivityLog to SerializedActivity
 function convertToSerializedActivity(log: any): Firebase.SerializedActivity {
@@ -21,13 +21,12 @@ function convertToSerializedActivity(log: any): Firebase.SerializedActivity {
     status: log.status,
     timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : log.timestamp,
     metadata: log.metadata || {},
-    name: log.description || log.type // Use description as name fallback
+    name: log.description || log.type
   };
 }
 
 export default async function UserDashboardOverviewPage() {
   try {
-    // Dynamic import for auth to avoid build-time issues
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -38,11 +37,13 @@ export default async function UserDashboardOverviewPage() {
     const userId = session.user.id;
     const sessionUser = session.user as User;
 
-    // Fetch activity logs using the corrected function
-    const result = await fetchUserActivityLogs(userId, 5);
-    const logs: Firebase.SerializedActivity[] = result.success ? result.logs.map(convertToSerializedActivity) : [];
+    // Activity logs
+    const activityResult = await fetchUserActivityLogs(userId, 5);
+    const logs: Firebase.SerializedActivity[] = activityResult.success
+      ? activityResult.logs.map(convertToSerializedActivity)
+      : [];
 
-    // Start with session values and fallback structure
+    // Start with session values as a fallback shape
     let userData: User = {
       id: userId,
       name: sessionUser.name ?? "",
@@ -57,28 +58,27 @@ export default async function UserDashboardOverviewPage() {
       updatedAt: new Date()
     };
 
-    try {
-      // Use the new Firebase admin initialization
-      const db = getAdminFirestore();
-      const doc = await db.collection("users").doc(userId).get();
+    // ✅ Replace Firestore doc fetch with service call
+    const profileResult = await userProfileService.getMyProfile();
 
-      if (doc.exists) {
-        const firestoreData = doc.data() as Partial<User>;
-
-        userData = {
-          ...userData,
-          ...firestoreData,
-          createdAt: parseServerDate(firestoreData.createdAt) ?? new Date(),
-          lastLoginAt: parseServerDate(firestoreData.lastLoginAt) ?? new Date(),
-          updatedAt: parseServerDate(firestoreData.updatedAt) ?? new Date(),
-          hasPassword: !!firestoreData.passwordHash || firestoreData.provider !== "google",
-          has2FA: firestoreData.has2FA ?? false
-        };
-      }
-    } catch (error) {
-      console.error("Error fetching Firestore user:", error);
-      // Continue with fallback session data
+    if (!profileResult.success) {
+      // If your service returns status codes, you can branch.
+      // For now, keep same behavior: unauth / not found => login
+      redirect("/login");
     }
+
+    // Expecting: { success: true, data: { user: ... } }
+    const serviceUser = profileResult.data.user as Partial<User>;
+
+    userData = {
+      ...userData,
+      ...serviceUser,
+      createdAt: parseServerDate(serviceUser.createdAt) ?? userData.createdAt,
+      lastLoginAt: parseServerDate(serviceUser.lastLoginAt) ?? userData.lastLoginAt,
+      updatedAt: parseServerDate(serviceUser.updatedAt) ?? userData.updatedAt,
+      hasPassword: !!(serviceUser as any).passwordHash || (serviceUser as any).provider !== "google",
+      has2FA: (serviceUser as any).has2FA ?? false
+    };
 
     const serializedUserData: SerializedUser = serializeUser(userData);
     const userName = serializedUserData.name || serializedUserData.email?.split("@")[0] || "User";
@@ -91,9 +91,7 @@ export default async function UserDashboardOverviewPage() {
           breadcrumbs={[{ label: "Home", href: "/" }, { label: "Dashboard" }]}
         />
 
-        {/* Updated layout with consistent width */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Account summary in a card */}
           <DashboardCard
             title="Account Summary"
             description="Your account information and status"
@@ -101,7 +99,6 @@ export default async function UserDashboardOverviewPage() {
             <UserAccountPreview serializedUserData={serializedUserData} isLoading={!serializedUserData} />
           </DashboardCard>
 
-          {/* Activity preview in a card */}
           <DashboardCard
             title="Recent Activity"
             description="Your latest account activities"
@@ -110,7 +107,7 @@ export default async function UserDashboardOverviewPage() {
               activities={logs}
               limit={5}
               showFilters={false}
-              showHeader={false} // We're using the card header instead
+              showHeader={false}
               showViewAll={true}
               viewAllUrl="/user/activity"
             />

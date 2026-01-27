@@ -1,4 +1,6 @@
+import { Product } from "@/types/product";
 import { render, screen, fireEvent } from "@testing-library/react";
+
 import { ProductCardButton } from "./ProductCardButton";
 import { useCart } from "@/contexts/CartContext";
 
@@ -8,12 +10,17 @@ const mockProduct = {
   name: "Test Product",
   price: 19.99,
   image: "test.jpg",
+  images: ["test.jpg"],
   category: "Test",
   description: "A product used for testing.",
-  stock: 10,
-  inStock: true, // ✅ add this
-  createdAt: new Date().toISOString() // ✅ or whatever your app expects
-} as const;
+  inStock: true,
+  onSale: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  averageRating: 0,
+  reviewCount: 0,
+  dimensions: "1in x 1in x 1in"
+} satisfies Product;
 
 // Mock useCart hook
 jest.mock("@/contexts/CartContext", () => ({

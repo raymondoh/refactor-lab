@@ -3,18 +3,19 @@
 // Canonical admin product service (Firestore + storage)
 // ===============================
 
-import { Timestamp } from "firebase-admin/firestore";
 import type { DocumentData } from "firebase-admin/firestore";
 
 import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 import type { Product, ProductFilterOptions } from "@/types/product";
+import type { User } from "@/types/user";
+
 import { serializeProduct, serializeProductArray } from "@/utils/serializeProduct";
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+export type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
 
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
   const data = doc.data() ?? {};
@@ -25,22 +26,22 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     details: data?.details || "",
     sku: data?.sku || "",
     barcode: data?.barcode || "",
-    category: data.category || "",
-    subcategory: data.subcategory || "",
-    designThemes: data.designThemes || [],
-    productType: data.productType || "",
-    tags: data.tags || [],
-    brand: data.brand || "",
+    category: data?.category || "",
+    subcategory: data?.subcategory || "",
+    designThemes: data?.designThemes || [],
+    productType: data?.productType || "",
+    tags: data?.tags || [],
+    brand: data?.brand || "",
     manufacturer: data?.manufacturer || "",
     dimensions: data?.dimensions || "",
     weight: data?.weight || "",
     shippingWeight: data?.shippingWeight || "",
     material: data?.material || "",
-    finish: data?.finish || undefined,
+    finish: data?.finish ?? undefined,
     color: data?.color || "",
     baseColor: data?.baseColor || "",
     colorDisplayName: data?.colorDisplayName || "",
-    stickySide: data?.stickySide || undefined,
+    stickySide: data?.stickySide ?? undefined,
     size: data?.size || "",
     image: data?.image || "/placeholder.svg",
     additionalImages: data?.additionalImages || [],
@@ -48,11 +49,11 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
       data?.images || (data?.image ? [data.image, ...(data?.additionalImages || [])] : data?.additionalImages || []),
     placements: data?.placements || [],
     price: data?.price || 0,
-    salePrice: data?.salePrice || undefined,
+    salePrice: data?.salePrice ?? undefined,
     onSale: data?.onSale || false,
-    costPrice: data?.costPrice || undefined,
-    stockQuantity: data?.stockQuantity || undefined,
-    lowStockThreshold: data?.lowStockThreshold || undefined,
+    costPrice: data?.costPrice ?? undefined,
+    stockQuantity: data?.stockQuantity ?? undefined,
+    lowStockThreshold: data?.lowStockThreshold ?? undefined,
     shippingClass: data?.shippingClass || "",
     inStock: data?.inStock ?? true,
     badge: data?.badge || "",
@@ -68,15 +69,42 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
   };
 }
 
-async function deleteProductImage(imageUrl: string): Promise<ServiceResponse<{}>> {
+async function requireAdmin(): Promise<ServiceResponse<{ userId: string }>> {
+  const { auth } = await import("@/auth");
+  const session = await auth();
+
+  if (!session?.user?.id) return { success: false, error: "Not authenticated", status: 401 };
+
+  const db = getAdminFirestore();
+  const adminDoc = await db.collection("users").doc(session.user.id).get();
+  const adminData = adminDoc.data() as Partial<User> | undefined;
+
+  if (!adminData || adminData.role !== "admin") {
+    return { success: false, error: "Unauthorized. Admin access required.", status: 403 };
+  }
+
+  return { success: true, data: { userId: session.user.id } };
+}
+
+function isHttpUrl(value: unknown): value is string {
+  return typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"));
+}
+
+async function deleteProductImage(imageUrl: string): Promise<ServiceResponse<Record<string, never>>> {
   try {
     const storage = getAdminStorage();
     const bucket = storage.bucket();
+
     const url = new URL(imageUrl);
     const fullPath = url.pathname.slice(1);
     const storagePath = fullPath.replace(`${bucket.name}/`, "");
 
-    await bucket.file(storagePath).delete();
+    // Best-effort: if missing file, treat as non-fatal
+    await bucket
+      .file(storagePath)
+      .delete()
+      .catch(() => undefined);
+
     return { success: true, data: {} };
   } catch (error) {
     const message = isFirebaseError(error)
@@ -88,30 +116,14 @@ async function deleteProductImage(imageUrl: string): Promise<ServiceResponse<{}>
 
 export const adminProductService = {
   // ===================
-  // GET ALL PRODUCTS
+  // GET ALL PRODUCTS (PUBLIC / SERVER)
   // ===================
-  async getAllProducts(filters?: {
-    category?: string;
-    subcategory?: string;
-    material?: string;
-    priceRange?: string;
-    isFeatured?: boolean;
-    isLiked?: boolean;
-    stickySide?: string;
-    brand?: string;
-    tags?: string[];
-    onSale?: boolean;
-    isNewArrival?: boolean;
-    isCustomizable?: boolean;
-    baseColor?: string;
-    productType?: string;
-    designThemes?: string[];
-    limit?: number;
-    query?: string;
-  }): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  async getAllProducts(
+    filters?: ProductFilterOptions & { limit?: number }
+  ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     // If any filters (including query) are provided, use getFilteredProducts
     if (filters && Object.keys(filters).some(key => key !== "limit")) {
-      const filtered = await adminProductService.getFilteredProducts(filters as ProductFilterOptions);
+      const filtered = await adminProductService.getFilteredProducts(filters);
       if (!filtered.success) return filtered;
       return { success: true, data: filtered.data };
     }
@@ -136,7 +148,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET FILTERED PRODUCTS
+  // GET FILTERED PRODUCTS (PUBLIC / SERVER)
   // ===================
   async getFilteredProducts(
     filters: ProductFilterOptions
@@ -216,9 +228,12 @@ export const adminProductService = {
   },
 
   // ===================
-  // ADD PRODUCT
+  // ADD PRODUCT (ADMIN)
   // ===================
-  async addProduct(data: any): Promise<ServiceResponse<{ id: string; product: any }>> {
+  async addProduct(data: unknown): Promise<ServiceResponse<{ id: string; product: unknown }>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const validationResult = productSchema.safeParse(data);
       if (!validationResult.success) {
@@ -264,7 +279,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET PRODUCT BY ID
+  // GET PRODUCT BY ID (PUBLIC / SERVER)
   // ===================
   async getProductById(id: string): Promise<ServiceResponse<{ product: ReturnType<typeof serializeProduct> }>> {
     try {
@@ -290,16 +305,18 @@ export const adminProductService = {
   },
 
   // ===================
-  // UPDATE PRODUCT
+  // UPDATE PRODUCT (ADMIN)
   // ===================
-  async updateProduct(id: string, data: any): Promise<ServiceResponse<{ id: string }>> {
+  async updateProduct(id: string, data: unknown): Promise<ServiceResponse<{ id: string }>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       if (!id) {
         return { success: false, error: "Product ID is required", status: 400 };
       }
 
       const validationResult = productUpdateSchema.safeParse(data);
-
       if (!validationResult.success) {
         const errorMessages = validationResult.error.errors
           .map(err => `${err.path.join(".")}: ${err.message}`)
@@ -309,10 +326,11 @@ export const adminProductService = {
 
       const validatedData = validationResult.data;
 
-      const updateData: Record<string, any> = {
-        ...validatedData,
-        updatedAt: new Date()
-      };
+      // allowlist remove-undefined
+      const updateData: Record<string, unknown> = { ...validatedData, updatedAt: new Date() };
+      Object.keys(updateData).forEach(k => {
+        if (updateData[k] === undefined) delete updateData[k];
+      });
 
       const db = getAdminFirestore();
       await db.collection("products").doc(id).update(updateData);
@@ -327,9 +345,12 @@ export const adminProductService = {
   },
 
   // ===================
-  // DELETE PRODUCT
+  // DELETE PRODUCT (ADMIN)
   // ===================
-  async deleteProduct(productId: string): Promise<ServiceResponse<{}>> {
+  async deleteProduct(productId: string): Promise<ServiceResponse<Record<string, never>>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const db = getAdminFirestore();
       const docRef = db.collection("products").doc(productId);
@@ -339,19 +360,22 @@ export const adminProductService = {
         return { success: false, error: "Product not found", status: 404 };
       }
 
-      const data = docSnap.data();
-      const imageUrl = data?.image;
-      const additionalImages = data?.additionalImages || [];
+      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
 
+      const imageUrl = data.image;
+      const additionalImages = Array.isArray(data.additionalImages) ? data.additionalImages : [];
+
+      // Delete the doc first
       await docRef.delete();
 
-      if (imageUrl) {
-        await deleteProductImage(imageUrl);
+      // Then cleanup storage (best effort)
+      const urls: string[] = [];
+      if (isHttpUrl(imageUrl)) urls.push(imageUrl);
+      for (const u of additionalImages) {
+        if (isHttpUrl(u)) urls.push(u);
       }
 
-      for (const imgUrl of additionalImages) {
-        await deleteProductImage(imgUrl);
-      }
+      await Promise.all(urls.map(u => deleteProductImage(u)));
 
       return { success: true, data: {} };
     } catch (error) {
@@ -363,7 +387,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET FEATURED PRODUCTS
+  // GET FEATURED PRODUCTS (PUBLIC / SERVER)
   // ===================
   async getFeaturedProducts(): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
@@ -380,7 +404,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET ON SALE PRODUCTS
+  // GET ON SALE PRODUCTS (PUBLIC / SERVER)
   // ===================
   async getOnSaleProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
@@ -411,7 +435,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET NEW ARRIVALS
+  // GET NEW ARRIVALS (PUBLIC / SERVER)
   // ===================
   async getNewArrivals(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
@@ -434,7 +458,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // GET RELATED PRODUCTS
+  // GET RELATED PRODUCTS (PUBLIC / SERVER)
   // ===================
   async getRelatedProducts(params: {
     productId: string;
@@ -497,32 +521,27 @@ export const adminProductService = {
       return { success: false, error: message, status: 500 };
     }
   },
+
   // ===================
-  // GET THEMED PRODUCTS
+  // GET THEMED PRODUCTS (PUBLIC / SERVER)
   // ===================
-  async getThemedProducts(limit = 6) {
+  async getThemedProducts(limit = 6): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
       const db = getAdminFirestore();
 
-      // Adjust this field name if yours differs:
-      // Common variants: "designThemes" (array), "theme", "tags"
+      // Keep Firestore query simple; filter in-memory for "has themes"
       const snapshot = await db
         .collection("products")
-        .where("designThemes", "!=", null)
-        .orderBy("designThemes")
         .orderBy("createdAt", "desc")
-        .limit(limit)
+        .limit(limit * 4)
         .get();
 
-      const products = snapshot.docs.map(doc => {
-        const data = doc.data() as any;
-        return {
-          id: doc.id,
-          ...data
-        };
-      });
+      const products = snapshot.docs
+        .map(mapDocToProduct)
+        .filter(p => Array.isArray(p.designThemes) && p.designThemes.length > 0)
+        .slice(0, limit);
 
-      return { success: true as const, data: serializeProductArray(products) };
+      return { success: true, data: serializeProductArray(products) };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
@@ -530,7 +549,7 @@ export const adminProductService = {
           ? error.message
           : "Unknown error fetching themed products";
 
-      return { success: false as const, error: message };
+      return { success: false, error: message, status: 500 };
     }
   }
 };

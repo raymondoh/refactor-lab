@@ -2,7 +2,7 @@
 
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 
 // Delete user account
 export async function deleteUserAccount(userId: string) {

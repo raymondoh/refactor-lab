@@ -9,7 +9,9 @@ import { CategoryCardsWrapper } from "@/components/products/category-carousel/Ca
 import { SubcategoryCardsWrapper } from "@/components/products/subcategory-carousel/SubcategoryCardsWrapper";
 import { adminProductService } from "@/lib/services/admin-product-service";
 
-import { getCategories } from "@/firebase/admin/categories";
+// ✅ NEW: service-layer categories
+import { adminCategoryService } from "@/lib/services/admin-category-service";
+
 import {
   type CategoryData,
   categoriesToData as convertCategoryNamesToData,
@@ -38,7 +40,7 @@ export const metadata: Metadata = {
     url: `${siteConfig.url}/products`,
     images: [
       {
-        url: "/og-products.jpg", // You'll want to create this image
+        url: "/og-products.jpg",
         width: 1200,
         height: 630,
         alt: "MotoStix Products Collection"
@@ -57,18 +59,15 @@ export const metadata: Metadata = {
   }
 };
 
-// Define the correct type for Next.js App Router searchParams
 type SearchParams = Promise<{
   [key: string]: string | string[] | undefined;
 }>;
 
-// Update the page props interface to match Next.js 15 conventions
 interface ProductsPageProps {
   params: Promise<{ slug?: string }>;
   searchParams: SearchParams;
 }
 
-// Type guard to check if an item is a CategoryData object
 function isCategoryData(item: unknown): item is CategoryData {
   return (
     typeof item === "object" &&
@@ -80,57 +79,39 @@ function isCategoryData(item: unknown): item is CategoryData {
   );
 }
 
-// Type guard to check if an item is a category name string
 function isCategoryName(item: unknown): item is CategoryNameType {
   return typeof item === "string" && ["Cars", "Motorbikes", "Bicycles", "EVs", "Other"].includes(item as string);
 }
 
-// Helper function to safely process categories data
 function processCategoriesData(data: unknown[]): CategoryData[] {
-  if (data.length === 0) {
-    return [];
-  }
+  if (data.length === 0) return [];
 
-  // Check if all items are CategoryData objects
   const allAreCategoryData = data.every(isCategoryData);
-  if (allAreCategoryData) {
-    return data as CategoryData[];
-  }
+  if (allAreCategoryData) return data as CategoryData[];
 
-  // Check if all items are category name strings
   const allAreCategoryNames = data.every(isCategoryName);
-  if (allAreCategoryNames) {
-    return convertCategoryNamesToData(data as CategoryNameType[]);
-  }
+  if (allAreCategoryNames) return convertCategoryNamesToData(data as CategoryNameType[]);
 
-  // Handle mixed array - filter and process separately
   const categoryDataItems = data.filter(isCategoryData);
   const categoryNameItems = data.filter(isCategoryName);
 
-  if (categoryDataItems.length > 0 && categoryNameItems.length === 0) {
-    // Only CategoryData items found
-    return categoryDataItems;
-  } else if (categoryDataItems.length === 0 && categoryNameItems.length > 0) {
-    // Only category name strings found
+  if (categoryDataItems.length > 0 && categoryNameItems.length === 0) return categoryDataItems;
+  if (categoryDataItems.length === 0 && categoryNameItems.length > 0)
     return convertCategoryNamesToData(categoryNameItems);
-  } else if (categoryDataItems.length > 0 && categoryNameItems.length > 0) {
-    // Mixed types - prefer CategoryData objects, but convert names too
+
+  if (categoryDataItems.length > 0 && categoryNameItems.length > 0) {
     console.warn("Mixed category types found, combining both types");
     const convertedNames = convertCategoryNamesToData(categoryNameItems);
     return [...categoryDataItems, ...convertedNames];
-  } else {
-    // No valid items found
-    console.warn("No valid category items found in data:", data);
-    return [];
   }
+
+  return [];
 }
 
 const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
   try {
-    // Await searchParams before accessing properties (Next.js 15 requirement)
     const resolvedSearchParams = await searchParams;
 
-    // Extract and normalize category and subcategory from searchParams
     const currentCategory =
       typeof resolvedSearchParams?.category === "string" ? resolvedSearchParams.category.toLowerCase() : undefined;
 
@@ -139,10 +120,8 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
         ? resolvedSearchParams.subcategory.toLowerCase()
         : undefined;
 
-    // NEW: Extract the 'q' (search query) parameter
     const searchQuery = typeof resolvedSearchParams?.q === "string" ? resolvedSearchParams.q : undefined;
 
-    // Extract additional filter parameters
     const parseBoolean = (value: string | string[] | undefined): boolean | undefined => {
       if (typeof value === "string") return value === "true";
       if (Array.isArray(value)) return value[0] === "true";
@@ -169,23 +148,6 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
     const onSale = parseBoolean(resolvedSearchParams?.onSale);
     const isCustomizable = parseBoolean(resolvedSearchParams?.isCustomizable);
 
-    console.log(
-      "ProductsPage - Render. currentCategory from URL:",
-      currentCategory,
-      "currentSubcategory from URL:",
-      currentSubcategory,
-      "searchQuery from URL:",
-      searchQuery,
-      "designThemes from URL:",
-      designThemes,
-      "onSale from URL:",
-      onSale,
-      "isCustomizable from URL:",
-      isCustomizable
-    );
-
-    // Fetch initial products
-    // NEW: Pass the searchQuery to getAllProducts
     const productsResult = await adminProductService.getAllProducts({
       category: currentCategory,
       subcategory: currentSubcategory,
@@ -197,38 +159,31 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
 
     const initialProducts = productsResult.success ? productsResult.data || [] : [];
 
-    if (!productsResult.success) {
-      console.error("ProductsPage - Error fetching initial products:", productsResult.error);
-    }
-
-    console.log("ProductsPage - initialProducts count after getAllProducts:", initialProducts.length);
-
     if (initialProducts.length === 0 && (currentCategory || currentSubcategory || searchQuery)) {
       console.warn("ProductsPage - WARNING: getAllProducts returned no items for the selected criteria:", {
         category: currentCategory,
         subcategory: currentSubcategory,
-        query: searchQuery // NEW: Include query in warning
+        query: searchQuery
       });
     }
 
-    // Fetch and process categories with improved type handling
+    // ✅ UPDATED: Fetch and process categories from adminCategoryService
     let categoriesToShow: CategoryData[] = [];
 
     try {
-      const categoriesResult = await getCategories();
+      const res = await adminCategoryService.getCategories();
 
-      if (categoriesResult?.success && categoriesResult.data) {
-        const data = categoriesResult.data;
+      if (!res.success) {
+        console.error("ProductsPage - Error fetching categories:", res.error);
+        categoriesToShow = [];
+      } else {
+        const raw = res.data.categories;
 
-        if (Array.isArray(data)) {
-          categoriesToShow = processCategoriesData(data);
+        if (Array.isArray(raw)) {
+          categoriesToShow = processCategoriesData(raw as unknown[]);
         } else {
-          console.warn("ProductsPage - getCategories data is not an array:", data);
           categoriesToShow = [];
         }
-      } else {
-        console.error("ProductsPage - Error from getCategories:", categoriesResult?.error || "Unknown error");
-        categoriesToShow = [];
       }
     } catch (error) {
       console.error("ProductsPage - Exception fetching/processing categories:", error);
@@ -240,8 +195,7 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
         initialProducts={initialProducts}
         currentCategory={currentCategory}
         currentSubcategory={currentSubcategory}
-        searchQuery={searchQuery} // NEW: Pass the search query to ProductsProvider
-      >
+        searchQuery={searchQuery}>
         <main className="min-h-screen">
           <section className="py-16 w-full bg-background">
             <div className="container mx-auto px-4">
@@ -271,7 +225,6 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
   } catch (error) {
     console.error("ProductsPage - Unhandled exception:", error);
 
-    // Return a minimal error UI
     return (
       <main className="min-h-screen">
         <section className="py-16 w-full bg-background">

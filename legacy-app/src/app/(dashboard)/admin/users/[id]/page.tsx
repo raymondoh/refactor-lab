@@ -1,9 +1,10 @@
 import { DashboardShell, DashboardHeader } from "@/components";
 import { Separator } from "@/components/ui/separator";
 import { redirect } from "next/navigation";
-import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { AdminUserTabs } from "@/components/dashboard/admin/users/AdminUserTabs";
-import { serializeUser } from "@/utils/serializeUser";
+
+// ✅ NEW
+import { adminUserService } from "@/lib/services/admin-user-service";
 
 export default async function AdminUserTabsPage({ params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,37 +20,26 @@ export default async function AdminUserTabsPage({ params }: { params: Promise<{ 
       redirect("/login");
     }
 
-    // 2) Check current user is an admin
-    const currentUserId = session.user.id;
-    let isAdmin = false;
-    try {
-      const currentUserDoc = await getAdminFirestore().collection("users").doc(currentUserId).get();
-      if (currentUserDoc.exists && currentUserDoc.data()?.role === "admin") {
-        isAdmin = true;
-      }
-      if (!isAdmin) {
-        redirect("/not-authorized");
-      }
-    } catch (err) {
-      console.error("Error checking admin status:", err);
-      redirect("/not-authorized");
-    }
+    // 2) Fetch the target user (service is admin-gated)
+    const userResult = await adminUserService.getUserById(userId);
 
-    // 3) Fetch the target user
-    const userDoc = await getAdminFirestore().collection("users").doc(userId).get();
-    if (!userDoc.exists) {
+    if (!userResult.success) {
+      // Handle unauthorized / not found (service should provide status)
+      if (userResult.status === 401) redirect("/login");
+      if (userResult.status === 403) redirect("/not-authorized");
+
+      // Not found or other errors: go back to users list
       redirect("/admin/users");
     }
 
-    const rawData = { id: userDoc.id, ...(userDoc.data() || {}) };
-    const serializedUser = serializeUser(rawData);
+    const user = userResult.data.user;
 
-    // 4) Render the dashboard shell + tabs
+    // 3) Render the dashboard shell + tabs
     return (
       <DashboardShell>
         <DashboardHeader
           title="User Details"
-          description={`View and manage details for ${serializedUser.name || serializedUser.email || "user"}.`}
+          description={`View and manage details for ${user.name || user.email || "user"}.`}
           breadcrumbs={[
             { label: "Home", href: "/" },
             { label: "Admin", href: "/admin" },
@@ -60,7 +50,7 @@ export default async function AdminUserTabsPage({ params }: { params: Promise<{ 
         <Separator className="mb-8" />
 
         <div className="w-full max-w-full overflow-hidden">
-          <AdminUserTabs user={serializedUser} />
+          <AdminUserTabs user={user} />
         </div>
       </DashboardShell>
     );

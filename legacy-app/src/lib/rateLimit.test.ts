@@ -1,11 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 
-const incrMock = jest.fn();
-const expireMock = jest.fn();
-const pexpireMock = jest.fn();
-const pttlMock = jest.fn();
+// Use a single function type argument instead of two
+const incrMock = jest.fn<(...args: any[]) => Promise<number>>();
+const expireMock = jest.fn<(...args: any[]) => Promise<number>>();
+const pexpireMock = jest.fn<(...args: any[]) => Promise<number>>();
+const pttlMock = jest.fn<(...args: any[]) => Promise<number>>();
 
-jest.mock('@upstash/redis', () => ({
+jest.mock("@upstash/redis", () => ({
   Redis: jest.fn().mockImplementation(() => ({
     incr: incrMock,
     expire: expireMock,
@@ -14,15 +15,15 @@ jest.mock('@upstash/redis', () => ({
   }))
 }));
 
-describe('rateLimit', () => {
+describe("rateLimit", () => {
   const OLD_ENV = process.env;
 
   beforeEach(() => {
     jest.resetModules();
     process.env = {
       ...OLD_ENV,
-      UPSTASH_REDIS_REST_URL: 'url',
-      UPSTASH_REDIS_REST_TOKEN: 'token'
+      UPSTASH_REDIS_REST_URL: "url",
+      UPSTASH_REDIS_REST_TOKEN: "token"
     };
     incrMock.mockReset();
     expireMock.mockReset();
@@ -34,12 +35,12 @@ describe('rateLimit', () => {
     process.env = OLD_ENV;
   });
 
-  it('allows requests under the limit', async () => {
+  it("allows requests under the limit", async () => {
     incrMock.mockResolvedValue(1);
     pttlMock.mockResolvedValue(1000);
 
-    const { rateLimit } = await import('./rateLimit');
-    const result = await rateLimit('user');
+    const { rateLimit } = await import("./rateLimit");
+    const result = await rateLimit("user");
 
     expect(result.success).toBe(true);
     expect(result.remaining).toBe(4);
@@ -47,12 +48,12 @@ describe('rateLimit', () => {
     expect(expireMock).toHaveBeenCalled();
   });
 
-  it('blocks requests over the limit', async () => {
+  it("blocks requests over the limit", async () => {
     incrMock.mockResolvedValue(6);
     pttlMock.mockResolvedValue(500);
 
-    const { rateLimit } = await import('./rateLimit');
-    const result = await rateLimit('user');
+    const { rateLimit } = await import("./rateLimit");
+    const result = await rateLimit("user");
 
     expect(result.success).toBe(false);
     expect(result.remaining).toBe(0);

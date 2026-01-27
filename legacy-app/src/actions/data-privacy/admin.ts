@@ -2,7 +2,7 @@
 
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
 
 // Get deletion requests
@@ -38,8 +38,8 @@ export async function getDeletionRequests() {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error getting deletion requests";
+        ? error.message
+        : "Unknown error getting deletion requests";
     console.error("Error getting deletion requests:", message);
     return { success: false, error: message };
   }
@@ -106,8 +106,8 @@ export async function processDeletionRequest(userId: string, action: "approve" |
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error processing deletion request";
+        ? error.message
+        : "Unknown error processing deletion request";
     console.error("Error processing deletion request:", message);
     return { success: false, error: message };
   }

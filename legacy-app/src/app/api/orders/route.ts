@@ -1,3 +1,4 @@
+// src/app/api/orders/route.ts
 import { NextResponse } from "next/server";
 import { fetchUserOrders } from "@/actions/orders";
 import { auth } from "@/auth";
@@ -7,22 +8,18 @@ export async function GET() {
   try {
     const session = await auth();
 
-    // It's still good practice to ensure there's a session before calling the action
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // --- THIS IS THE FIX ---
-    // Call fetchUserOrders without any arguments.
-    // The action itself will get the user ID from the session.
-    const { success, orders, error } = await fetchUserOrders();
+    // ✅ pass userId and use `data` (not `orders`)
+    const result = await fetchUserOrders(session.user.id);
 
-    if (!success) {
-      return NextResponse.json({ success: false, error }, { status: 500 });
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 500 });
     }
 
-    // Return the orders as JSON
-    return NextResponse.json({ success: true, orders });
+    return NextResponse.json({ success: true, orders: result.data });
   } catch (error) {
     logger({
       type: "error",

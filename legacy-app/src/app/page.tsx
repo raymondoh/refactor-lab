@@ -10,8 +10,6 @@ import { ProductCarousel } from "@/components/shared/ProductCarousel";
 
 import { adminProductService } from "@/lib/services/admin-product-service";
 
-//import { getDesignThemes } from "@/firebase/admin/categories";
-
 // Force dynamic rendering to get fresh data
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

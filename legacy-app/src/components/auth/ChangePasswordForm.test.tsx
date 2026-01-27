@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ChangePasswordForm } from "../auth/ChangePasswordForm";
 
 // Polyfill global Request for next/cache
-global.Request = class {};
+global.Request = Request as any;
 
 // Mock server-related modules
 jest.mock("firebase-admin/app", () => ({

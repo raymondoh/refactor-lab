@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 // Polyfill global Request for next/cache
-global.Request = class {};
+global.Request = Request as any;
 
 // Mock server-related modules
 jest.mock("firebase-admin/app", () => ({
