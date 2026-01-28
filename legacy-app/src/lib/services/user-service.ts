@@ -4,8 +4,7 @@ import type { User, UserRole } from "@/types/user";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { getUserImage } from "@/utils/get-user-image";
 
-// Types for service responses
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 // User service class
 export class UserService {

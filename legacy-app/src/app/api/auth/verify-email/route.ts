@@ -1,8 +1,9 @@
+// legacy-app/src/app/api/auth/verify-email/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { tokenService } from "@/lib/auth/tokens";
-import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { updateEmailVerificationStatus } from "@/actions/auth/email-verification";
 
 export const dynamic = "force-dynamic";
@@ -63,20 +64,22 @@ export async function POST(request: NextRequest) {
 
     const email = tokenResult.email;
 
-    // Mark Firebase Auth emailVerified + sync Firestore
-    const auth = getAdminAuth();
-    const userRecord = await auth.getUserByEmail(email);
-
-    if (!userRecord.emailVerified) {
-      await auth.updateUser(userRecord.uid, { emailVerified: true });
+    // ✅ Service-driven user lookup
+    const userRes = await adminAuthService.getUserByEmail(email);
+    if (!userRes.success) {
+      return NextResponse.json({ error: "Invalid verification token." }, { status: 400, headers: NO_STORE_HEADERS });
     }
 
-    await updateEmailVerificationStatus({ userId: userRecord.uid, verified: true });
+    const userId = userRes.data.uid;
 
-    // Load user doc to match modern’s redirect logic
-    const db = getAdminFirestore();
-    const userDoc = await db.collection("users").doc(userRecord.uid).get();
-    const user = userDoc.exists ? (userDoc.data() as any) : null;
+    // ✅ Mark Auth + Firestore emailVerified (service-driven)
+    const verifyRes = await adminAuthService.markEmailVerified(userId);
+    if (!verifyRes.success) {
+      return NextResponse.json({ error: verifyRes.error }, { status: 500, headers: NO_STORE_HEADERS });
+    }
+
+    // ✅ Keep your existing logging/updates (now service-driven internally)
+    await updateEmailVerificationStatus({ userId, verified: true });
 
     const redirectPath = "/dashboard";
 

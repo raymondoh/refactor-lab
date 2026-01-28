@@ -1,6 +1,8 @@
+// src/actions/data-privacy/admin.ts
 "use server";
 
-import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
+import { adminUserService } from "@/lib/services/admin-user-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
@@ -8,7 +10,6 @@ import { revalidatePath } from "next/cache";
 // Get deletion requests
 export async function getDeletionRequests() {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -16,24 +17,26 @@ export async function getDeletionRequests() {
       return { success: false, error: "Not authenticated" };
     }
 
-    // Check if user is admin
-    const db = getAdminFirestore();
-    const userDoc = await db.collection("users").doc(session.user.id).get();
-    const userData = userDoc.data();
-
-    if (!userData || userData.role !== "admin") {
+    // ✅ Admin check via service
+    // NOTE: assumes adminUserService.getUserById exists. If yours is named differently, tell me the method name.
+    const adminRes = await adminUserService.getUserById(session.user.id);
+    if (!adminRes.success || !adminRes.data) {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
-    // Get all users with deletion requests
-    const snapshot = await db.collection("users").where("deletionRequested", "==", true).get();
+    const adminUser = adminRes.data as any;
+    if (adminUser.role !== "admin") {
+      return { success: false, error: "Unauthorized. Admin access required." };
+    }
 
-    const requests = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // ✅ List requests via data-privacy service
+    const listRes = await adminDataPrivacyService.listDeletionRequests();
+    if (!listRes.success) {
+      return { success: false, error: listRes.error };
+    }
 
-    return { success: true, requests };
+    // Keep response shape similar to your original `requests`
+    return { success: true, requests: listRes.data.users };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
@@ -48,7 +51,6 @@ export async function getDeletionRequests() {
 // Process deletion request (admin)
 export async function processDeletionRequest(userId: string, action: "approve" | "reject") {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -56,23 +58,22 @@ export async function processDeletionRequest(userId: string, action: "approve" |
       return { success: false, error: "Not authenticated" };
     }
 
-    // Check if user is admin
-    const db = getAdminFirestore();
-    const adminDoc = await db.collection("users").doc(session.user.id).get();
-    const adminData = adminDoc.data();
+    // ✅ Admin check via service
+    const adminRes = await adminUserService.getUserById(session.user.id);
+    if (!adminRes.success || !adminRes.data) {
+      return { success: false, error: "Unauthorized. Admin access required." };
+    }
 
-    if (!adminData || adminData.role !== "admin") {
+    const adminUser = adminRes.data as any;
+    if (adminUser.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
     if (action === "approve") {
-      // Import the deletion function - use the correct function name from the file
       const { deleteUserAccount } = await import("@/actions/auth/delete");
       const result = await deleteUserAccount(userId);
 
-      if (!result.success) {
-        return result;
-      }
+      if (!result.success) return result;
 
       await logActivity({
         userId: session.user.id,
@@ -82,13 +83,17 @@ export async function processDeletionRequest(userId: string, action: "approve" |
         metadata: { targetUserId: userId }
       });
     } else {
-      // Reject the deletion request
-      await db.collection("users").doc(userId).update({
+      // ✅ Reject deletion via service (no direct Firestore here)
+      const rejectRes = await adminUserService.patchUser(userId, {
         deletionRequested: false,
         deletionRequestedAt: null,
         deletionRejectedAt: new Date(),
         deletionRejectedBy: session.user.id
       });
+
+      if (!rejectRes.success) {
+        return { success: false, error: rejectRes.error };
+      }
 
       await logActivity({
         userId: session.user.id,
@@ -100,7 +105,6 @@ export async function processDeletionRequest(userId: string, action: "approve" |
     }
 
     revalidatePath("/admin/users");
-
     return { success: true };
   } catch (error) {
     const message = isFirebaseError(error)

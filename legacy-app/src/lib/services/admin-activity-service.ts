@@ -3,7 +3,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 export interface ActivityLog {
   id: string;

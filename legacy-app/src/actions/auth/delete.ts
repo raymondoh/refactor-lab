@@ -1,16 +1,14 @@
+// src/actions/auth/delete.ts
 "use server";
 
-import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
+import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 
 // Delete user account
 export async function deleteUserAccount(userId: string) {
   try {
-    const auth = getAdminAuth();
-    const db = getAdminFirestore();
-    const storage = getAdminStorage();
-
     // Log the deletion request
     await logActivity({
       userId,
@@ -19,34 +17,21 @@ export async function deleteUserAccount(userId: string) {
       status: "info"
     });
 
-    // Get user data for cleanup
-    const userDoc = await db.collection("users").doc(userId).get();
-    const userData = userDoc.data();
-
-    // Delete user's profile image if exists
-    if (userData?.picture) {
-      try {
-        const bucket = storage.bucket();
-        const url = new URL(userData.picture);
-        const fullPath = url.pathname.slice(1);
-        const storagePath = fullPath.replace(`${bucket.name}/`, "");
-        await bucket.file(storagePath).delete();
-      } catch (imageError) {
-        console.error("Error deleting profile image:", imageError);
-      }
+    // Delete likes + profile image (non-fatal image delete handled inside service)
+    const cleanupRes = await adminDataPrivacyService.deleteUserLikesAndProfileImage(userId);
+    if (!cleanupRes.success) {
+      return { success: false, error: cleanupRes.error };
     }
 
-    // Delete user's data from Firestore
-    // 1. Delete likes
-    const likesSnapshot = await db.collection("users").doc(userId).collection("likes").get();
-    const likesDeletePromises = likesSnapshot.docs.map(doc => doc.ref.delete());
-    await Promise.all(likesDeletePromises);
+    // Optional: delete storage folder if you store user assets under a prefix
+    // Change prefix to match your real storage layout, or remove if not used.
+    await adminDataPrivacyService.deleteUserStorageFolder(`users/${userId}/`).catch(() => {});
 
-    // 2. Delete user document
-    await db.collection("users").doc(userId).delete();
-
-    // 3. Delete user from Firebase Auth
-    await auth.deleteUser(userId);
+    // Delete user doc + auth user
+    const delRes = await adminAuthService.deleteUserAuthAndDoc(userId);
+    if (!delRes.success) {
+      return { success: false, error: delRes.error };
+    }
 
     // Log successful deletion
     await logActivity({

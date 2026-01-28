@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 export type UpsertReviewInput = {
   productId: string;

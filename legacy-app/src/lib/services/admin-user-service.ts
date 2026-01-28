@@ -9,11 +9,7 @@ import { serializeUser } from "@/utils/serializeUser";
 import type { User } from "@/types/user";
 import type { SerializedUser } from "@/types/user/common";
 import type { UserRole } from "@/types/user";
-
-/**
- * Standard service response shape
- */
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 /**
  * Admin gate – ensures the caller is authenticated AND an admin
@@ -89,23 +85,19 @@ export const adminUserService = {
 
       const users = usersSnap.docs.map(mapDocToSerializedUser);
 
-      return {
-        success: true,
-        data: { users, total }
-      };
+      return { success: true, data: { users, total } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
           : "Unknown error fetching users";
-
       return { success: false, error: message, status: 500 };
     }
   },
 
   /**
-   * Fetch a single user by id (admin only)
+   * Fetch a single user by id (admin only) – serialized shape for UI
    * Matches actions/admin.ts: result.data.user
    */
   async getUserById(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
@@ -118,9 +110,7 @@ export const adminUserService = {
       const db = getAdminFirestore();
       const snap = await db.collection("users").doc(userId).get();
 
-      if (!snap.exists) {
-        return { success: false, error: "User not found", status: 404 };
-      }
+      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
 
       const user = mapDocToSerializedUser(snap);
       return { success: true, data: { user } };
@@ -130,7 +120,32 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error fetching user";
+      return { success: false, error: message, status: 500 };
+    }
+  },
 
+  /**
+   * ✅ Missing method from your snippet (raw doc shape)
+   * Use this when you explicitly want Firestore data without serializeUser()
+   *
+   * NOTE: renamed to avoid name collision with getUserById() above.
+   */
+  async getUserRawById(userId: string): Promise<ServiceResponse<any | null>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
+    if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
+    try {
+      const db = getAdminFirestore();
+      const doc = await db.collection("users").doc(userId).get();
+      return { success: true, data: doc.exists ? { id: doc.id, ...(doc.data() as any) } : null };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching user";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -155,7 +170,6 @@ export const adminUserService = {
       const snap = await ref.get();
       if (!snap.exists) return { success: false, error: "User not found", status: 404 };
 
-      // Allowlist fields only, remove undefined
       const update: Record<string, unknown> = {
         ...(userData.name !== undefined ? { name: userData.name } : {}),
         ...(userData.role !== undefined ? { role: userData.role } : {}),
@@ -163,7 +177,6 @@ export const adminUserService = {
       };
 
       await ref.update(update);
-
       return { success: true, data: { id: userId } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
@@ -171,7 +184,6 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error updating user";
-
       return { success: false, error: message, status: 500 };
     }
   },
@@ -201,7 +213,6 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error deleting user doc";
-
       return { success: false, error: message, status: 500 };
     }
   },
@@ -220,24 +231,14 @@ export const adminUserService = {
       const db = getAdminFirestore();
       const userRef = db.collection("users").doc(userId);
 
-      // Best effort: doc may or may not exist.
       const docSnap = await userRef.get();
 
-      // Delete Auth user
       const { getAdminAuth } = await import("@/lib/firebase/admin/initialize");
       const adminAuth = getAdminAuth();
 
-      // If the Auth user doesn't exist, Firebase throws — treat that as non-fatal and continue doc deletion.
-      await adminAuth.deleteUser(userId).catch(err => {
-        // If it's a Firebase error, surface it; otherwise keep going only if doc exists
-        // (safer to fail loud rather than silently ignoring real issues)
-        throw err;
-      });
+      await adminAuth.deleteUser(userId);
 
-      // Delete Firestore doc if present
-      if (docSnap.exists) {
-        await userRef.delete();
-      }
+      if (docSnap.exists) await userRef.delete();
 
       return { success: true, data: {} };
     } catch (error: unknown) {
@@ -246,10 +247,10 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error deleting user account";
-
       return { success: false, error: message, status: 500 };
     }
   },
+
   /**
    * Admin dashboard stats for users (counts)
    */
@@ -283,10 +284,10 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error fetching user stats";
-
       return { success: false, error: message, status: 500 };
     }
   },
+
   /**
    * Lightweight lookup map for userId -> basic fields
    * Used for enriching activity logs / admin UIs.
@@ -317,7 +318,76 @@ export const adminUserService = {
         : error instanceof Error
           ? error.message
           : "Unknown error building users lookup";
+      return { success: false, error: message, status: 500 };
+    }
+  },
 
+  /**
+   * Patch any fields (admin only) – utility method
+   */
+  async patchUser(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
+    if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
+    try {
+      const db = getAdminFirestore();
+      await db
+        .collection("users")
+        .doc(userId)
+        .update({ ...data, updatedAt: new Date() });
+      return { success: true, data: {} };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error updating user";
+      return { success: false, error: message, status: 500 };
+    }
+  },
+
+  /**
+   * ✅ Missing method from your snippet
+   */
+  async countUsers(): Promise<ServiceResponse<{ count: number }>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
+    try {
+      const db = getAdminFirestore();
+      const snap = await db.collection("users").count().get();
+      return { success: true, data: { count: snap.data().count } };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error counting users";
+      return { success: false, error: message, status: 500 };
+    }
+  },
+
+  /**
+   * ✅ Missing method from your snippet
+   */
+  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
+    if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
+    try {
+      const db = getAdminFirestore();
+      await db.collection("users").doc(userId).set(data);
+      return { success: true, data: {} };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error creating user doc";
       return { success: false, error: message, status: 500 };
     }
   }

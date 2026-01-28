@@ -13,7 +13,7 @@ import {
   normalizeCategory
 } from "@/config/categories";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 function getCategoryImage(category: string): string | undefined {
   const categoryImages: Record<string, string> = {

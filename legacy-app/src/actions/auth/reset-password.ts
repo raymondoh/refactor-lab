@@ -1,130 +1,68 @@
-//src/actions/auth/reset-password.ts
+// src/actions/auth/reset-password.ts
 "use server";
 
-import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { serverTimestamp } from "@/utils/date-server";
 import { logActivity } from "@/firebase/actions";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
-import { logServerEvent, logger } from "@/utils/logger";
 import { hashPassword } from "@/utils/hashPassword";
+import { logger, logServerEvent } from "@/utils/logger";
+import type { Auth, Common } from "@/types";
 
-// import type {
-//   LogPasswordResetInput,
-//   ResetPasswordResponse,
-//   GetUserIdByEmailInput,
-//   GetUserIdByEmailResponse,
-//   UpdatePasswordHashInput
-// } from "@/types/auth/password";
-import type { Auth } from "@/types";
-import type { Common } from "@/types";
-
-/**
- * Logs a password reset activity
- */
 export async function logPasswordResetActivity({
   email
 }: Auth.LogPasswordResetInput): Promise<Auth.ResetPasswordState> {
-  if (!email) {
-    logger({ type: "warn", message: "logPasswordResetActivity called with no email", context: "auth" });
-    return { success: false, error: "Email is required" };
-  }
+  if (!email) return { success: false, error: "Email is required" };
 
   try {
-    const userRecord = await getAdminAuth().getUserByEmail(email);
-
-    if (userRecord) {
+    const res = await adminAuthService.getUserByEmail(email);
+    if (res.success) {
       await logActivity({
-        userId: userRecord.uid,
+        userId: res.data.uid,
         type: "password_reset_requested",
         description: "Password reset email sent",
         status: "success",
         metadata: { email }
       });
 
-      logger({ type: "info", message: `Logged password reset request for ${email}`, context: "auth" });
-
       await logServerEvent({
         type: "auth:password_reset_requested",
         message: `Password reset requested for ${email}`,
-        userId: userRecord.uid,
+        userId: res.data.uid,
         context: "auth"
       });
     }
-
     return { success: true };
-  } catch (error: unknown) {
-    if (isFirebaseError(error) && error.code !== "auth/user-not-found") {
-      logger({
-        type: "error",
-        message: "Error logging password reset activity",
-        metadata: { error },
-        context: "auth"
-      });
-    }
-
-    return { success: true }; // Silent fail if user not found
+  } catch {
+    return { success: true };
   }
 }
 
-/**
- * Gets a user ID by email
- */
 export async function getUserIdByEmail({ email }: Auth.GetUserIdByEmailInput): Promise<Auth.GetUserIdByEmailResponse> {
-  if (!email) {
-    logger({ type: "warn", message: "getUserIdByEmail called with no email", context: "auth" });
-    return { success: false, error: "Email is required" };
-  }
+  if (!email) return { success: false, error: "Email is required" };
 
-  try {
-    const userRecord = await getAdminAuth().getUserByEmail(email);
+  const res = await adminAuthService.getUserByEmail(email);
+  if (!res.success) return { success: false, error: res.error };
 
-    logger({ type: "info", message: `Found UID for ${email}`, metadata: { uid: userRecord.uid }, context: "auth" });
-
-    return { success: true, userId: userRecord.uid };
-  } catch (error: unknown) {
-    logger({
-      type: "error",
-      message: `Error getting UID for ${email}`,
-      metadata: { error },
-      context: "auth"
-    });
-
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: string }).code === "auth/user-not-found"
-    ) {
-      return { success: false, error: "User not found" };
-    }
-
-    if (isFirebaseError(error)) {
-      return { success: false, error: firebaseError(error) };
-    }
-
-    return { success: false, error: "Failed to get user ID" };
-  }
+  return { success: true, userId: res.data.uid };
 }
 
-/**
- * Updates password hash in Firestore
- */
 export async function updatePasswordHash({
   userId,
   newPassword
 }: Auth.UpdatePasswordHashInput): Promise<Common.ActionResponse> {
-  if (!userId || !newPassword) {
-    logger({ type: "warn", message: "updatePasswordHash called with missing userId or password", context: "auth" });
-    return { success: false, error: "User ID and new password are required" };
-  }
+  if (!userId || !newPassword) return { success: false, error: "User ID and new password are required" };
 
   try {
     const passwordHash = await hashPassword(newPassword);
 
-    await getAdminFirestore().collection("users").doc(userId).update({
+    // Uses adminAuthService.updateUserDoc for Firestore updates
+    const updateRes = await adminAuthService.updateUserDoc(userId, {
       passwordHash,
       updatedAt: serverTimestamp()
     });
+
+    if (!updateRes.success) return { success: false, error: updateRes.error };
 
     await logActivity({
       userId,
@@ -132,8 +70,6 @@ export async function updatePasswordHash({
       description: "Password reset completed",
       status: "success"
     });
-
-    logger({ type: "info", message: `Updated password hash for UID: ${userId}`, context: "auth" });
 
     await logServerEvent({
       type: "auth:password_reset_completed",

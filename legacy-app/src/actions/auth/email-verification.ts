@@ -2,13 +2,13 @@
 "use server";
 
 // ================= Imports =================
-import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { serverTimestamp } from "@/utils/date-server";
 import { logActivity } from "@/firebase/actions";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import { logServerEvent, logger } from "@/utils/logger";
-//import type { UpdateEmailVerificationInput, UpdateEmailVerificationResponse } from "@/types/auth/email-verification";
 import type { Auth } from "@/types";
+
 // ================= Update Email Verification Status =================
 
 /**
@@ -36,25 +36,30 @@ export async function updateEmailVerificationStatus({
   }
 
   try {
-    // 1. Check Firebase Auth user record
-    const userRecord = await getAdminAuth().getUser(userId);
-
-    if (verified && !userRecord.emailVerified) {
-      logger({
-        type: "warn",
-        message: "Firestore marked email verified, but Firebase Auth still shows unverified",
-        metadata: { userId },
-        context: "auth"
-      });
+    // 1) Check Firebase Auth user record (service-driven)
+    const authUserRes = await adminAuthService.getAuthUserById(userId);
+    if (authUserRes.success) {
+      if (verified && !authUserRes.data.emailVerified) {
+        logger({
+          type: "warn",
+          message: "Firestore marked email verified, but Firebase Auth still shows unverified",
+          metadata: { userId },
+          context: "auth"
+        });
+      }
     }
 
-    // 2. Update Firestore user document
-    await getAdminFirestore().collection("users").doc(userId).update({
+    // 2) Update Firestore user document (service-driven)
+    const updateRes = await adminAuthService.updateUserDoc(userId, {
       emailVerified: verified,
       updatedAt: serverTimestamp()
     });
 
-    // 3. Log user activity
+    if (!updateRes.success) {
+      return { success: false, error: updateRes.error };
+    }
+
+    // 3) Log user activity
     await logActivity({
       userId,
       type: "email_verification_status_updated",
@@ -63,7 +68,7 @@ export async function updateEmailVerificationStatus({
       metadata: { emailVerified: verified }
     });
 
-    // 4. Log server event
+    // 4) Log server event
     await logServerEvent({
       type: "auth:update_email_verification",
       message: "Updated email verification status",

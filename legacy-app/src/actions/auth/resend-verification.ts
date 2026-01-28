@@ -4,7 +4,7 @@
 
 "use server";
 
-import { getAdminAuth } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { z } from "zod";
@@ -24,18 +24,23 @@ export async function resendVerification(formData: FormData) {
       return { success: false, error: "Please enter a valid email address" };
     }
 
-    const auth = getAdminAuth();
-    const verificationLink = await auth.generateEmailVerificationLink(email);
+    // 1) Generate verification link (service-driven)
+    // NOTE: add generateEmailVerificationLink to adminAuthService (see below)
+    const linkRes = await adminAuthService.generateEmailVerificationLink(email);
+    if (!linkRes.success) {
+      return { success: false, error: linkRes.error };
+    }
+
+    const verificationLink = linkRes.data.link;
 
     // In a real app, you would send this link via email
     console.log("Email verification link:", verificationLink);
 
-    // Get user by email for logging
-    const userRecord = await auth.getUserByEmail(email).catch(() => null);
-
-    if (userRecord) {
+    // 2) Fetch user for logging (service-driven)
+    const userRes = await adminAuthService.getUserByEmail(email);
+    if (userRes.success) {
       await logActivity({
-        userId: userRecord.uid,
+        userId: userRes.data.uid,
         type: "email-verification-resend",
         description: "Email verification resent",
         status: "success"
@@ -49,6 +54,7 @@ export async function resendVerification(formData: FormData) {
       : error instanceof Error
         ? error.message
         : "Unknown error resending verification email";
+
     console.error("Error resending verification email:", message);
     return { success: false, error: message };
   }

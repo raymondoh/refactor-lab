@@ -90,33 +90,38 @@ export const authOptions: NextAuthConfig = {
         }
 
         try {
-          // After
-          const { getAdminAuth } = await import("@/lib/firebase/admin/initialize");
+          const { adminAuthService } = await import("@/lib/services/admin-auth-service");
 
-          const decodedToken = await getAdminAuth().verifyIdToken(credentials.idToken);
-          const uid = decodedToken.uid;
-          const email = decodedToken.email;
+          const decodedRes = await adminAuthService.verifyIdToken(credentials.idToken);
+          if (!decodedRes.success) throw new Error("Invalid ID token");
+
+          const decodedToken = decodedRes.data as any;
+          const uid: string = decodedToken.uid;
+          const email: string | undefined = decodedToken.email;
 
           if (!email) throw new Error("No email in token");
 
-          const userRecord = await getAdminAuth().getUser(uid);
+          const authUserRes = await adminAuthService.getAuthUserById(uid);
+          if (!authUserRes.success) throw new Error("Invalid ID token");
+
+          const authUser = authUserRes.data as any;
           const provider = decodedToken.firebase?.sign_in_provider || "unknown";
 
           const { role } = await syncUserWithFirebase(uid, {
             email,
-            name: userRecord.displayName || undefined,
-            image: userRecord.photoURL || undefined,
+            name: authUser.displayName || undefined,
+            image: authUser.photoURL || undefined,
             provider
           });
 
           return {
             id: uid,
             email,
-            name: userRecord.displayName || email.split("@")[0],
+            name: authUser.displayName || email.split("@")[0],
             firstName: undefined,
             lastName: undefined,
-            displayName: userRecord.displayName || email.split("@")[0],
-            image: userRecord.photoURL || undefined,
+            displayName: authUser.displayName || email.split("@")[0],
+            image: authUser.photoURL || undefined,
             role
           };
         } catch (error) {
@@ -138,52 +143,43 @@ export const authOptions: NextAuthConfig = {
       console.log("  User object (from provider/adapter):", user);
       console.log("  Account object:", account);
 
-      // Highlight: Dynamic import adminAuth/adminDb here as well for usage in jwt callback
-      const { getAdminFirestore } = await import("@/lib/firebase/admin/initialize"); // Dynamically import getAdminFirestore
-
-      // Highlight: Move Firestore data fetching OUTSIDE the 'if (user && account)' block.
-      // This ensures it runs on every JWT callback, including session refreshes.
+      // ✅ Service-driven Firestore fetch on every JWT callback
       if (token.uid) {
-        // Only fetch if we have a UID in the token
         try {
-          const userDoc = await getAdminFirestore()
-            .collection("users")
-            .doc(token.uid as string)
-            .get();
-          const firestoreData = userDoc.data() as FirestoreUser | undefined;
+          const { adminUserService } = await import("@/lib/services/admin-user-service");
 
-          if (firestoreData) {
+          const userRes = await adminUserService.getUserById(token.uid as string);
+          if (userRes.success && userRes.data) {
+            const firestoreData = userRes.data as unknown as FirestoreUser;
+
             token.firstName = firestoreData.firstName;
             token.lastName = firestoreData.lastName;
             token.displayName = firestoreData.displayName;
-            token.bio = firestoreData.bio;
-            token.email = firestoreData.email || token.email; // Ensure email is also updated from Firestore
-            token.picture = firestoreData.picture || firestoreData.image || firestoreData.photoURL;
-            // You might also want to update 'name' from Firestore if it's your primary display name fallback
-            token.name = firestoreData.name || firestoreData.displayName || token.name;
+            token.bio = (firestoreData as any).bio;
+            token.email = firestoreData.email || token.email;
+            token.picture =
+              (firestoreData as any).picture || (firestoreData as any).image || (firestoreData as any).photoURL;
+            token.name = (firestoreData as any).name || firestoreData.displayName || token.name;
+
             console.log("[NextAuth Callback] JWT: Firestore data fetched and assigned to token:", firestoreData);
           }
         } catch (error) {
-          console.error("[NextAuth Callback] JWT: Error fetching user data from Firestore:", error); // Highlight
+          console.error("[NextAuth Callback] JWT: Error fetching user data via service:", error);
         }
       }
 
-      // This block will now only handle data coming directly from a new login or provider sync
+      // New login/provider sync
       if (user && account) {
         try {
-          // handleProviderSync already fetches/syncs user data, but we re-fetch from Firestore above
-          // to ensure all custom fields are always picked up reliably.
           const { role, uid } = await handleProviderSync(user as ExtendedUser, account);
           token.uid = uid;
           token.role = role;
-          // No need to re-assign firstName, lastName etc. from user here as they are covered by Firestore fetch above
         } catch (error) {
           console.error(`[NextAuth Callback] JWT: Error syncing ${account.provider} user with Firebase:`, error);
         }
       }
 
-      // This part ensures that if 'user' object is populated (e.g. from session.update({ user: { newField: 'value' } }))
-      // those direct updates are also applied to the token.
+      // Apply direct updates from `session.update(...)`
       const extendedUser = user as ExtendedUser;
       if (extendedUser?.email) token.email = extendedUser.email;
       if (extendedUser?.name) token.name = extendedUser.name;

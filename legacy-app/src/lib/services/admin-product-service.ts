@@ -15,7 +15,7 @@ import { serializeProduct, serializeProductArray } from "@/utils/serializeProduc
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
 
-export type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
   const data = doc.data() ?? {};

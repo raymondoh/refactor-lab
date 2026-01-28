@@ -8,7 +8,7 @@ import { getUserImage } from "@/utils/get-user-image";
 import type { User } from "@/types/user";
 import type { SerializedUser } from "@/types/user/common";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 // ✅ typed helper (fixes "unknown" problem)
 function dateish(value: unknown): string | Timestamp | Date | undefined {

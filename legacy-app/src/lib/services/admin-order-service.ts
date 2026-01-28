@@ -10,7 +10,7 @@ import { orderSchema } from "@/schemas/order";
 import type { Order, OrderData } from "@/types/order";
 import { logger } from "@/utils/logger";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 // Server timestamp helper (keep same semantics as before)
 export const serverTimestamp = () => FieldValue.serverTimestamp();

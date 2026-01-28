@@ -9,7 +9,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { serializeProductArray } from "@/utils/serializeProduct";
 import type { Product } from "@/types/product";
 
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string; status?: number };
+import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 // Small local mapper (copied from old products file to keep behavior stable)
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {

@@ -1,14 +1,13 @@
+// src/actions/data-privacy/deletion.ts
 "use server";
 
-import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
+import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
-import { revalidatePath } from "next/cache";
 
 // Request account deletion
 export async function requestAccountDeletion() {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth: userAuth } = await import("@/auth");
     const session = await userAuth();
 
@@ -18,7 +17,6 @@ export async function requestAccountDeletion() {
 
     const userId = session.user.id;
 
-    // Log the deletion request
     await logActivity({
       userId,
       type: "account-deletion-request",
@@ -26,16 +24,11 @@ export async function requestAccountDeletion() {
       status: "info"
     });
 
-    // In a real app, you might want to:
-    // 1. Send a confirmation email
-    // 2. Set a deletion flag in the user's document
-    // 3. Schedule the actual deletion for later
-
-    const db = getAdminFirestore();
-    await db.collection("users").doc(userId).update({
-      deletionRequested: true,
-      deletionRequestedAt: new Date()
-    });
+    // ✅ Service-driven flag update
+    const res = await adminDataPrivacyService.markDeletionRequested(userId);
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
 
     return { success: true };
   } catch (error) {
@@ -50,5 +43,4 @@ export async function requestAccountDeletion() {
 }
 
 // Cancel account deletion request
-
 // Confirm and execute account deletion
