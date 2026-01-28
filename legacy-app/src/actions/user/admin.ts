@@ -2,11 +2,12 @@
 "use server";
 
 // ================= Imports =================
-import { createUserInFirebase } from "@/firebase/admin/auth";
-import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
-import { logger } from "@/utils/logger";
+
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { adminUserService } from "@/lib/services/admin-user-service";
+import { logActivity } from "@/firebase/actions";
+import { logger } from "@/utils/logger";
 
 import type {
   CreateUserInput,
@@ -36,44 +37,60 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
   if (!session?.user?.id) return { success: false, error: "Not authenticated" };
 
   try {
-    const result = await createUserInFirebase({
+    // ✅ Optional: if you have admin guards elsewhere, keep; otherwise we keep it light here.
+    // You can add isAdmin checks via a service if you want.
+
+    // 1) Create Auth user
+    const authRes = await adminAuthService.createAuthUser({
       email,
-      password,
+      password: password ?? "",
       displayName: name,
-      createdBy: session.user.id,
-      role
+      emailVerified: false
     });
 
-    if (!result.success) {
-      return { success: false, error: result.error || "Failed to create user" };
+    if (!authRes.success) {
+      return { success: false, error: authRes.error };
     }
 
-    if (!result.data?.uid) {
-      return { success: false, error: "Failed to get user ID from created user" };
+    const newUserId = authRes.data.uid;
+
+    // 2) Create Firestore user doc
+    const docRes = await adminAuthService.createUserDoc(newUserId, {
+      email,
+      name: name ?? email.split("@")[0],
+      role: role ?? "user",
+      emailVerified: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    if (!docRes.success) {
+      return { success: false, error: docRes.error };
     }
 
+    // 3) Log admin activity
     await logActivity({
       userId: session.user.id,
       type: "admin-action",
       description: `Created a new user (${email})`,
       status: "success",
       metadata: {
-        createdUserId: result.data.uid,
+        createdUserId: newUserId,
         createdUserEmail: email,
-        createdUserRole: role || "user"
+        createdUserRole: role ?? "user"
       }
     });
 
     revalidatePath("/admin/users");
 
-    return { success: true, userId: result.data.uid };
+    return { success: true, userId: newUserId };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
 
     logger({
       type: "error",
       message: "Error in createUser",
-      metadata: { error: message },
+      metadata: { error: message, email },
       context: "admin-users"
     });
 
@@ -168,7 +185,7 @@ export async function deleteUserDoc(userId: string): Promise<DeleteUserResponse>
 }
 
 /**
- * Delete user account (admin only) - Auth + Firestore doc (Option A)
+ * Delete user account (admin only) - Auth + Firestore doc
  */
 export async function deleteUserAccount(userId: string): Promise<DeleteUserAccountResponse> {
   const result = await adminUserService.deleteUserAccount(userId);

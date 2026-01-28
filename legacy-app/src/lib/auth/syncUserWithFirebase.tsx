@@ -1,77 +1,95 @@
-// src/lib/auth/syncUserWithFirebase.ts
+import { adminAuthService } from "@/lib/services/admin-auth-service";
+import { adminAccountsService } from "@/lib/services/admin-accounts-service";
 import { serverTimestamp } from "@/firebase/admin/firestore";
 import { logActivity } from "@/firebase/actions";
+import type { UserRole } from "@/types/user";
+
+type SyncInput = {
+  email: string;
+  name?: string;
+  image?: string;
+  provider: string;
+  providerAccountId?: string;
+};
+
+type SyncResult = {
+  isNewUser: boolean;
+  role: UserRole;
+  uid: string;
+};
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function inferRole(role: unknown): UserRole {
+  return role === "admin" ? "admin" : "user";
+}
 
 /**
- * Synchronizes a user between NextAuth.js and Firebase
- * Works with any authentication provider
+ * Synchronizes a user between NextAuth.js and Firebase.
+ * Service-based: no direct Admin SDK usage in this file.
  */
-export async function syncUserWithFirebase(
-  userId: string,
-  userData: {
-    email: string;
-    name?: string;
-    image?: string;
-    provider: string;
-    providerAccountId?: string;
-  }
-) {
-  const { adminAuthService } = await import("@/lib/services/admin-auth-service");
-  const { adminUserService } = await import("@/lib/services/admin-user-service");
+export async function syncUserWithFirebase(userId: string, userData: SyncInput): Promise<SyncResult> {
+  const email = normalizeEmail(userData.email);
 
   try {
-    console.log(`Syncing user with Firebase: ${userId}, Provider: ${userData.provider}, Email: ${userData.email}`);
+    console.log(`Syncing user with Firebase: ${userId}, Provider: ${userData.provider}, Email: ${email}`);
 
+    // 1) Ensure a Firebase Auth user exists
     let firebaseUid = userId;
 
-    // 1) Try to load Auth user by uid
-    let authUserRes = await adminAuthService.getAuthUserById(firebaseUid);
+    // Try by uid
+    const byId = await adminAuthService.getAuthUserById(firebaseUid);
+    if (!byId.success) {
+      // Try by email
+      const byEmail = await adminAuthService.getAuthUserByEmail(email);
+      if (byEmail.success) {
+        firebaseUid = byEmail.data.uid;
+      } else {
+        // Create new auth user with the requested uid (no password)
+        const created = await adminAuthService.createAuthUserWithUid({
+          uid: firebaseUid,
+          email,
+          displayName: userData.name ?? email.split("@")[0],
+          photoURL: userData.image,
+          emailVerified: true
+        });
 
-    // 2) If missing, try by email
-    if (!authUserRes.success) {
-      const byEmailRes = await adminAuthService.getUserByEmail(userData.email);
+        if (!created.success) {
+          throw new Error(created.error);
+        }
 
-      if (byEmailRes.success) {
-        firebaseUid = byEmailRes.data.uid;
-        authUserRes = await adminAuthService.getAuthUserById(firebaseUid);
-        console.log(`Found Auth user by email: ${userData.email}, uid: ${firebaseUid}`);
+        // Optional: create a minimal accounts link for Google provider parity
+        if (userData.provider === "google") {
+          const providerAccountId = userData.providerAccountId ?? `unknown-${Date.now()}`;
+          await adminAccountsService.createGoogleAccountLink({
+            userId: firebaseUid,
+            providerAccountId
+          });
+        }
       }
     }
 
-    // 3) If still missing, create Auth user (provider-safe, no password)
-    if (!authUserRes.success) {
-      console.log(`Creating new Firebase Auth user for ${userData.email}`);
-
-      const createdRes = await adminAuthService.createProviderAuthUser({
-        email: userData.email,
-        displayName: userData.name ?? userData.email.split("@")[0],
-        photoURL: userData.image,
-        emailVerified: true
-      });
-
-      if (!createdRes.success) throw new Error(createdRes.error);
-
-      firebaseUid = createdRes.data.uid;
-
-      authUserRes = await adminAuthService.getAuthUserById(firebaseUid);
-      console.log(`Created Firebase Auth user: ${firebaseUid}`);
+    // 2) Ensure Firestore user doc exists
+    const existingUserDocRes = await adminAuthService.getUserDocById(firebaseUid);
+    if (!existingUserDocRes.success) {
+      throw new Error(existingUserDocRes.error);
     }
 
-    // 4) Ensure Firestore user doc exists
-    const userDocRes = await adminUserService.getUserById(firebaseUid);
-    if (!userDocRes.success) throw new Error(userDocRes.error);
+    const existingUser = existingUserDocRes.data.user;
 
-    if (!userDocRes.data) {
-      const countRes = await adminUserService.countUsers();
-      const count = countRes.success ? countRes.data.count : 0;
-      const isFirstUser = count === 0;
-      const role = isFirstUser ? "admin" : "user";
+    if (!existingUser) {
+      // Determine role (first user = admin)
+      const countRes = await adminAuthService.countUsers();
+      if (!countRes.success) throw new Error(countRes.error);
 
-      console.log(`Creating new Firestore user document for ${userData.email} with role ${role}`);
+      const isFirstUser = countRes.data.count === 0;
+      const role: UserRole = isFirstUser ? "admin" : "user";
 
-      const createDocRes = await adminUserService.createUserDoc(firebaseUid, {
-        email: userData.email,
-        name: userData.name ?? userData.email.split("@")[0],
+      const createDocRes = await adminAuthService.createUserDoc(firebaseUid, {
+        email,
+        name: userData.name ?? email.split("@")[0],
         photoURL: userData.image,
         role,
         provider: userData.provider,
@@ -83,6 +101,7 @@ export async function syncUserWithFirebase(
 
       if (!createDocRes.success) throw new Error(createDocRes.error);
 
+      // Set custom claim
       const claimRes = await adminAuthService.setUserRoleClaim(firebaseUid, role);
       if (!claimRes.success) throw new Error(claimRes.error);
 
@@ -91,34 +110,32 @@ export async function syncUserWithFirebase(
         type: "register",
         description: `Account created via ${userData.provider}`,
         status: "success",
-        metadata: { provider: userData.provider, email: userData.email }
+        metadata: { provider: userData.provider, email }
       });
 
       return { isNewUser: true, role, uid: firebaseUid };
     }
 
-    // 5) Update existing user doc
-    console.log(`Updating existing user document for ${userData.email}`);
-
-    const patch: Record<string, unknown> = {
+    // 3) Update lastLoginAt / basic profile fields
+    const updateRes = await adminAuthService.updateUserDoc(firebaseUid, {
       lastLoginAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-    if (userData.name) patch.name = userData.name;
-    if (userData.image) patch.photoURL = userData.image;
+      updatedAt: serverTimestamp(),
+      ...(userData.name ? { name: userData.name } : {}),
+      ...(userData.image ? { photoURL: userData.image } : {})
+    });
 
-    const patchRes = await adminUserService.patchUser(firebaseUid, patch);
-    if (!patchRes.success) throw new Error(patchRes.error);
+    if (!updateRes.success) throw new Error(updateRes.error);
 
     await logActivity({
       userId: firebaseUid,
       type: "login",
       description: `Logged in with ${userData.provider}`,
       status: "success",
-      metadata: { provider: userData.provider, email: userData.email }
+      metadata: { provider: userData.provider, email }
     });
 
-    const role = (userDocRes.data as any)?.role || "user";
+    const role = inferRole(existingUser?.role);
+
     return { isNewUser: false, role, uid: firebaseUid };
   } catch (error) {
     console.error("Error syncing user with Firebase:", error);
@@ -131,7 +148,7 @@ export async function syncUserWithFirebase(
       metadata: {
         error: error instanceof Error ? error.message : "Unknown error",
         provider: userData.provider,
-        email: userData.email
+        email
       }
     });
 
