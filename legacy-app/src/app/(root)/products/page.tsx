@@ -7,10 +7,12 @@ import { ProductsGrid } from "@/components/products/ProductsGrid";
 import { ProductFilters } from "@/components/products/filters/ProductFilters";
 import { CategoryCardsWrapper } from "@/components/products/category-carousel/CategoryCardsWrapper";
 import { SubcategoryCardsWrapper } from "@/components/products/subcategory-carousel/SubcategoryCardsWrapper";
-import { adminProductService } from "@/lib/services/admin-product-service";
+//import { adminProductService } from "@/lib/services/admin-product-service";
 
 // ✅ NEW: service-layer categories
 import { adminCategoryService } from "@/lib/services/admin-category-service";
+// src/app/(root)/products/page.tsx
+import { getAllProductsPublic } from "@/lib/services/products-public-service";
 
 import {
   type CategoryData,
@@ -113,12 +115,10 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
     const resolvedSearchParams = await searchParams;
 
     const currentCategory =
-      typeof resolvedSearchParams?.category === "string" ? resolvedSearchParams.category.toLowerCase() : undefined;
+      typeof resolvedSearchParams?.category === "string" ? resolvedSearchParams.category : undefined;
 
     const currentSubcategory =
-      typeof resolvedSearchParams?.subcategory === "string"
-        ? resolvedSearchParams.subcategory.toLowerCase()
-        : undefined;
+      typeof resolvedSearchParams?.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
 
     const searchQuery = typeof resolvedSearchParams?.q === "string" ? resolvedSearchParams.q : undefined;
 
@@ -148,7 +148,15 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
     const onSale = parseBoolean(resolvedSearchParams?.onSale);
     const isCustomizable = parseBoolean(resolvedSearchParams?.isCustomizable);
 
-    const productsResult = await adminProductService.getAllProducts({
+    // const productsResult = await adminProductService.getAllProducts({
+    //   category: currentCategory,
+    //   subcategory: currentSubcategory,
+    //   query: searchQuery,
+    //   designThemes,
+    //   onSale,
+    //   isCustomizable
+    // });
+    const productsResult = await getAllProductsPublic({
       category: currentCategory,
       subcategory: currentSubcategory,
       query: searchQuery,

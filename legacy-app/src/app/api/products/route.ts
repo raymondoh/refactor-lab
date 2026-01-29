@@ -1,7 +1,14 @@
+// legacy-app/src/app/api/products/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-import { adminProductService } from "@/lib/services/admin-product-service";
+
 import type { Product } from "@/types";
 import { logActivity } from "@/firebase/actions";
+
+// ✅ PUBLIC GET
+import { getAllProductsPublic } from "@/lib/services/products-public-service";
+
+// ✅ ADMIN writes
+import { adminProductService } from "@/lib/services/admin-product-service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,50 +19,63 @@ export async function GET(req: NextRequest) {
       return param === "true";
     };
 
-    const getArrayParam = (param: string | null): string[] | undefined => {
-      if (param === null) return undefined;
-      return param
-        .split(",")
+    // ✅ supports:
+    // - ?x=a,b
+    // - ?x=a&x=b
+    // - ?x=a,b&x=c
+    const getArrayParamAll = (key: string): string[] | undefined => {
+      const all = searchParams.getAll(key);
+      if (!all.length) return undefined;
+
+      const items = all
+        .flatMap(v => v.split(","))
         .map(s => s.trim())
-        .filter(s => s.length > 0);
+        .filter(Boolean);
+
+      return items.length ? items : undefined;
     };
 
-    const filters: Product.ProductFilterOptions = {
+    const limit = (() => {
+      const raw = searchParams.get("limit");
+      const n = raw ? Number(raw) : undefined;
+      return Number.isFinite(n) && (n as number) > 0 ? Math.min(n as number, 200) : undefined;
+    })();
+
+    const publicFilters = {
       category: searchParams.get("category") || undefined,
       subcategory: searchParams.get("subcategory") || undefined,
-      material: searchParams.get("material") || undefined,
-      priceRange: searchParams.get("priceRange") || undefined,
-      isFeatured: getBooleanParam(searchParams.get("isFeatured")),
-      stickySide: searchParams.get("stickySide") || undefined,
 
-      designThemes: getArrayParam(searchParams.get("designThemes")),
-      productType: searchParams.get("productType") || undefined,
-      finish: searchParams.get("finish") || undefined,
-      placements: getArrayParam(searchParams.get("placements")),
-      isCustomizable: getBooleanParam(searchParams.get("isCustomizable")),
-      brand: searchParams.get("brand") || undefined,
-      tags: getArrayParam(searchParams.get("tags")),
+      // ✅ supports both ?q= and ?query=
+      query: searchParams.get("q") || searchParams.get("query") || undefined,
+
+      designThemes: getArrayParamAll("designThemes"),
       onSale: getBooleanParam(searchParams.get("onSale")),
-      isNewArrival: getBooleanParam(searchParams.get("isNewArrival")),
-      inStock: getBooleanParam(searchParams.get("inStock")),
-      baseColor: searchParams.get("baseColor") || undefined,
-      query: searchParams.get("query") || undefined
+      isCustomizable: getBooleanParam(searchParams.get("isCustomizable")),
+
+      priceRange: searchParams.get("priceRange") || undefined,
+
+      // ✅ multi-select safe: returns string[] when multiple selected, string when single
+      material: (() => {
+        const arr = getArrayParamAll("material");
+        if (arr?.length) return arr;
+        return searchParams.get("material") || undefined;
+      })(),
+
+      baseColor: (() => {
+        const arr = getArrayParamAll("baseColor");
+        if (arr?.length) return arr;
+        return searchParams.get("baseColor") || undefined;
+      })(),
+
+      limit
     };
 
-    // Remove undefined keys
-    Object.keys(filters).forEach(key => {
-      if (filters[key as keyof Product.ProductFilterOptions] === undefined) {
-        delete filters[key as keyof Product.ProductFilterOptions];
-      }
-    });
-
-    const result = await adminProductService.getAllProducts(filters);
+    const result = await getAllProductsPublic(publicFilters);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 500 });
+      return NextResponse.json({ success: false, error: result.error }, { status: (result as any).status ?? 500 });
     }
 
-    // Maintain legacy API response shape: { success, data }
     return NextResponse.json({ success: true, data: result.data }, { status: 200 });
   } catch (error) {
     console.error("Error in /api/products:", error);

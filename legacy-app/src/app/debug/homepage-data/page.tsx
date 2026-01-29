@@ -1,18 +1,18 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { adminProductService } from "@/lib/services/admin-product-service";
+import { getAllProductsPublic } from "@/lib/services/products-public-service";
 
 export default async function HomepageDataDebugPage() {
   const fetchTime = new Date().toISOString();
 
   // Fetch the same data as the homepage
   const [featuredProducts, trendingProducts, saleProducts, newArrivals, themedProducts] = await Promise.all([
-    adminProductService.getAllProducts({ isFeatured: true, limit: 8 }),
-    adminProductService.getAllProducts({ limit: 8 }),
-    adminProductService.getOnSaleProducts(6),
-    adminProductService.getNewArrivals(6),
-    adminProductService.getThemedProducts(6)
+    getAllProductsPublic({ isFeatured: true, limit: 8 }),
+    getAllProductsPublic({ limit: 8 }),
+    getAllProductsPublic({ onSale: true, limit: 6 }),
+    getAllProductsPublic({ isNewArrival: true, limit: 6 }),
+    getAllProductsPublic({ themedOnly: true, limit: 6 })
   ]);
 
   return (
@@ -63,7 +63,7 @@ export default async function HomepageDataDebugPage() {
               <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
             </p>
             <p>
-              <strong>Count:</strong> {saleProducts.success ? saleProducts.data.length : 0}
+              <strong>Count:</strong> {saleProducts.success && saleProducts.data ? saleProducts.data.length : 0}
             </p>
             {!saleProducts.success && (
               <p className="text-red-600">

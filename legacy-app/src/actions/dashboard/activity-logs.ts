@@ -17,17 +17,20 @@ type ActivityLogsResult = { success: true; logs: SerializedActivity[] } | { succ
 async function enrichActivityLogs(logs: ActivityLogWithId[]): Promise<SerializedActivity[]> {
   const usersResult = await adminUserService.getUsersLookup();
   if (!usersResult.success) {
-    // You asked for strict behavior: if lookup fails, fail the request.
     throw new Error(usersResult.error);
   }
 
-  const usersLookup = usersResult.data; // Record<userId, { name?, email?, image? }>
+  // FIX: Access the nested usersById property
+  const usersLookup = usersResult.data.usersById;
 
   return logs.map(log => {
     const user = usersLookup[log.userId];
+    // ... rest of function
 
     const userEmail = user?.email || log.userEmail;
-    const name = user?.name || userEmail?.split("@")[0] || "Unknown User";
+    const name =
+      user?.displayName ?? (user?.email ? user.email.split("@")[0] : (userEmail?.split("@")[0] ?? "Unknown User"));
+
     const image = user?.image || (log as any).image || null;
 
     const timestamp =

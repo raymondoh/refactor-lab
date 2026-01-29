@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import Image from "next/image"; // Keep if used in other parts of the page not shown
 import { Mail } from "lucide-react"; // Keep if used
 import Link from "next/link"; // Keep if used
-
+import type { SerializedProduct } from "@/types/product";
 import { ProductCarousel } from "@/components/shared/ProductCarousel"; // Your import for the carousel
 import type { Product } from "@/types/product";
 
@@ -52,19 +52,18 @@ export const metadata: Metadata = {
   }
 };
 
-const placeholderProducts: Product[] = [
+const placeholderProducts: SerializedProduct[] = [
   {
     id: "feat-1",
     name: "Bestselling Moto Sticker",
-    image: "/images/hero-bg.jpg", // Ensure this image path is correct
+    image: "/images/hero-bg.jpg",
     price: 7.99,
     onSale: false,
     category: "Motorbikes",
-    //slug: "bestselling-moto-sticker", // Added slug, often useful
     inStock: true,
-    averageRating: 4.8, // Assuming you want to include average rating
-    reviewCount: 150, // Assuming you want to include review count
-    createdAt: new Date().toISOString()
+    averageRating: 4.8,
+    reviewCount: 150,
+    createdAt: new Date().toISOString() // This is now explicitly a string
   },
   {
     id: "feat-2",

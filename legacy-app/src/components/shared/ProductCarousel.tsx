@@ -7,14 +7,15 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import type { Product } from "@/types/product";
+//import type { Product } from "@/types/product";
 import { formatPrice } from "@/lib/utils";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 // Highlight: Import StarRatingDisplay
-import { StarRatingDisplay } from "@/components/products/ratings/StarRatingDisplay"; // Adjust path if necessary
+import { StarRatingDisplay } from "@/components/products/ratings/StarRatingDisplay";
+import type { SerializedProduct } from "@/types/product";
 
 interface ProductCarouselProps {
-  products: Product[];
+  products: SerializedProduct[];
   title: string;
   description?: string;
   viewAllUrl?: string;

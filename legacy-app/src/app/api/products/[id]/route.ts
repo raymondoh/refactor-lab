@@ -1,12 +1,17 @@
+// legacy-app/src/app/api/products/[id]/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-import { adminProductService } from "@/lib/services/admin-product-service";
 import { productUpdateSchema } from "@/schemas/product";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/firebase/actions";
 
-// GET - Fetch a single product by ID
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  console.log("[GET /api/products/[id]] Handler invoked.");
+// ✅ PUBLIC GET
+import { getProductByIdPublic } from "@/lib/services/products-public-service";
+
+// ✅ ADMIN writes
+import { adminProductService } from "@/lib/services/admin-product-service";
+
+// GET - Fetch a single product by ID (PUBLIC)
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
@@ -14,9 +19,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Product ID is required" }, { status: 400 });
     }
 
-    console.log(`[GET /api/products/[id]] Processing for ID: ${id}`);
-
-    const result = await adminProductService.getProductById(id);
+    // ✅ IMPORTANT: public GET should NOT call adminProductService (it calls auth())
+    const result = await getProductByIdPublic(id);
 
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 404 });
@@ -33,31 +37,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// PUT - Update a product
+// PUT - Update a product (ADMIN)
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    console.log("🔧 PUT /api/products/[id] - Starting update for product:", id);
 
     const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user) {
-      console.log("❌ Unauthorized - no session");
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.user.role !== "admin") {
-      console.log("❌ Forbidden - user is not admin");
       return NextResponse.json({ success: false, error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
     let body: any;
     try {
       body = await request.json();
-      console.log("📝 Update data received:", JSON.stringify(body, null, 2));
     } catch (parseError) {
-      console.error("❌ Failed to parse request JSON:", parseError);
       return NextResponse.json(
         {
           success: false,
@@ -68,16 +67,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    console.log("🏷️ Sale fields:", {
-      onSale: body.onSale,
-      salePrice: body.salePrice,
-      price: body.price
-    });
-
     const validated = productUpdateSchema.safeParse(body);
 
     if (!validated.success) {
-      console.error("❌ Validation error:", validated.error);
       return NextResponse.json(
         {
           success: false,
@@ -89,11 +81,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    console.log("🚀 Calling adminProductService.updateProduct with validated data");
     const result = await adminProductService.updateProduct(id, validated.data);
 
     if (!result.success) {
-      console.log("❌ Update failed:", result.error);
       return NextResponse.json(
         {
           success: false,
@@ -135,7 +125,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       console.error("⚠️ Failed to revalidate paths:", revalidateError);
     }
 
-    console.log("✅ Product update completed successfully");
     return NextResponse.json({
       success: true,
       data: result.data.id,
@@ -159,9 +148,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     try {
       const { id } = await params;
       errorDetails.productId = id;
-    } catch (paramError) {
-      console.error("Could not get product ID from params:", paramError);
-    }
+    } catch {}
 
     // Log failed update (best-effort)
     try {
@@ -187,22 +174,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// DELETE - Remove a product
+// DELETE - Remove a product (ADMIN)
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    console.log("🗑️ DELETE /api/products/[id] - Starting deletion for product:", id);
 
     const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user) {
-      console.log("❌ Unauthorized - no session");
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.user.role !== "admin") {
-      console.log("❌ Forbidden - user is not admin");
       return NextResponse.json({ success: false, error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
@@ -213,7 +197,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const result = await adminProductService.deleteProduct(id);
 
     if (!result.success) {
-      console.log("❌ Delete failed:", result.error);
       return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 400 });
     }
 
@@ -239,7 +222,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       console.error("⚠️ Failed to revalidate paths:", revalidateError);
     }
 
-    console.log("✅ Product deletion completed successfully");
     return NextResponse.json({
       success: true,
       message: "Product deleted successfully",
@@ -263,9 +245,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try {
       const { id } = await params;
       errorDetails.productId = id;
-    } catch (paramError) {
-      console.error("Could not get product ID from params:", paramError);
-    }
+    } catch {}
 
     // Log failed delete (best-effort)
     try {

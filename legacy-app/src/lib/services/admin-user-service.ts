@@ -3,13 +3,12 @@
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { getUserImage } from "@/utils/get-user-image";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { Timestamp } from "firebase-admin/firestore";
-import { serializeUser } from "@/utils/serializeUser";
 
-import type { User } from "@/types/user";
+import type { User, UserRole } from "@/types/user";
 import type { SerializedUser } from "@/types/user/common";
-import type { UserRole } from "@/types/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
+
+import { userRepo } from "@/lib/repos/user-repo";
 
 /**
  * Admin gate – ensures the caller is authenticated AND an admin
@@ -22,51 +21,26 @@ async function requireAdmin(): Promise<ServiceResponse<{ userId: string }>> {
     return { success: false, error: "Not authenticated", status: 401 };
   }
 
-  const db = getAdminFirestore();
-  const adminDoc = await db.collection("users").doc(session.user.id).get();
-  const adminData = adminDoc.data() as Partial<User> | undefined;
+  try {
+    const db = getAdminFirestore();
+    const adminDoc = await db.collection("users").doc(session.user.id).get();
+    const adminData = adminDoc.data() as Partial<User> | undefined;
 
-  if (!adminData || adminData.role !== "admin") {
-    return {
-      success: false,
-      error: "Unauthorized. Admin access required.",
-      status: 403
-    };
+    if (!adminData || adminData.role !== "admin") {
+      return { success: false, error: "Unauthorized. Admin access required.", status: 403 };
+    }
+
+    return { success: true, data: { userId: session.user.id } };
+  } catch (error: unknown) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error checking admin access";
+    return { success: false, error: message, status: 500 };
   }
-
-  return { success: true, data: { userId: session.user.id } };
 }
 
-/**
- * Normalize Firestore timestamps
- */
-function isoOrValue(value: unknown) {
-  return value instanceof Timestamp ? value.toDate().toISOString() : value;
-}
-
-/**
- * Convert a Firestore user doc to SerializedUser (stable shape for UI)
- */
-function mapDocToSerializedUser(doc: FirebaseFirestore.DocumentSnapshot): SerializedUser {
-  const data = (doc.data() ?? {}) as any;
-
-  const rawUser = {
-    id: doc.id,
-    ...data,
-    image: getUserImage(data),
-    createdAt: isoOrValue(data.createdAt),
-    updatedAt: isoOrValue(data.updatedAt),
-    lastLoginAt: isoOrValue(data.lastLoginAt),
-    emailVerified: Boolean(data.emailVerified)
-  };
-
-  return serializeUser(rawUser);
-}
-
-/**
- * Admin User Service
- * All admin-only Firestore access for users lives here
- */
 export const adminUserService = {
   /**
    * List users with pagination (admin only)
@@ -75,62 +49,67 @@ export const adminUserService = {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
-    try {
-      const db = getAdminFirestore();
-
-      const usersSnap = await db.collection("users").limit(limit).offset(offset).get();
-
-      const totalSnap = await db.collection("users").count().get();
-      const total = totalSnap.data().count;
-
-      const users = usersSnap.docs.map(mapDocToSerializedUser);
-
-      return { success: true, data: { users, total } };
-    } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching users";
-      return { success: false, error: message, status: 500 };
-    }
+    return userRepo.listUsers(limit, offset);
   },
 
   /**
    * Fetch a single user by id (admin only) – serialized shape for UI
-   * Matches actions/admin.ts: result.data.user
    */
   async getUserById(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
-    if (!userId) return { success: false, error: "User ID is required", status: 400 };
+    return userRepo.getUserById(userId);
+  },
+
+  /**
+   * Lightweight lookup map for UI tables/logs
+   * Returns a map keyed by userId with minimal identity fields.
+   */
+  async getUsersLookup(): Promise<
+    ServiceResponse<{
+      usersById: Record<string, { id: string; email?: string; displayName?: string; image?: string; role?: UserRole }>;
+    }>
+  > {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
 
     try {
       const db = getAdminFirestore();
-      const snap = await db.collection("users").doc(userId).get();
+      const snap = await db.collection("users").get();
 
-      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
+      const usersById: Record<
+        string,
+        { id: string; email?: string; displayName?: string; image?: string; role?: UserRole }
+      > = {};
 
-      const user = mapDocToSerializedUser(snap);
-      return { success: true, data: { user } };
+      for (const doc of snap.docs) {
+        const data = doc.data() as any;
+        usersById[doc.id] = {
+          id: doc.id,
+          email: data.email,
+          displayName: data.displayName || data.name,
+          image: getUserImage(data) || undefined,
+          role: data.role
+        };
+      }
+
+      return { success: true, data: { usersById } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching user";
+          : "Unknown error building users lookup";
       return { success: false, error: message, status: 500 };
     }
   },
 
   /**
-   * ✅ Missing method from your snippet (raw doc shape)
-   * Use this when you explicitly want Firestore data without serializeUser()
-   *
-   * NOTE: renamed to avoid name collision with getUserById() above.
+   * Patch a user document (admin only).
+   * Intended for small updates like flags, status, role adjustments, etc.
    */
-  async getUserRawById(userId: string): Promise<ServiceResponse<any | null>> {
+  async patchUser(userId: string, patch: Record<string, unknown>): Promise<ServiceResponse<{ id: string }>> {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
@@ -138,61 +117,38 @@ export const adminUserService = {
 
     try {
       const db = getAdminFirestore();
-      const doc = await db.collection("users").doc(userId).get();
-      return { success: true, data: doc.exists ? { id: doc.id, ...(doc.data() as any) } : null };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching user";
-      return { success: false, error: message, status: 500 };
-    }
-  },
 
-  /**
-   * Update user fields (admin only)
-   * Matches actions/admin.ts: updateUser(userId, userData)
-   */
-  async updateUser(
-    userId: string,
-    userData: { name?: string; role?: UserRole }
-  ): Promise<ServiceResponse<{ id: string }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
-    if (!userId) return { success: false, error: "User ID is required", status: 400 };
-
-    try {
-      const db = getAdminFirestore();
-      const ref = db.collection("users").doc(userId);
-
-      const snap = await ref.get();
-      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
-
-      const update: Record<string, unknown> = {
-        ...(userData.name !== undefined ? { name: userData.name } : {}),
-        ...(userData.role !== undefined ? { role: userData.role } : {}),
+      const updateData: Record<string, unknown> = {
+        ...patch,
         updatedAt: new Date()
       };
 
-      await ref.update(update);
+      Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+
+      await db.collection("users").doc(userId).set(updateData, { merge: true });
+
       return { success: true, data: { id: userId } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error updating user";
+          : "Unknown error patching user";
       return { success: false, error: message, status: 500 };
     }
   },
 
   /**
-   * Delete Firestore user doc only (admin only)
-   * Matches actions/admin.ts: deleteUserDoc(userId)
+   * Back-compat alias for older code paths.
+   * If your actions/pages call updateUser(userId, userData) keep it working via patchUser.
    */
-  async deleteUserDoc(userId: string): Promise<ServiceResponse<{}>> {
+  async updateUser(userId: string, userData: Record<string, unknown>): Promise<ServiceResponse<{ id: string }>> {
+    return this.patchUser(userId, userData);
+  },
+  /**
+   * Delete ONLY the Firestore user document (admin only).
+   */
+  async deleteUserDoc(userId: string): Promise<ServiceResponse<{ id: string }>> {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
@@ -200,13 +156,8 @@ export const adminUserService = {
 
     try {
       const db = getAdminFirestore();
-      const ref = db.collection("users").doc(userId);
-
-      const snap = await ref.get();
-      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
-
-      await ref.delete();
-      return { success: true, data: {} };
+      await db.collection("users").doc(userId).delete();
+      return { success: true, data: { id: userId } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
@@ -218,29 +169,28 @@ export const adminUserService = {
   },
 
   /**
-   * Delete user account (admin only): Firebase Auth user + Firestore doc
-   * Matches actions/admin.ts: deleteUserAccount(userId)
+   * Delete Firebase Auth account + Firestore user doc (admin only).
+   * Note: best-effort cleanup (if auth delete fails, we return the failure and do not delete doc).
    */
-  async deleteUserAccount(userId: string): Promise<ServiceResponse<{}>> {
+  async deleteUserAccount(userId: string): Promise<ServiceResponse<{ id: string }>> {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
 
     try {
-      const db = getAdminFirestore();
-      const userRef = db.collection("users").doc(userId);
+      const { adminAuthService } = await import("@/lib/services/admin-auth-service");
 
-      const docSnap = await userRef.get();
+      // delete auth user
+      const delRes = await adminAuthService.deleteUserAuthAndDoc(userId);
+      if (!delRes.success) {
+        return { success: false, error: delRes.error || "Failed to delete auth user", status: delRes.status ?? 500 };
+      }
 
-      const { getAdminAuth } = await import("@/lib/firebase/admin/initialize");
-      const adminAuth = getAdminAuth();
+      // delete firestore doc (best effort)
+      await adminUserService.deleteUserDoc(userId);
 
-      await adminAuth.deleteUser(userId);
-
-      if (docSnap.exists) await userRef.delete();
-
-      return { success: true, data: {} };
+      return { success: true, data: { id: userId } };
     } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
@@ -252,10 +202,14 @@ export const adminUserService = {
   },
 
   /**
-   * Admin dashboard stats for users (counts)
+   * Minimal stats for admin dashboard (admin only).
+   * Keep this small + cheap: counts only.
    */
   async getAdminUserStats(): Promise<
-    ServiceResponse<{ totalUsers: number; activeUsers7d: number; newUsersToday: number }>
+    ServiceResponse<{
+      totalUsers: number;
+      totalAdmins: number;
+    }>
   > {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
@@ -263,131 +217,19 @@ export const adminUserService = {
     try {
       const db = getAdminFirestore();
 
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(now.getDate() - 7);
-
       const totalSnap = await db.collection("users").count().get();
       const totalUsers = totalSnap.data().count;
 
-      const activeSnap = await db.collection("users").where("lastLoginAt", ">=", sevenDaysAgo).count().get();
-      const activeUsers7d = activeSnap.data().count;
+      const adminSnap = await db.collection("users").where("role", "==", "admin").count().get();
+      const totalAdmins = adminSnap.data().count;
 
-      const newSnap = await db.collection("users").where("createdAt", ">=", today).count().get();
-      const newUsersToday = newSnap.data().count;
-
-      return { success: true, data: { totalUsers, activeUsers7d, newUsersToday } };
-    } catch (error) {
+      return { success: true, data: { totalUsers, totalAdmins } };
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching user stats";
-      return { success: false, error: message, status: 500 };
-    }
-  },
-
-  /**
-   * Lightweight lookup map for userId -> basic fields
-   * Used for enriching activity logs / admin UIs.
-   */
-  async getUsersLookup(): Promise<ServiceResponse<Record<string, { name?: string; email?: string; image?: string }>>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
-    try {
-      const db = getAdminFirestore();
-      const snap = await db.collection("users").get();
-
-      const lookup: Record<string, { name?: string; email?: string; image?: string }> = {};
-
-      snap.docs.forEach(doc => {
-        const data = doc.data() as any;
-        lookup[doc.id] = {
-          name: data?.name ?? data?.displayName ?? undefined,
-          email: data?.email ?? undefined,
-          image: getUserImage(data) ?? undefined
-        };
-      });
-
-      return { success: true, data: lookup };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error building users lookup";
-      return { success: false, error: message, status: 500 };
-    }
-  },
-
-  /**
-   * Patch any fields (admin only) – utility method
-   */
-  async patchUser(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
-    if (!userId) return { success: false, error: "User ID is required", status: 400 };
-
-    try {
-      const db = getAdminFirestore();
-      await db
-        .collection("users")
-        .doc(userId)
-        .update({ ...data, updatedAt: new Date() });
-      return { success: true, data: {} };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating user";
-      return { success: false, error: message, status: 500 };
-    }
-  },
-
-  /**
-   * ✅ Missing method from your snippet
-   */
-  async countUsers(): Promise<ServiceResponse<{ count: number }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
-    try {
-      const db = getAdminFirestore();
-      const snap = await db.collection("users").count().get();
-      return { success: true, data: { count: snap.data().count } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error counting users";
-      return { success: false, error: message, status: 500 };
-    }
-  },
-
-  /**
-   * ✅ Missing method from your snippet
-   */
-  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
-    if (!userId) return { success: false, error: "User ID is required", status: 400 };
-
-    try {
-      const db = getAdminFirestore();
-      await db.collection("users").doc(userId).set(data);
-      return { success: true, data: {} };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error creating user doc";
+          : "Unknown error fetching admin user stats";
       return { success: false, error: message, status: 500 };
     }
   }

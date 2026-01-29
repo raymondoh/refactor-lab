@@ -58,10 +58,10 @@ export default async function AdminDashboardOverviewPage() {
       if (!stats.success) {
         console.error("Error fetching admin user stats:", stats.error);
       } else {
-        const { totalUsers, activeUsers7d, newUsersToday } = stats.data;
+        const { totalUsers } = stats.data;
         systemStats.totalUsers = totalUsers;
-        systemStats.activeUsers = activeUsers7d;
-        systemStats.newUsersToday = newUsersToday;
+        //.activeUsers = activeUsers7d;
+        //systemStats.newUsersToday = newUsersToday;
       }
 
       // ✅ Activity count via service

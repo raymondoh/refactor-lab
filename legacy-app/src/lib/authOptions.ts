@@ -9,7 +9,6 @@ import { syncUserWithFirebase } from "./auth/syncUserWithFirebase";
 import type { AdapterUser } from "next-auth/adapters";
 import { handleProviderSync } from "./auth/sync";
 import type { UserRole } from "@/types/user";
-import type { User as FirestoreUser } from "@/types/user/common";
 
 type ExtendedUser = AdapterUser & {
   sub?: string;
@@ -137,85 +136,97 @@ export const authOptions: NextAuthConfig = {
     maxAge: 30 * 24 * 60 * 60
   },
   callbacks: {
-    async jwt({ token, user, account }) {
-      console.log("[NextAuth Callback] JWT: START");
-      console.log("  Initial token:", token);
-      console.log("  User object (from provider/adapter):", user);
-      console.log("  Account object:", account);
+    async jwt({ token, user, account, trigger, session }) {
+      // Ensure uid is always present
+      if (!token.uid && token.sub) token.uid = token.sub;
+      if (!token.uid && (user as any)?.id) token.uid = (user as any).id;
 
-      // ✅ Service-driven Firestore fetch on every JWT callback
-      if (token.uid) {
-        try {
-          const { adminUserService } = await import("@/lib/services/admin-user-service");
-
-          const userRes = await adminUserService.getUserById(token.uid as string);
-          if (userRes.success && userRes.data) {
-            const firestoreData = userRes.data as unknown as FirestoreUser;
-
-            token.firstName = firestoreData.firstName;
-            token.lastName = firestoreData.lastName;
-            token.displayName = firestoreData.displayName;
-            token.bio = (firestoreData as any).bio;
-            token.email = firestoreData.email || token.email;
-            token.picture =
-              (firestoreData as any).picture || (firestoreData as any).image || (firestoreData as any).photoURL;
-            token.name = (firestoreData as any).name || firestoreData.displayName || token.name;
-
-            console.log("[NextAuth Callback] JWT: Firestore data fetched and assigned to token:", firestoreData);
-          }
-        } catch (error) {
-          console.error("[NextAuth Callback] JWT: Error fetching user data via service:", error);
-        }
+      // Apply session.update() patches
+      if (trigger === "update" && session?.user) {
+        const su = session.user as any;
+        if (su.email) token.email = su.email;
+        if (su.name) token.name = su.name;
+        if (su.image) token.picture = su.image;
+        if (su.bio) token.bio = su.bio;
+        if (su.firstName) token.firstName = su.firstName;
+        if (su.lastName) token.lastName = su.lastName;
+        if (su.displayName) token.displayName = su.displayName;
+      } else {
+        const extendedUser = user as ExtendedUser;
+        if (extendedUser?.email) token.email = extendedUser.email;
+        if (extendedUser?.name) token.name = extendedUser.name;
+        if (extendedUser?.picture) token.picture = extendedUser.picture;
+        if (extendedUser?.bio) token.bio = extendedUser.bio;
+        if (extendedUser?.firstName) token.firstName = extendedUser.firstName;
+        if (extendedUser?.lastName) token.lastName = extendedUser.lastName;
+        if (extendedUser?.displayName) token.displayName = extendedUser.displayName;
       }
 
-      // New login/provider sync
+      // Provider sync ONLY on sign-in (sets token.uid/role)
       if (user && account) {
         try {
           const { role, uid } = await handleProviderSync(user as ExtendedUser, account);
           token.uid = uid;
           token.role = role;
         } catch (error) {
-          console.error(`[NextAuth Callback] JWT: Error syncing ${account.provider} user with Firebase:`, error);
+          console.error(`[NextAuth jwt] Error syncing ${account.provider}:`, error);
         }
       }
 
-      // Apply direct updates from `session.update(...)`
-      const extendedUser = user as ExtendedUser;
-      if (extendedUser?.email) token.email = extendedUser.email;
-      if (extendedUser?.name) token.name = extendedUser.name;
-      if (extendedUser?.picture) token.picture = extendedUser.picture;
-      if (extendedUser?.bio) token.bio = extendedUser.bio;
-      if (extendedUser?.firstName) token.firstName = extendedUser.firstName;
-      if (extendedUser?.lastName) token.lastName = extendedUser.lastName;
-      if (extendedUser?.displayName) token.displayName = extendedUser.displayName;
+      // ✅ Firestore sync ONLY on sign-in OR explicit update
+      const shouldSync = Boolean(user && account) || trigger === "update";
 
-      console.log("[NextAuth Callback] JWT: Final token:", token);
+      if (token.uid && shouldSync) {
+        try {
+          const { userRepo } = await import("@/lib/repos/user-repo");
+          const userRes = await userRepo.getUserById(token.uid as string);
+
+          if (userRes.success && userRes.data?.user) {
+            const firestoreUser = userRes.data.user;
+
+            token.firstName = firestoreUser.firstName;
+            token.lastName = firestoreUser.lastName;
+            token.displayName = firestoreUser.displayName;
+            token.bio = (firestoreUser as any).bio;
+
+            token.email = firestoreUser.email || token.email;
+
+            token.picture =
+              (firestoreUser as any).picture ||
+              (firestoreUser as any).image ||
+              (firestoreUser as any).photoURL ||
+              token.picture;
+
+            token.name = (firestoreUser as any).name || firestoreUser.displayName || token.name;
+            token.role = (firestoreUser as any).role || token.role;
+          }
+        } catch (e) {
+          console.error("[NextAuth jwt] Firestore sync via userRepo failed:", e);
+        }
+      }
+
       return token;
     },
 
     async session({ session, token }) {
-      console.log("[NextAuth Callback] Session: START");
-      console.log("  Initial session:", session);
-      console.log("  Token object (from JWT callback):", token);
-
       const isValidRole = (role: unknown): role is UserRole => role === "admin" || role === "user";
 
-      if (token && session.user) {
-        session.user.id = token.uid as string;
-        session.user.email = token.email as string;
-        session.user.role = isValidRole(token.role) ? token.role : "user";
+      try {
+        if (token && session.user) {
+          session.user.id = token.uid as string;
+          session.user.email = token.email as string;
+          session.user.role = isValidRole(token.role) ? token.role : "user";
 
-        session.user.firstName = token.firstName as string | undefined;
-        session.user.lastName = token.lastName as string | undefined;
-        session.user.displayName = token.displayName as string | undefined;
+          session.user.firstName = token.firstName as string | undefined;
+          session.user.lastName = token.lastName as string | undefined;
+          session.user.displayName = token.displayName as string | undefined;
 
-        session.user.name = token.name as string | undefined;
-        session.user.image = token.picture as string | undefined;
-        session.user.bio = token.bio as string | undefined;
-
-        console.log("[NextAuth Callback] Session: Final session.user:", session.user);
-      } else {
-        console.warn("[NextAuth Callback] Session: Token or session.user missing.");
+          session.user.name = token.name as string | undefined;
+          session.user.image = token.picture as string | undefined;
+          session.user.bio = token.bio as string | undefined;
+        }
+      } catch (error) {
+        console.error("[NextAuth session] Error building session:", error);
       }
 
       return session;

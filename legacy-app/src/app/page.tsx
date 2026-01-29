@@ -6,9 +6,10 @@ import { CategoriesStatic } from "@/components/homepage-sections/CategoriesStati
 import { TestimonialSection } from "@/components/homepage-sections/TestimonialSection";
 import { PromoSection } from "@/components/homepage-sections/PromoSection";
 import StickerGridSectionsStatic from "@/components/homepage-sections/StickerGridSectionStatic";
+import { serializeProductArray } from "@/utils/serializeProduct";
 import { ProductCarousel } from "@/components/shared/ProductCarousel";
 
-import { adminProductService } from "@/lib/services/admin-product-service";
+import { getAllProductsPublic } from "@/lib/services/products-public-service";
 
 // Force dynamic rendering to get fresh data
 export const dynamic = "force-dynamic";
@@ -28,19 +29,23 @@ export default async function HomePage() {
   console.log("🏠 Homepage - Starting data fetch at:", new Date().toISOString());
 
   // Fetch all the different product collections
-  const [featuredProducts, trendingProducts, saleProducts, newArrivals, themedProducts] = await Promise.all([
-    adminProductService.getAllProducts({ isFeatured: true, limit: 8 }),
-    adminProductService.getAllProducts({ limit: 8 }), // trending fallback = latest
-    adminProductService.getOnSaleProducts(6),
-    adminProductService.getNewArrivals(6),
-    adminProductService.getThemedProducts(8)
+  const [featuredRes, trendingRes, saleRes, newRes, themedRes] = await Promise.all([
+    getAllProductsPublic({ isFeatured: true, limit: 8 }),
+    getAllProductsPublic({ limit: 8 }), // trending fallback = latest
+    getAllProductsPublic({ onSale: true, limit: 6 }),
+    getAllProductsPublic({ isNewArrival: true, limit: 6 }),
+    getAllProductsPublic({ themedOnly: true, limit: 8 })
   ]);
 
-  console.log("🏠 Homepage - Data fetch completed");
-  console.log("🏠 Featured products:", featuredProducts.success ? featuredProducts.data.length : 0);
-  console.log("🏠 Sale products:", saleProducts.success ? saleProducts.data.length : 0);
-  console.log("🏠 New arrivals:", newArrivals.success ? newArrivals.data.length : 0);
-  console.log("🏠 Themed products:", themedProducts.success ? themedProducts.data.length : 0);
+  const featuredProducts = featuredRes.success ? serializeProductArray(featuredRes.data) : [];
+  const trendingProducts = trendingRes.success ? serializeProductArray(trendingRes.data) : [];
+  const saleProducts = saleRes.success ? serializeProductArray(saleRes.data) : [];
+  const newArrivals = newRes.success ? serializeProductArray(newRes.data) : [];
+  const themedProducts = themedRes.success ? serializeProductArray(themedRes.data) : [];
+
+  // Fix the console logs as well (accessing .length directly on the serialized array)
+  console.log("🏠 Featured products count:", featuredProducts.length);
+  console.log("🏠 Sale products count:", saleProducts.length);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -52,20 +57,20 @@ export default async function HomePage() {
         <CategoriesStatic />
 
         {/* Featured Products */}
-        {featuredProducts.success && featuredProducts.data.length > 0 && (
+        {trendingProducts.length > 0 && (
           <ProductCarousel
-            products={featuredProducts.data}
-            title="Featured Products"
+            products={trendingProducts}
+            title="Trending Stickers"
             description="Standout picks hand-chosen by our team"
             viewAllUrl="/products?isFeatured=true"
             centered={false}
           />
         )}
 
-        {/* 1. TRENDING PRODUCTS - Always show if available */}
-        {trendingProducts.success && trendingProducts.data.length > 0 && (
+        {/* 1. TRENDING PRODUCTS */}
+        {trendingProducts.length > 0 && (
           <ProductCarousel
-            products={trendingProducts.data}
+            products={trendingProducts}
             title="Trending Stickers"
             description="Discover the most popular designs loved by our community"
             viewAllUrl="/products?sort=trending"
@@ -76,14 +81,14 @@ export default async function HomePage() {
         {/* Sticker Grid Sections */}
         <StickerGridSectionsStatic />
 
-        {/* 2. SALE CAROUSEL - Only shows if there are actual sale products */}
-        {saleProducts.success && saleProducts.data.length > 0 && (
+        {/* 2. SALE CAROUSEL */}
+        {saleProducts.length > 0 && (
           <>
-            {console.log("🏠 Rendering DEDICATED Sale Carousel with", saleProducts.data.length, "products")}
+            {console.log("Rendering DEDICATED Sale Carousel with", saleProducts.length)}
             <ProductCarousel
-              products={saleProducts.data}
+              products={saleProducts}
               title="Special Offers"
-              description="Limited-time deals on premium stickers - grab them while they last!"
+              description="Limited-time deals on premium stickers!"
               viewAllUrl="/products?onSale=true"
               centered={false}
             />
@@ -91,31 +96,26 @@ export default async function HomePage() {
         )}
 
         {/* 3. NEW ARRIVALS CAROUSEL - Only shows if there are new arrivals */}
-        {newArrivals.success && newArrivals.data.length > 0 && (
-          <>
-            {console.log("🏠 Rendering New Arrivals Carousel with", newArrivals.data.length, "products")}
-            <ProductCarousel
-              products={newArrivals.data}
-              title="New Arrivals"
-              description="Fresh designs just added to our collection"
-              viewAllUrl="/products?isNewArrival=true"
-              centered={false}
-            />
-          </>
+        {/* 3. NEW ARRIVALS CAROUSEL */}
+        {newArrivals.length > 0 && (
+          <ProductCarousel
+            products={newArrivals}
+            title="New Arrivals"
+            description="Fresh designs just added to our collection"
+            viewAllUrl="/products?isNewArrival=true"
+            centered={false}
+          />
         )}
 
         {/* 4. DESIGNER COLLECTION CAROUSEL - Only shows if there are themed products */}
-        {themedProducts.success && themedProducts.data.length > 0 && (
-          <>
-            {console.log("🏠 Rendering Designer Collection Carousel with", themedProducts.data.length, "products")}
-            <ProductCarousel
-              products={themedProducts.data}
-              title="Designer Collection"
-              description="Curated designs featuring our most popular themes"
-              viewAllUrl="/products?designThemes=featured"
-              centered={false}
-            />
-          </>
+        {themedProducts.length > 0 && (
+          <ProductCarousel
+            products={themedProducts}
+            title="Designer Collection"
+            description="Curated designs featuring our most popular themes"
+            viewAllUrl="/products?designThemes=featured"
+            centered={false}
+          />
         )}
 
         {/* 5. STAFF PICKS CAROUSEL - Fallback if nothing else shows */}
