@@ -1,12 +1,13 @@
 // src/actions/client/products.ts
-import type { Product } from "@/types";
+import type { GetAllProductsResult } from "@/types/api/product-results";
+import type { ProductFilterOptions } from "@/types/filters/product-filters";
 
 /**
  * Client-side action to fetch filtered products
  */
 export async function fetchAllProductsClient(
-  filters?: Product.ProductFilterOptions
-): Promise<Product.GetAllProductsResult> {
+  filters?: ProductFilterOptions
+): Promise<GetAllProductsResult> {
   try {
     const query = filters
       ? "?" +

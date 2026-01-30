@@ -11,8 +11,8 @@ import { serializeUser } from "@/utils/serializeUser";
 import { getUserImage } from "@/utils/get-user-image";
 import { logger } from "@/utils/logger";
 
-import type { CreateUserInput, CreateUserResponse, FetchUsersResponse, UpdateUserResponse } from "@/types/user";
-import type { User, SerializedUser } from "@/types/user/common";
+import type { CreateUserInput, CreateUserResponse, FetchUsersResponse, UpdateUserResponse } from "@/types/user/admin";
+import type { User, SerializedUser } from "@/types/models/user";
 
 // ================= Admin User Actions =================
 

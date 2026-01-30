@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { ProductActions } from "@/components/products/ProductActions";
 import { formatPrice } from "@/lib/utils";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import { ProductLikeButton } from "@/components/products/ProductLikeButton";
 import { ProductShareButton } from "./ProductShareButton";
 

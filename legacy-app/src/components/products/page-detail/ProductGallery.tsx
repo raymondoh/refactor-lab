@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductGalleryProps {
   product: Product;

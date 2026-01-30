@@ -13,7 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import type { Category } from "@/types/category";
 import { formatPrice } from "@/lib/utils";
 // Define the allowed badge variant types

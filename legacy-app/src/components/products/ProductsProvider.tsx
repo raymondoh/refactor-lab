@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext } from "react";
 import { useProductFilters } from "@/hooks/use-product-filters";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 // Define props for ProductsProvider
 interface ProductsProviderProps {

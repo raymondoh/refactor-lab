@@ -2,7 +2,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductTabsProps {
   product: Product;

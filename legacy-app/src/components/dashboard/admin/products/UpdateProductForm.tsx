@@ -18,7 +18,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { uploadFile } from "@/utils/uploadFile";
 import { validateFileSize } from "@/utils/validateFileSize";
 import { ArrowLeft, AlertCircle } from "lucide-react";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import {
   categories,
   subcategories,

@@ -1,6 +1,6 @@
 // src/utils/serializeProduct.ts
 
-import type { Product, SerializedProduct } from "@/types/product";
+import type { Product, SerializedProduct } from "@/types/models/product";
 import { formatDate } from "@/utils/date";
 import { Timestamp } from "firebase-admin/firestore";
 

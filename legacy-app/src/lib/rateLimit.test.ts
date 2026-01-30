@@ -1,9 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const incrMock = jest.fn();
-const expireMock = jest.fn();
-const pexpireMock = jest.fn();
-const pttlMock = jest.fn();
+const incrMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const expireMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const pexpireMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const pttlMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
 
 jest.mock('@upstash/redis', () => ({
   Redis: jest.fn().mockImplementation(() => ({

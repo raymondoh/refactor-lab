@@ -1,14 +1,14 @@
 "use client";
 
 import { toast } from "sonner";
-import type { Product } from "@/types";
+import type { UpdateProductInput, UpdateProductResult } from "@/types/models/product";
 // 1. Import the schema (ensure this path and export name are correct)
 import { productUpdateSchema } from "@/schemas/product";
 
 export async function updateProductClient(
   productId: string,
-  data: Product.UpdateProductInput
-): Promise<Product.UpdateProductResult> {
+  data: UpdateProductInput
+): Promise<UpdateProductResult> {
   try {
     // 2. Client-side validation
     const validationResult = productUpdateSchema.safeParse(data);
@@ -71,7 +71,7 @@ export async function updateProductClient(
     }
 
     // If response.ok is true, attempt to parse the success response
-    let result: Product.UpdateProductResult;
+    let result: UpdateProductResult;
     try {
       // The server should be sending JSON compatible with Product.UpdateProductResult
       // e.g., { success: true, data: "product_id" } or { success: true }

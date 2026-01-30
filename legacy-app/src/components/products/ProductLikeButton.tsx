@@ -6,7 +6,7 @@ import { Heart } from "lucide-react";
 import { useLikes } from "@/contexts/LikesContext";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import { cn } from "@/lib/utils";
 
 interface ProductLikeButtonProps {

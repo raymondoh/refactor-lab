@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCart } from "@/contexts/CartContext";
 import { Check, Minus, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductActionsProps {
   product: Product; // Replace with your product type

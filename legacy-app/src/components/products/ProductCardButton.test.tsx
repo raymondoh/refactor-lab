@@ -12,6 +12,8 @@ const mockProduct = {
   description: "A product used for testing.",
   stock: 10,
   inStock: true, // ✅ add this
+  averageRating: 4.5,
+  reviewCount: 10,
   createdAt: new Date().toISOString() // ✅ or whatever your app expects
 } as const;
 

@@ -1,4 +1,4 @@
-import type { User } from "../user/common";
+import type { User } from "../models/user";
 
 /**
  * Props for the AccountSummary component

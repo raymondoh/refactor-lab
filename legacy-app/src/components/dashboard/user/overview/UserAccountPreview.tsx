@@ -2,7 +2,7 @@
 
 import { AccountSummary } from "./AccountSummary";
 import { AccountSummarySkeleton } from "./AccountSummarySkeleton";
-import type { SerializedUser } from "@/types/user";
+import type { SerializedUser } from "@/types/models/user";
 
 type Props = {
   serializedUserData: SerializedUser;

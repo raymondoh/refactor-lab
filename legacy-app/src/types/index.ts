@@ -19,6 +19,15 @@ export * as DataPrivacy from "./data-privacy"; //
 // Common types
 export * as Common from "./common";
 
+// API types
+export * as Api from "./api";
+
+// Model types
+export * as Models from "./models";
+
+// Filter types
+export * as Filters from "./filters";
+
 // New Exports:
 
 export * as Category from "./category";

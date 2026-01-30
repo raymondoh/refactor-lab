@@ -4,7 +4,7 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { UsersClient } from "@/components/dashboard/admin/users/UsersClient";
 import { redirect } from "next/navigation";
 import { UserService } from "@/lib/services/user-service";
-import type { SerializedUser } from "@/types/user/common";
+import type { SerializedUser } from "@/types/models/user";
 
 export const metadata: Metadata = {
   title: "Manage Users - Admin",

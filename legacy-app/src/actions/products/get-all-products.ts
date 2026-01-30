@@ -2,7 +2,7 @@
 
 import { getAllProducts } from "@/firebase/admin/products";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { ProductFilterOptions } from "@/types/product";
+import type { ProductFilterOptions } from "@/types/filters/product-filters";
 
 // Get all products with optional filters
 export async function getAllProductsAction(filters?: ProductFilterOptions) {

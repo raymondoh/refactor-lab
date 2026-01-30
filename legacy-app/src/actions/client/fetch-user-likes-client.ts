@@ -1,9 +1,9 @@
 // actions/client/fetch-user-likes-client.ts
 "use client";
 
-import type { Product } from "@/types";
+import type { Product } from "@/types/models/product";
 
-export async function fetchUserLikesClient(): Promise<Product.Product[]> {
+export async function fetchUserLikesClient(): Promise<Product[]> {
   try {
     // Fetch the user's liked products directly from the API
     const res = await fetch("/api/likes/products");

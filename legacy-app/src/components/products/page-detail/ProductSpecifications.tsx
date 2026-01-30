@@ -1,7 +1,7 @@
 // src/components/products/detail/ProductSpecifications.tsx
 "use client";
 
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductSpecificationsProps {
   product: Product;

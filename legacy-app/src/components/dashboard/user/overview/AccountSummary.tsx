@@ -10,7 +10,7 @@ import type { AccountSummaryProps } from "@/types/dashboard";
 
 import { serializeData } from "@/utils/serializeData";
 import { formatDate } from "@/utils/date";
-import type { SerializedUser } from "@/types/user";
+import type { SerializedUser } from "@/types/models/user";
 export function AccountSummary({ user, profileUrl = "/user/profile", className }: AccountSummaryProps) {
   // Normalize the user data so that date fields are ISO strings.
   const normalizedUser = useMemo(() => serializeData(user) as SerializedUser, [user]);

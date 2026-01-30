@@ -6,7 +6,7 @@ import { Mail } from "lucide-react"; // Keep if used
 import Link from "next/link"; // Keep if used
 
 import { ProductCarousel } from "@/components/shared/ProductCarousel"; // Your import for the carousel
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 export const metadata: Metadata = {
   title: `About Us - My Story & Our Craft | ${siteConfig.name}`,

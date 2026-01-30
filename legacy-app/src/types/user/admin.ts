@@ -1,7 +1,6 @@
 // types/user/admin.ts
-import type { User } from "./common";
+import type { User, UserRole } from "../models/user";
 import type { ActionResponse } from "../common";
-import type { UserRole } from "./common";
 
 export interface CreateUserInput {
   email: string;
