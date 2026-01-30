@@ -10,14 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/utils/date";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import { UserAvatar } from "@/components/shared/UserAvatar";
-import { User } from "@/types";
+import type { PreviewUser } from "@/types/models/user";
 
 interface UserManagementPreviewProps {
   limit?: number;
 }
 
 export function AdminUserPreview({ limit: userLimit = 5 }: UserManagementPreviewProps) {
-  const [users, setUsers] = useState<User.PreviewUser[]>([]);
+  const [users, setUsers] = useState<PreviewUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function AdminUserPreview({ limit: userLimit = 5 }: UserManagementPreview
         const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(userLimit));
         const snapshot = await getDocs(usersQuery);
 
-        const usersData: User.PreviewUser[] = snapshot.docs.map(doc => {
+        const usersData: PreviewUser[] = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,

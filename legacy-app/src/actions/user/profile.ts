@@ -12,7 +12,7 @@ import { serializeUser } from "@/utils/serializeUser";
 import { getUserImage } from "@/utils/get-user-image";
 
 import type { GetProfileResponse, UpdateUserProfileResponse } from "@/types/user/profile";
-import type { User } from "@/types/user";
+import type { User } from "@/types/models/user";
 
 // ================= User Profile Actions =================
 

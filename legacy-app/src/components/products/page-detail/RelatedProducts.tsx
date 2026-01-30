@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { ProductCard } from "@/components/products/ProductCard";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface RelatedProductsProps {
   products: Product[];

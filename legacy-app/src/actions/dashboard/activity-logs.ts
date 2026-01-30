@@ -7,7 +7,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize"; // For accessing Firestore directly
 import { getUserImage } from "@/utils/get-user-image"; // Utility to safely get user image URL
 import type { SerializedActivity, ActivityLogWithId } from "@/types/firebase/activity"; // Use SerializedActivity for enriched logs
-import type { UserRole } from "@/types/user"; // Assuming UserRole is defined here or in types/user
+import type { UserRole } from "@/types/models/user"; // Assuming UserRole is defined here or in types/user
 
 // Define the return type for activity logs actions, using SerializedActivity for enriched logs
 type ActivityLogsResult = { success: true; logs: SerializedActivity[] } | { success: false; error: string };

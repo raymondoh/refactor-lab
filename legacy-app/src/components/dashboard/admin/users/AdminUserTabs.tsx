@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { SerializedUser } from "@/types/user";
+import type { SerializedUser } from "@/types/models/user";
 
 interface AdminUserTabsProps {
   user: SerializedUser;

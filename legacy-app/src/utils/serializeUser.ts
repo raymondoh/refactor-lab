@@ -1,5 +1,5 @@
 // src/utils/serializeUser.ts
-import type { User, SerializedUser } from "@/types/user";
+import type { User, SerializedUser } from "@/types/models/user";
 import { parseServerDate } from "./date-server";
 
 export function serializeUser(user: User): SerializedUser {

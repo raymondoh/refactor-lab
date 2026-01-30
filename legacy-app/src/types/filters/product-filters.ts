@@ -1,5 +1,3 @@
-// src/types/product/filter.ts
-
 export type ProductFilterOptions = {
   category?: string;
   subcategory?: string;

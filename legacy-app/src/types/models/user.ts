@@ -1,7 +1,4 @@
-// src/types/user/common.ts
-
 import type { Timestamp } from "firebase-admin/firestore";
-//import type { ActionResponse } from "../common";
 
 /**
  * User roles in the system
@@ -50,8 +47,6 @@ export interface User {
   permissions?: string[];
   status?: UserStatus;
 }
-
-// types/user.ts
 
 export interface SerializedUser extends Omit<User, "createdAt" | "lastLoginAt" | "updatedAt"> {
   createdAt?: string;

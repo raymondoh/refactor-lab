@@ -1,7 +1,7 @@
 // src/app/api/products/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { getAllProducts, addProduct } from "@/firebase/admin/products";
-import type { Product } from "@/types";
+import type { ProductFilterOptions } from "@/types/filters/product-filters";
 import { logActivity } from "@/firebase/actions";
 
 export async function GET(req: NextRequest) {
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         .filter(s => s.length > 0);
     };
 
-    const filters: Product.ProductFilterOptions = {
+    const filters: ProductFilterOptions = {
       // Existing filters
       category: searchParams.get("category") || undefined,
       subcategory: searchParams.get("subcategory") || undefined,
@@ -49,8 +49,8 @@ export async function GET(req: NextRequest) {
 
     // Remove undefined keys to keep the filter object clean
     Object.keys(filters).forEach(key => {
-      if (filters[key as keyof Product.ProductFilterOptions] === undefined) {
-        delete filters[key as keyof Product.ProductFilterOptions];
+      if (filters[key as keyof ProductFilterOptions] === undefined) {
+        delete filters[key as keyof ProductFilterOptions];
       }
     });
 

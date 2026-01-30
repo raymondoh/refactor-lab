@@ -1,7 +1,7 @@
 "use client";
-import type { Product } from "@/types";
+import type { Product } from "@/types/models/product";
 
-export async function addProductClient(data: Omit<Product.Product, "id" | "createdAt" | "updatedAt">) {
+export async function addProductClient(data: Omit<Product, "id" | "createdAt" | "updatedAt">) {
   try {
     // If no SKU is provided, it will be auto-generated on the server
     // based on the product ID

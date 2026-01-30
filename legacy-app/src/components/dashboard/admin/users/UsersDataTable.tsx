@@ -19,7 +19,7 @@ import {
 import { DataTable } from "@/components/shared/pagination/DataTable"; // Path to your shared DataTable
 import { TableToolbar } from "@/components/shared/pagination/TableToolbar"; // Path to your shared TableToolbar
 import { UserDialog } from "./UserDialog"; // For adding a new user
-import type { SerializedUser } from "@/types/user/common";
+import type { SerializedUser } from "@/types/models/user";
 //import { getUserRowClass } from "./users-columns"; // Import for row styling
 
 interface UsersDataTableProps {

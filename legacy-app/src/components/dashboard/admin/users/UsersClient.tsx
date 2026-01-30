@@ -5,7 +5,7 @@ import * as React from "react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner"; // Assuming you use sonner for toasts
 
-import type { SerializedUser } from "@/types/user/common";
+import type { SerializedUser } from "@/types/models/user";
 import { getUserColumns } from "./users-columns";
 import { fetchAllUsersClient } from "@/actions/client";
 import { UsersDataTable } from "./UsersDataTable";

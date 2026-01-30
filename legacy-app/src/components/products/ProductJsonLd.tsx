@@ -1,4 +1,4 @@
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductJsonLdProps {
   product: Product;

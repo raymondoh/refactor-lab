@@ -1,12 +1,10 @@
 // src/lib/services/user-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { Timestamp } from "firebase-admin/firestore";
-import type { User, UserRole } from "@/types/user";
+import type { ServiceResponse } from "@/types/api/service-response";
+import type { User, UserRole } from "@/types/models/user";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { getUserImage } from "@/utils/get-user-image";
-
-// Types for service responses
-type ServiceResponse<T> = { success: true; data: T } | { success: false; error: string };
 
 // User service class
 export class UserService {

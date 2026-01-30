@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SubmitButton } from "@/components/shared/SubmitButton";
 import { toast } from "sonner";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { UserRole } from "@/types/user";
+import type { UserRole } from "@/types/models/user";
 import { Button } from "@/components/ui/button";
 import { createUser } from "@/actions/user/admin"; // This action will also need to be updated!
 

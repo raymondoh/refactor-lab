@@ -10,7 +10,8 @@ import { Trash2, Loader2 } from "lucide-react";
 import { ProductsDataTable } from "./ProductsDataTable";
 import { getProductColumns } from "./products-columns";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { Product, GetAllProductsSuccess } from "@/types/product";
+import type { GetAllProductsSuccess } from "@/types/api/product-results";
+import type { Product } from "@/types/models/product";
 import type { Category } from "@/types/category"; // Make sure this type is correctly defined
 import { deleteProductClient as deleteProduct } from "@/actions/client";
 import { fetchAllProductsClient } from "@/actions/client";

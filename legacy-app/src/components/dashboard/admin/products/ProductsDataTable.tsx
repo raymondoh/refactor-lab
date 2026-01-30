@@ -19,7 +19,7 @@ import {
 import { DataTable } from "@/components/shared/pagination/DataTable"; // Adjusted path
 import { TableToolbar } from "@/components/shared/pagination/TableToolbar"; // Adjusted path
 import { ProductDialog } from "./ProductDialog";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 // import type { Category } from "@/types/category"; // If needed for toolbar filters, etc.
 
 interface ProductsDataTableProps {

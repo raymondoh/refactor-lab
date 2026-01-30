@@ -1,5 +1,4 @@
-// Types for product-related action results
-import { SerializedProduct } from "./product";
+import type { SerializedProduct } from "../models/product";
 
 export type GetUserLikedProductsResult = {
   success: boolean;
@@ -9,7 +8,7 @@ export type GetUserLikedProductsResult = {
 
 export interface GetAllProductsSuccess {
   success: true;
-  data: import("./product").SerializedProduct[];
+  data: SerializedProduct[];
   total?: number;
   page?: number;
   limit?: number;
@@ -29,7 +28,6 @@ export type DeleteProductResult = {
 
 export interface GetRelatedProductsSuccess {
   success: true;
-  //products: import("./product").SerializedProduct[];
   products: SerializedProduct[];
 }
 
