@@ -7,7 +7,7 @@ export async function generateReceiptPdf(order: Order) {
   const { width, height } = page.getSize();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  let y = height - 50;
+  const y = height - 50;
 
   const drawText = (text: string, offsetY: number, size = 12) => {
     page.drawText(text, {

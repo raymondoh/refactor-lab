@@ -8,12 +8,19 @@ import { CheckoutSuccess } from "./checkoutSuccess";
 
 type ResolveResponse = { status: "ready"; orderId: string } | { status: "pending" } | { error: string };
 
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
 export function CheckoutSuccessClient() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id"); // ✅ Stripe Checkout success param
 
   const { clearCart } = useCart();
-
   const clearedRef = useRef(false);
 
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -33,19 +40,21 @@ export function CheckoutSuccessClient() {
         method: "GET"
       });
 
-      // Try to parse JSON regardless of status
-      const data = (await res.json().catch(() => ({}))) as Partial<ResolveResponse>;
+      const raw = (await res.json().catch(() => ({}))) as unknown;
+      const data = asRecord(raw);
 
       if (!res.ok) {
-        return { error: typeof data?.error === "string" ? data.error : "Failed to resolve order." };
+        return { error: asString(data.error) ?? "Failed to resolve order." };
       }
 
-      // data is either {status:"pending"} or {status:"ready", orderId}
-      if (data && (data as any).status === "ready" && typeof (data as any).orderId === "string") {
-        return { status: "ready", orderId: (data as any).orderId };
+      const status = asString(data.status);
+
+      if (status === "ready") {
+        const id = asString(data.orderId);
+        if (id) return { status: "ready", orderId: id };
       }
 
-      if (data && (data as any).status === "pending") {
+      if (status === "pending") {
         return { status: "pending" };
       }
 
@@ -67,7 +76,6 @@ export function CheckoutSuccessClient() {
 
         try {
           const result = await resolveOnce();
-
           if (cancelled) return;
 
           if ("error" in result) {

@@ -15,25 +15,80 @@ import type { ServiceResponse } from "@/lib/services/types/service-response";
 // Server timestamp helper (keep same semantics as before)
 export const serverTimestamp = () => FieldValue.serverTimestamp();
 
+type EmptyData = Record<string, never>;
+type FirestoreData = Record<string, unknown>;
+
+function asString(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
+}
+function asNumber(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+function asTimestampDate(v: unknown): Date | undefined {
+  return v instanceof Timestamp ? v.toDate() : undefined;
+}
+
+function isOrderStatus(v: unknown): v is Order["status"] {
+  return v === "pending" || v === "processing" || v === "shipped" || v === "delivered" || v === "cancelled";
+}
+
+function mapItems(v: unknown): Order["items"] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map(it => (typeof it === "object" && it !== null ? (it as Record<string, unknown>) : null))
+    .filter(Boolean)
+    .map(it => ({
+      productId: asString(it?.productId),
+      name: asString(it?.name, "Product"),
+      price: asNumber(it?.price, 0),
+      quantity: Math.max(1, asNumber(it?.quantity, 1)),
+      image: typeof it?.image === "string" ? it.image : undefined
+    }));
+}
+
+function mapShippingAddress(v: unknown): Order["shippingAddress"] {
+  const a = typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+  return {
+    name: asString(a.name),
+    address: asString(a.address),
+    city: asString(a.city),
+    state: asString(a.state),
+    zipCode: asString(a.zipCode),
+    country: asString(a.country)
+  };
+}
+
 /**
  * Maps a Firestore document to an Order object
  */
 function mapDocToOrder(doc: FirebaseFirestore.DocumentSnapshot): Order {
-  const data = doc.data() ?? {};
+  const data = (doc.data() ?? {}) as FirestoreData;
+
+  const statusRaw = data.status;
+  const status: Order["status"] = isOrderStatus(statusRaw) ? statusRaw : "processing";
+
+  // IMPORTANT: keep nulls as nulls for userId
+  const userIdRaw = data.userId;
+  const userId: string | null = typeof userIdRaw === "string" ? userIdRaw : userIdRaw === null ? null : null;
 
   return {
     id: doc.id,
-    paymentIntentId: (data as any)?.paymentIntentId || "",
-    amount: (data as any)?.amount || 0,
-    customerEmail: (data as any)?.customerEmail || "",
-    customerName: (data as any)?.customerName || "",
-    items: (data as any)?.items || [],
-    shippingAddress: (data as any)?.shippingAddress || {},
-    userId: (data as any)?.userId || "",
-    status: (data as any)?.status || "processing",
-    createdAt: (data as any)?.createdAt instanceof Timestamp ? (data as any).createdAt.toDate() : undefined,
-    updatedAt: (data as any)?.updatedAt instanceof Timestamp ? (data as any).updatedAt.toDate() : undefined
+    paymentIntentId: asString(data.paymentIntentId),
+    amount: asNumber(data.amount, 0),
+    customerEmail: asString(data.customerEmail),
+    customerName: asString(data.customerName),
+    items: mapItems(data.items),
+    shippingAddress: mapShippingAddress(data.shippingAddress),
+    userId,
+    status,
+    currency: typeof data.currency === "string" ? data.currency : undefined,
+    createdAt: asTimestampDate(data.createdAt),
+    updatedAt: asTimestampDate(data.updatedAt)
   };
+}
+
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
 }
 
 export const adminOrderService = {
@@ -62,7 +117,7 @@ export const adminOrderService = {
 
       const orderRef = await db.collection("orders").add({
         ...validatedData,
-        userId: validatedData.userId, // can be null
+        userId: validatedData.userId ?? null,
         status: validatedData.status || "processing",
         amount: finalAmount,
         createdAt: serverTimestamp(),
@@ -70,16 +125,9 @@ export const adminOrderService = {
       });
 
       return { success: true, data: { orderId: orderRef.id } };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error creating order in Firestore:", error);
-
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
@@ -93,16 +141,9 @@ export const adminOrderService = {
 
       const orders = snapshot.docs.map(mapDocToOrder);
       return { success: true, data: orders };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error fetching user orders:", error);
-
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
@@ -119,7 +160,7 @@ export const adminOrderService = {
       }
 
       return { success: true, data: mapDocToOrder(snapshot.docs[0]) };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error fetching order by Payment Intent ID:", error);
 
       logger({
@@ -129,13 +170,7 @@ export const adminOrderService = {
         context: "orders"
       });
 
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
@@ -149,7 +184,7 @@ export const adminOrderService = {
 
       const orders = snapshot.docs.map(mapDocToOrder);
       return { success: true, data: orders };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error fetching all orders:", error);
 
       logger({
@@ -159,13 +194,7 @@ export const adminOrderService = {
         context: "orders"
       });
 
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
@@ -182,7 +211,7 @@ export const adminOrderService = {
       }
 
       return { success: true, data: mapDocToOrder(doc) };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error fetching order by ID:", error);
 
       logger({
@@ -192,20 +221,14 @@ export const adminOrderService = {
         context: "orders"
       });
 
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
   /**
    * Update a single order status by ID (Admin use)
    */
-  async updateOrderStatus(orderId: string, status: Order["status"]): Promise<ServiceResponse<{}>> {
+  async updateOrderStatus(orderId: string, status: Order["status"]): Promise<ServiceResponse<EmptyData>> {
     try {
       const db = getAdminFirestore();
 
@@ -222,7 +245,7 @@ export const adminOrderService = {
       });
 
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error updating order status:", error);
 
       logger({
@@ -232,13 +255,7 @@ export const adminOrderService = {
         metadata: { orderId, error }
       });
 
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
-
-      return { success: false, error: message, status: 500 };
+      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   }
 };

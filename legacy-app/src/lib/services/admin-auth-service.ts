@@ -3,7 +3,8 @@ import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import type { ServiceResponse } from "@/types/service-response";
 import bcryptjs from "bcryptjs";
-import type { UserRole } from "@/types/user";
+import type { UserRole } from "@/types/models/user";
+import type { DecodedIdToken } from "firebase-admin/auth";
 
 function toUserRole(value: unknown): UserRole {
   return value === "admin" ? "admin" : "user";
@@ -13,8 +14,12 @@ function errMessage(error: unknown, fallback: string) {
   return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
 }
 
+/** Prefer a non-empty object type for "no payload" responses */
+type EmptyData = Record<string, never>;
+
+type UserDoc = { id: string } & Record<string, unknown>;
+
 export const adminAuthService = {
-  // ✅ fixed: return shape/type now matches (uid + role typed)
   async getUserByEmail(email: string): Promise<ServiceResponse<{ uid: string; role?: UserRole }>> {
     try {
       const auth = getAdminAuth();
@@ -24,15 +29,16 @@ export const adminAuthService = {
 
       // optional: also fetch role from Firestore if present
       const snap = await db.collection("users").doc(userRecord.uid).get();
-      const role = snap.exists ? toUserRole((snap.data() as any)?.role) : undefined;
+      const data = snap.data() as Record<string, unknown> | undefined;
+      const role = snap.exists ? toUserRole(data?.role) : undefined;
 
       return { success: true, data: { uid: userRecord.uid, role } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
-  async markEmailVerified(userId: string): Promise<ServiceResponse<{}>> {
+  async markEmailVerified(userId: string): Promise<ServiceResponse<EmptyData>> {
     try {
       const auth = getAdminAuth();
       const db = getAdminFirestore();
@@ -41,7 +47,7 @@ export const adminAuthService = {
       await db.collection("users").doc(userId).update({ emailVerified: true });
 
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error verifying email"), status: 500 };
     }
   },
@@ -61,12 +67,11 @@ export const adminAuthService = {
           displayName: userRecord.displayName ?? null
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error getting auth user by email"), status: 500 };
     }
   },
 
-  // ✅ fixed: role is now typed as UserRole (not string)
   async verifyPasswordHash(
     userId: string,
     password: string
@@ -74,16 +79,16 @@ export const adminAuthService = {
     try {
       const db = getAdminFirestore();
       const userDoc = await db.collection("users").doc(userId).get();
-      const userData = userDoc.data() as any;
+      const userData = userDoc.data() as Record<string, unknown> | undefined;
 
-      const hash = userData?.passwordHash as string | undefined;
+      const hash = typeof userData?.passwordHash === "string" ? userData.passwordHash : undefined;
       if (!hash) return { success: true, data: { ok: false } };
 
       const ok = await bcryptjs.compare(password, hash);
       const role = toUserRole(userData?.role);
 
       return { success: true, data: { ok, role } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error verifying password hash"), status: 500 };
     }
   },
@@ -93,12 +98,12 @@ export const adminAuthService = {
       const auth = getAdminAuth();
       const token = await auth.createCustomToken(userId);
       return { success: true, data: { token } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error creating custom token"), status: 500 };
     }
   },
 
-  async deleteUserAuthAndDoc(userId: string): Promise<ServiceResponse<{}>> {
+  async deleteUserAuthAndDoc(userId: string): Promise<ServiceResponse<EmptyData>> {
     try {
       const auth = getAdminAuth();
       const db = getAdminFirestore();
@@ -107,11 +112,14 @@ export const adminAuthService = {
         .collection("users")
         .doc(userId)
         .delete()
-        .catch(() => {});
+        .catch(() => {
+          // ignore missing
+        });
+
       await auth.deleteUser(userId);
 
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error deleting user"), status: 500 };
     }
   },
@@ -119,22 +127,22 @@ export const adminAuthService = {
   async updateAuthUser(
     userId: string,
     data: { email?: string; displayName?: string; password?: string; photoURL?: string; emailVerified?: boolean }
-  ): Promise<ServiceResponse<{}>> {
+  ): Promise<ServiceResponse<EmptyData>> {
     try {
       const auth = getAdminAuth();
       await auth.updateUser(userId, data);
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error updating auth user"), status: 500 };
     }
   },
 
-  async setUserRoleClaim(userId: string, role: UserRole): Promise<ServiceResponse<{}>> {
+  async setUserRoleClaim(userId: string, role: UserRole): Promise<ServiceResponse<EmptyData>> {
     try {
       const auth = getAdminAuth();
       await auth.setCustomUserClaims(userId, { role });
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error setting role claim"), status: 500 };
     }
   },
@@ -162,27 +170,29 @@ export const adminAuthService = {
           emailVerified: u.emailVerified
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error getting auth user"), status: 500 };
     }
   },
 
-  async getUserDocById(userId: string): Promise<ServiceResponse<{ user: any | null }>> {
+  async getUserDocById(userId: string): Promise<ServiceResponse<{ user: UserDoc | null }>> {
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").doc(userId).get();
-      return { success: true, data: { user: snap.exists ? { id: snap.id, ...(snap.data() as any) } : null } };
-    } catch (error) {
+
+      const data = snap.data() as Record<string, unknown> | undefined;
+      return { success: true, data: { user: snap.exists ? { id: snap.id, ...(data ?? {}) } : null } };
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error fetching user doc"), status: 500 };
     }
   },
 
-  async updateUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
+  async updateUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<EmptyData>> {
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).update(data);
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error updating user doc"), status: 500 };
     }
   },
@@ -198,7 +208,7 @@ export const adminAuthService = {
       const auth = getAdminAuth();
       const user = await auth.createUser(data);
       return { success: true, data: { uid: user.uid } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error creating auth user"), status: 500 };
     }
   },
@@ -220,7 +230,7 @@ export const adminAuthService = {
       });
 
       return { success: true, data: { uid: user.uid } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error creating provider auth user"), status: 500 };
     }
   },
@@ -243,7 +253,7 @@ export const adminAuthService = {
         emailVerified: input.emailVerified ?? true
       });
       return { success: true, data: { uid: u.uid } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error creating auth user"), status: 500 };
     }
   },
@@ -253,17 +263,17 @@ export const adminAuthService = {
       const db = getAdminFirestore();
       const snap = await db.collection("users").count().get();
       return { success: true, data: { count: snap.data().count } };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error counting users"), status: 500 };
     }
   },
 
-  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<{}>> {
+  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<EmptyData>> {
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).set(data);
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error creating user doc"), status: 500 };
     }
   },
@@ -273,7 +283,7 @@ export const adminAuthService = {
       const auth = getAdminAuth();
       const link = await auth.generateEmailVerificationLink(email);
       return { success: true, data: { link } };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         error: errMessage(error, "Unknown error generating email verification link"),
@@ -282,22 +292,22 @@ export const adminAuthService = {
     }
   },
 
-  async verifyIdToken(token: string): Promise<ServiceResponse<any>> {
+  async verifyIdToken(token: string): Promise<ServiceResponse<DecodedIdToken>> {
     try {
       const auth = getAdminAuth();
       const decodedToken = await auth.verifyIdToken(token);
       return { success: true, data: decodedToken };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error verifying ID token"), status: 500 };
     }
   },
 
-  async deleteStorageObject(objectPath: string): Promise<ServiceResponse<{}>> {
+  async deleteStorageObject(objectPath: string): Promise<ServiceResponse<EmptyData>> {
     try {
       const bucket = getAdminStorage().bucket();
       await bucket.file(objectPath).delete({ ignoreNotFound: true });
       return { success: true, data: {} };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error deleting storage object"), status: 500 };
     }
   }
