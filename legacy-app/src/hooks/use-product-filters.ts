@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Product, ProductFilterOptions, GetAllProductsResult, GetAllProductsSuccess } from "@/types/product";
+import type { GetAllProductsResult, GetAllProductsSuccess } from "@/types/api/product-results";
+import type { ProductFilterOptions } from "@/types/filters/product-filters";
+import type { Product } from "@/types/models/product";
 import { fetchAllProductsClient } from "@/actions/client";
 
 // NEW: Add searchQuery to the hook's parameters

@@ -7,7 +7,9 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-//import type { Product } from "@/types/product";
+
+import type { Product } from "@/types/models/product";
+
 import { formatPrice } from "@/lib/utils";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 // Highlight: Import StarRatingDisplay

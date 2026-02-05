@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 // Define cart item type
 export type CartItem = {

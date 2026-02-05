@@ -42,6 +42,8 @@ export function getAdminApp() {
       databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET
     });
+    console.log("[admin] projectId env:", process.env.FIREBASE_PROJECT_ID);
+    console.log("[admin] client email:", process.env.FIREBASE_CLIENT_EMAIL);
 
     return adminApp;
   } catch (error) {

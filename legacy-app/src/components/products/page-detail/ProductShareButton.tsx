@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductShareButtonProps {
   product: Product;

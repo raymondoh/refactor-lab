@@ -15,9 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateUser } from "@/actions/user/admin";
 import { toast } from "sonner";
-import type { UserRole } from "@/types/user";
-import type { SerializedUser } from "@/types/user";
-import { SubmitButton } from "@/components/shared/SubmitButton";
+
+import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+import type { UserRole, SerializedUser } from "@/types/models/user";
+import { SubmitButton } from "@/components/shared/SubmitButton"; // make sure this is imported
 
 interface AdminUserEditDialogProps {
   user: SerializedUser;

@@ -1,6 +1,4 @@
-// types/product.ts
 import type { Timestamp } from "firebase-admin/firestore";
-import { serializeProduct } from "@/utils";
 import type {
   Category as CategoryName,
   DesignTheme,
@@ -178,5 +176,3 @@ export interface UpdateProductError {
 }
 
 export type UpdateProductResult = UpdateProductSuccess | UpdateProductError;
-
-// Types for product-related action results

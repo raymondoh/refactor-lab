@@ -6,10 +6,10 @@ import { serializeUser } from "@/utils/serializeUser";
 import { getUserImage } from "@/utils/get-user-image";
 
 import type { User } from "@/types/user";
-import type { SerializedUser } from "@/types/user/common";
+// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
+import type { SerializedUser } from "@/types/models/user";
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
-
 // ✅ typed helper (fixes "unknown" problem)
 function dateish(value: unknown): string | Timestamp | Date | undefined {
   if (value instanceof Timestamp) return value;

@@ -8,7 +8,7 @@ import { cert } from "firebase-admin/app";
 import { syncUserWithFirebase } from "./auth/syncUserWithFirebase";
 import type { AdapterUser } from "next-auth/adapters";
 import { handleProviderSync } from "./auth/sync";
-import type { UserRole } from "@/types/user";
+import type { UserRole, User as FirestoreUser } from "@/types/models/user";
 
 type ExtendedUser = AdapterUser & {
   sub?: string;

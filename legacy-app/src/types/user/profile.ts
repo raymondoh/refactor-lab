@@ -1,7 +1,7 @@
 // types/user/profile.ts
 
 import type { ActionResponse } from "../common";
-import type { User } from "./common";
+import type { User } from "../models/user";
 
 export interface UpdateProfileInput {
   // Highlight: Replaced 'name' with 'firstName', 'lastName', and 'displayName'

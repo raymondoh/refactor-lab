@@ -5,7 +5,8 @@ import { getUserImage } from "@/utils/get-user-image";
 import { Timestamp, type DocumentSnapshot } from "firebase-admin/firestore";
 import { serializeUser } from "@/utils/serializeUser";
 
-import type { SerializedUser } from "@/types/user/common";
+// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
+import type { SerializedUser } from "@/types/models/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
@@ -29,12 +30,6 @@ function mapDocToSerializedUser(doc: DocumentSnapshot): SerializedUser {
   return serializeUser(rawUser);
 }
 
-/**
- * userRepo:
- * - NO auth()
- * - NO session reads
- * - safe for NextAuth callbacks
- */
 export const userRepo = {
   async getUserById(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
@@ -58,7 +53,6 @@ export const userRepo = {
   },
 
   async listUsers(limit = 20, offset = 0): Promise<ServiceResponse<{ users: SerializedUser[]; total: number }>> {
-    // basic validation (avoid Firestore throwing odd errors)
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.floor(limit))) : 20;
     const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
 

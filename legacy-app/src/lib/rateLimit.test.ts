@@ -1,10 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 
-// Use a single function type argument instead of two
-const incrMock = jest.fn<(...args: any[]) => Promise<number>>();
-const expireMock = jest.fn<(...args: any[]) => Promise<number>>();
-const pexpireMock = jest.fn<(...args: any[]) => Promise<number>>();
-const pttlMock = jest.fn<(...args: any[]) => Promise<number>>();
+const incrMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const expireMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const pexpireMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+const pttlMock = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
 
 jest.mock("@upstash/redis", () => ({
   Redis: jest.fn().mockImplementation(() => ({

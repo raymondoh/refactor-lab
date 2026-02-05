@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { fetchUserLikesClient } from "@/actions/client"; // Fetches full product details of liked items
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Loader } from "lucide-react";
 

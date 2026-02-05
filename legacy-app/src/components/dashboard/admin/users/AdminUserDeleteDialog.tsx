@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { SerializedUser } from "@/types/user";
+import type { SerializedUser } from "@/types/models/user";
 import { useSession } from "next-auth/react";
 import { SubmitButton } from "@/components/shared/SubmitButton";
 import { deleteUserAccount } from "@/actions/user/admin";

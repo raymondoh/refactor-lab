@@ -1,9 +1,10 @@
+// legacy-app/src/lib/services/user-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { Timestamp } from "firebase-admin/firestore";
-import type { User, UserRole } from "@/types/user";
+
+import type { User, UserRole } from "@/types/models/user";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { getUserImage } from "@/utils/get-user-image";
-
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 // User service class

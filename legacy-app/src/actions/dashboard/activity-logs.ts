@@ -3,6 +3,7 @@
 
 import { adminActivityService, type ActivityLog } from "@/lib/services/admin-activity-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+
 import type { SerializedActivity, ActivityLogWithId } from "@/types/firebase/activity";
 
 // ✅ NEW: service-layer lookup (no direct users collection read here)

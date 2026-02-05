@@ -28,6 +28,11 @@ const publicRoutes = new Set([
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
+  // 1. Bypass middleware for all API routes
+  if (path.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Use a regex to check for dynamic product pages like /products/some-id
   const isProductPage = /^\/products\/[a-zA-Z0-9-]+$/.test(path);
 

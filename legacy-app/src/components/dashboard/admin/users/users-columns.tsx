@@ -4,7 +4,7 @@ import { ArrowUpDown, Shield, ShieldAlert, ShieldCheck, UserIcon } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/utils/date";
-import type { SerializedUser } from "@/types/user/common";
+import type { SerializedUser } from "@/types/models/user";
 import { UserRowActions } from "./UserRowActions";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 

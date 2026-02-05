@@ -1,6 +1,6 @@
 //src/types/auth/register.ts
 import { ActionResponse } from "../common/response";
-import { UserRole } from "../user/common";
+import { UserRole } from "../models/user";
 
 export interface RegisterData {
   userId: string;

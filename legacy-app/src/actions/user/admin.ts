@@ -9,21 +9,21 @@ import { adminUserService } from "@/lib/services/admin-user-service";
 import { logActivity } from "@/firebase/actions";
 import { logger } from "@/utils/logger";
 
+// FIXED: Added missing types to this import
 import type {
   CreateUserInput,
   CreateUserResponse,
   FetchUsersResponse,
-  FetchUserByIdResponse,
   UpdateUserResponse,
-  DeleteUserResponse,
-  DeleteUserAccountResponse,
-  UserRole
-} from "@/types/user";
+  FetchUserByIdResponse, // Added
+  DeleteUserResponse, // Added
+  DeleteUserAccountResponse, // Added
+  AdminUpdateUserInput // Added
+} from "@/types/user/admin";
 
-type AdminUpdateUserInput = {
-  name?: string;
-  role?: UserRole;
-};
+// FIXED: Removed invalid import from "@/types/user/roles"
+// UserRole is imported here:
+import type { UserRole, User, SerializedUser } from "@/types/models/user";
 
 // ================= Admin User Actions =================
 
@@ -37,9 +37,6 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
   if (!session?.user?.id) return { success: false, error: "Not authenticated" };
 
   try {
-    // ✅ Optional: if you have admin guards elsewhere, keep; otherwise we keep it light here.
-    // You can add isAdmin checks via a service if you want.
-
     // 1) Create Auth user
     const authRes = await adminAuthService.createAuthUser({
       email,

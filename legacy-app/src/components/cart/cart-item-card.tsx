@@ -1,3 +1,4 @@
+// legacy-app/src/components/cart/cart-item-card.tsx
 "use client";
 
 import Image from "next/image";

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Pencil, Trash2, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { SerializedUser } from "@/types/user";
+import type { SerializedUser } from "@/types/models/user";
 import { AdminUserEditDialog } from "./AdminUserEditDialog";
 import { AdminUserDeleteDialog } from "@/components/dashboard/admin/users/AdminUserDeleteDialog";
 

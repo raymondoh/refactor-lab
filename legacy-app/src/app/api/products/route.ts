@@ -1,13 +1,6 @@
-// legacy-app/src/app/api/products/route.ts
 import { type NextRequest, NextResponse } from "next/server";
-
-import type { Product } from "@/types";
 import { logActivity } from "@/firebase/actions";
-
-// ✅ PUBLIC GET
 import { getAllProductsPublic } from "@/lib/services/products-public-service";
-
-// ✅ ADMIN writes
 import { adminProductService } from "@/lib/services/admin-product-service";
 
 export async function GET(req: NextRequest) {
@@ -19,7 +12,7 @@ export async function GET(req: NextRequest) {
       return param === "true";
     };
 
-    // ✅ supports:
+    // supports:
     // - ?x=a,b
     // - ?x=a&x=b
     // - ?x=a,b&x=c
@@ -45,7 +38,7 @@ export async function GET(req: NextRequest) {
       category: searchParams.get("category") || undefined,
       subcategory: searchParams.get("subcategory") || undefined,
 
-      // ✅ supports both ?q= and ?query=
+      // supports both ?q= and ?query=
       query: searchParams.get("q") || searchParams.get("query") || undefined,
 
       designThemes: getArrayParamAll("designThemes"),
@@ -54,7 +47,6 @@ export async function GET(req: NextRequest) {
 
       priceRange: searchParams.get("priceRange") || undefined,
 
-      // ✅ multi-select safe: returns string[] when multiple selected, string when single
       material: (() => {
         const arr = getArrayParamAll("material");
         if (arr?.length) return arr;

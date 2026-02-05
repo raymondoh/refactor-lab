@@ -1,7 +1,8 @@
+// src/components/cart/checkout-button.tsx
 "use client";
 
+import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShoppingCart, Lock } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
@@ -10,40 +11,62 @@ import { Button } from "@/components/ui/button";
 export function CheckoutButton() {
   const { items, closeCart } = useCart();
   const { status } = useSession();
-  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAuthenticated = status === "authenticated";
-  const isSessionLoading = status === "loading";
 
-  const handleCheckout = () => {
-    // If user is not authenticated, show a toast, close the cart, then redirect.
-    if (!isAuthenticated) {
-      // Add the toast notification right here
-      toast.error("You must be logged in to make a purchase.");
-
-      closeCart();
-      router.push("/login?callbackUrl=/cart");
-      return;
-    }
-
+  const handleCheckout = async () => {
     if (items.length === 0) {
       toast.info("Your cart is empty.");
       return;
     }
 
-    closeCart();
-    router.push("/checkout");
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        items: items.map(i => ({
+          id: i.product.id,
+          quantity: i.quantity
+        }))
+      };
+
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = (await res.json()) as { url?: string; error?: string };
+
+      if (!res.ok || !data.url) {
+        toast.error(data?.error || "Failed to start checkout.");
+        return;
+      }
+
+      closeCart();
+      window.location.href = data.url;
+    } catch (err) {
+      console.error("Checkout error:", err);
+      toast.error("Checkout failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <Button onClick={handleCheckout} disabled={isSessionLoading || items.length === 0} className="w-full">
-      {!isAuthenticated ? (
-        <Lock className="mr-2 h-4 w-4" />
+    <Button onClick={handleCheckout} disabled={isSubmitting || items.length === 0} className="w-full">
+      {isSubmitting ? (
+        <>
+          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          Redirecting…
+        </>
       ) : (
-        <ShoppingCart className="mr-2 h-4 w-4" />
+        <>
+          {!isAuthenticated ? <Lock className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+          {!isAuthenticated ? "Checkout as Guest" : "Proceed to Checkout"}
+        </>
       )}
-
-      {isSessionLoading ? "Loading..." : !isAuthenticated ? "Login to Continue" : "Proceed to Checkout"}
     </Button>
   );
 }

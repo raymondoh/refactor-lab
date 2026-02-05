@@ -20,7 +20,8 @@ import { SubmitButton } from "@/components/shared/SubmitButton";
 import { UserProfileSkeleton } from "./UserProfileSkeleton";
 import { UserAvatar } from "../shared/UserAvatar";
 import { updateUserProfile } from "@/actions/user";
-import type { ProfileUpdateState, User } from "@/types/user";
+import type { ProfileUpdateState } from "@/types/user/profile";
+import type { User } from "@/types/models/user";
 import { UniversalInput } from "@/components/forms/UniversalInput";
 import { UniversalTextarea } from "@/components/forms/UniversalTextarea";
 

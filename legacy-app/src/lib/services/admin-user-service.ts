@@ -5,11 +5,11 @@ import { getUserImage } from "@/utils/get-user-image";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 import type { User, UserRole } from "@/types/user";
-import type { SerializedUser } from "@/types/user/common";
+// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
+import type { SerializedUser } from "@/types/models/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 import { userRepo } from "@/lib/repos/user-repo";
-
 /**
  * Admin gate – ensures the caller is authenticated AND an admin
  */

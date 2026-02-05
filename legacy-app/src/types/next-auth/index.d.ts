@@ -1,6 +1,6 @@
 // src/types/next-auth/index.d.ts
 import type { DefaultSession } from "next-auth";
-import type { UserRole } from "../user/common"; // Assuming this path is correct
+import type { UserRole } from "../models/user"; // Assuming this path is correct
 
 declare module "next-auth" {
   interface User {

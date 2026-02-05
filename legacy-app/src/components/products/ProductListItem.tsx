@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/utils";
 import { ProductCardButton } from "@/components/products/ProductCardButton";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 
 interface ProductListItemProps {
   product: Product;

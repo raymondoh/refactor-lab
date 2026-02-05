@@ -1,5 +1,5 @@
 import { ActionResponse } from "../common/response";
-import { UserRole } from "../user/common";
+import { UserRole } from "../models/user";
 
 export interface LoginData {
   userId: string;

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Product } from "@/types/product";
+import type { Product } from "@/types/models/product";
 import { ProductLikeButton } from "./ProductLikeButton";
 import { ProductCardButton } from "./ProductCardButton";
 import { formatPrice } from "@/lib/utils";

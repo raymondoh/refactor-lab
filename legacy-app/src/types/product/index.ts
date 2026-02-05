@@ -1,4 +1,4 @@
 // types/product/index.ts
-export * from "./filter";
-export * from "./product";
-export * from "./result";
+export * from "../filters/product-filters";
+export * from "../models/product";
+export * from "../api/product-results";
