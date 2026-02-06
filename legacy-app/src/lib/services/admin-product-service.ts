@@ -16,55 +16,102 @@ import { serializeProduct, serializeProductArray } from "@/utils/serializeProduc
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
 
+// --------------------
+// helpers (no any)
+// --------------------
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+
+function asString(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
+}
+
+function asStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? (v as unknown[]).map(x => String(x ?? "")).filter(Boolean) : [];
+}
+
+function asNumber(v: unknown, fallback = 0): number {
+  return typeof v === "number" ? v : fallback;
+}
+
+function asBoolean(v: unknown, fallback = false): boolean {
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function isHttpUrl(value: unknown): value is string {
+  return typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"));
+}
+
+type CreatedAtSortable = { toMillis?: () => number };
+
+function toMillisSafe(v: unknown): number {
+  if (!v || typeof v !== "object") return 0;
+  const m = (v as CreatedAtSortable).toMillis;
+  return typeof m === "function" ? m.call(v) : 0;
+}
+
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
-  const data = doc.data() ?? {};
+  const data = asRecord(doc.data());
+
+  const image = asString(data["image"], "/placeholder.svg");
+  const additionalImages = Array.isArray(data["additionalImages"]) ? (data["additionalImages"] as unknown[]) : [];
+  const additionalImagesStrings = additionalImages.map(x => asString(x)).filter(Boolean);
+
+  const images =
+    Array.isArray(data["images"]) && (data["images"] as unknown[]).length > 0
+      ? (data["images"] as unknown[]).map(x => asString(x)).filter(Boolean)
+      : image
+        ? [image, ...additionalImagesStrings]
+        : additionalImagesStrings;
+
   return {
     id: doc.id,
-    name: data?.name || "",
-    description: data?.description || "",
-    details: data?.details || "",
-    sku: data?.sku || "",
-    barcode: data?.barcode || "",
-    category: data?.category || "",
-    subcategory: data?.subcategory || "",
-    designThemes: data?.designThemes || [],
-    productType: data?.productType || "",
-    tags: data?.tags || [],
-    brand: data?.brand || "",
-    manufacturer: data?.manufacturer || "",
-    dimensions: data?.dimensions || "",
-    weight: data?.weight || "",
-    shippingWeight: data?.shippingWeight || "",
-    material: data?.material || "",
-    finish: data?.finish ?? undefined,
-    color: data?.color || "",
-    baseColor: data?.baseColor || "",
-    colorDisplayName: data?.colorDisplayName || "",
-    stickySide: data?.stickySide ?? undefined,
-    size: data?.size || "",
-    image: data?.image || "/placeholder.svg",
-    additionalImages: data?.additionalImages || [],
-    images:
-      data?.images || (data?.image ? [data.image, ...(data?.additionalImages || [])] : data?.additionalImages || []),
-    placements: data?.placements || [],
-    price: data?.price || 0,
-    salePrice: data?.salePrice ?? undefined,
-    onSale: data?.onSale || false,
-    costPrice: data?.costPrice ?? undefined,
-    stockQuantity: data?.stockQuantity ?? undefined,
-    lowStockThreshold: data?.lowStockThreshold ?? undefined,
-    shippingClass: data?.shippingClass || "",
-    inStock: data?.inStock ?? true,
-    badge: data?.badge || "",
-    isFeatured: data?.isFeatured ?? false,
-    isHero: data?.isHero ?? false,
-    isLiked: data?.isLiked ?? false,
-    isCustomizable: data?.isCustomizable ?? false,
-    isNewArrival: data?.isNewArrival ?? false,
-    createdAt: data?.createdAt,
-    updatedAt: data?.updatedAt,
-    averageRating: data?.averageRating || 0,
-    reviewCount: data?.reviewCount || 0
+    name: asString(data["name"]),
+    description: asString(data["description"]),
+    details: asString(data["details"]),
+    sku: asString(data["sku"]),
+    barcode: asString(data["barcode"]),
+    category: asString(data["category"]),
+    subcategory: asString(data["subcategory"]),
+    designThemes: asStringArray(data["designThemes"]),
+    productType: asString(data["productType"]),
+    tags: asStringArray(data["tags"]),
+    brand: asString(data["brand"]),
+    manufacturer: asString(data["manufacturer"]),
+    dimensions: asString(data["dimensions"]),
+    weight: asString(data["weight"]),
+    shippingWeight: asString(data["shippingWeight"]),
+    material: asString(data["material"]),
+    finish: typeof data["finish"] === "string" ? (data["finish"] as string) : undefined,
+    color: asString(data["color"]),
+    baseColor: asString(data["baseColor"]),
+    colorDisplayName: asString(data["colorDisplayName"]),
+    stickySide: typeof data["stickySide"] === "string" ? (data["stickySide"] as string) : undefined,
+    size: asString(data["size"]),
+    image,
+    additionalImages: additionalImagesStrings,
+    images,
+    placements: asStringArray(data["placements"]),
+    price: asNumber(data["price"], 0),
+    salePrice: typeof data["salePrice"] === "number" ? (data["salePrice"] as number) : undefined,
+    onSale: asBoolean(data["onSale"], false),
+    costPrice: typeof data["costPrice"] === "number" ? (data["costPrice"] as number) : undefined,
+    stockQuantity: typeof data["stockQuantity"] === "number" ? (data["stockQuantity"] as number) : undefined,
+    lowStockThreshold:
+      typeof data["lowStockThreshold"] === "number" ? (data["lowStockThreshold"] as number) : undefined,
+    shippingClass: asString(data["shippingClass"]),
+    inStock: typeof data["inStock"] === "boolean" ? (data["inStock"] as boolean) : true,
+    badge: asString(data["badge"]),
+    isFeatured: asBoolean(data["isFeatured"], false),
+    isHero: asBoolean(data["isHero"], false),
+    isLiked: asBoolean(data["isLiked"], false),
+    isCustomizable: asBoolean(data["isCustomizable"], false),
+    isNewArrival: asBoolean(data["isNewArrival"], false),
+    createdAt: data["createdAt"],
+    updatedAt: data["updatedAt"],
+    averageRating: asNumber(data["averageRating"], 0),
+    reviewCount: asNumber(data["reviewCount"], 0)
   };
 }
 
@@ -84,10 +131,6 @@ async function requireAdmin(): Promise<ServiceResponse<{ userId: string }>> {
   }
 
   return { success: true, data: { userId: session.user.id } };
-}
-
-function isHttpUrl(value: unknown): value is string {
-  return typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"));
 }
 
 /**
@@ -138,7 +181,9 @@ async function deleteProductImage(imageUrl: string): Promise<ServiceResponse<Rec
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
-      : (error as Error)?.message || "Unknown error deleting image";
+      : error instanceof Error
+        ? error.message
+        : "Unknown error deleting image";
     return { success: false, error: message, status: 500 };
   }
 }
@@ -172,7 +217,9 @@ export const adminProductService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching products";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching products";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -222,20 +269,24 @@ export const adminProductService = {
         const minPrice = Number.parseFloat(minPriceStr);
         const maxPrice = Number.parseFloat(maxPriceStr);
 
-        if (!isNaN(minPrice)) q = q.where("price", ">=", minPrice);
-        if (!isNaN(maxPrice)) q = q.where("price", "<=", maxPrice);
+        if (!Number.isNaN(minPrice)) q = q.where("price", ">=", minPrice);
+        if (!Number.isNaN(maxPrice)) q = q.where("price", "<=", maxPrice);
       }
 
       const snapshot = await q.get();
       let products = snapshot.docs.map(mapDocToProduct);
 
-      // In-memory query filter
+      // In-memory query filter (no any)
       if (filters.query) {
         const lower = filters.query.toLowerCase();
         products = products.filter(p => {
-          const name = (p.name?.toLowerCase() || "").includes(lower);
-          const desc = (p.description?.toLowerCase() || "").includes(lower);
-          const tags = (p.tags || []).some(t => (t || "").toLowerCase().includes(lower));
+          const name = (p.name ?? "").toLowerCase().includes(lower);
+          const desc = (p.description ?? "").toLowerCase().includes(lower);
+          const tags = (p.tags ?? []).some(t =>
+            String(t ?? "")
+              .toLowerCase()
+              .includes(lower)
+          );
           return name || desc || tags;
         });
       }
@@ -260,7 +311,9 @@ export const adminProductService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching filtered products";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching filtered products";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -299,18 +352,22 @@ export const adminProductService = {
       } catch {
         const all = await adminProductService.listProducts({ limit: limit * 4 });
         if (!all.success) return all;
-        const featured = all.data.filter((p: any) => p.isFeatured === true).slice(0, limit);
-        return { success: true, data: featured as any };
+
+        // res.data is already serialized; keep it strongly typed
+        const featured = all.data.filter(p => (p as Record<string, unknown>)["isFeatured"] === true).slice(0, limit);
+        return { success: true, data: featured };
       }
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching featured products";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching featured products";
       return { success: false, error: message, status: 500 };
     }
   },
 
-  async getOnSaleProducts(limit = 10) {
+  async getOnSaleProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
       const db = getAdminFirestore();
 
@@ -330,19 +387,17 @@ export const adminProductService = {
         const snap = await db.collection("products").where("onSale", "==", true).limit(limit).get();
         const products = snap.docs.map(mapDocToProduct);
 
-        // Optional: sort in-memory if createdAt exists
-        products.sort((a: any, b: any) => {
-          const at = a?.createdAt?.toMillis?.() ?? 0;
-          const bt = b?.createdAt?.toMillis?.() ?? 0;
-          return bt - at;
-        });
+        // Optional: sort in-memory if createdAt exists (no any)
+        products.sort((a, b) => toMillisSafe(b.createdAt) - toMillisSafe(a.createdAt));
 
         return { success: true, data: serializeProductArray(products.slice(0, limit)) };
       }
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching sale products";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching sale products";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -350,18 +405,24 @@ export const adminProductService = {
   async getNewArrivals(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     const res = await adminProductService.filterProducts({ isNewArrival: true } as ProductFilterOptions);
     if (!res.success) return res;
-    return { success: true, data: (res.data as any).slice(0, limit) };
+
+    // res.data is serialized array already
+    return { success: true, data: res.data.slice(0, limit) };
   },
 
   async getThemedProducts(limit = 6): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     const res = await adminProductService.listProducts({ limit: limit * 4 });
     if (!res.success) return res;
 
-    const themed = (res.data as any[])
-      .filter(p => Array.isArray(p.designThemes) && p.designThemes.length > 0)
+    const themed = res.data
+      .filter(p => {
+        const rec = p as Record<string, unknown>;
+        const dt = rec["designThemes"];
+        return Array.isArray(dt) && dt.length > 0;
+      })
       .slice(0, limit);
 
-    return { success: true, data: themed as any };
+    return { success: true, data: themed };
   },
 
   async getRelatedProducts(params: {
@@ -409,15 +470,18 @@ export const adminProductService = {
         const fallback = await adminProductService.listProducts({ limit: limit + 6 });
         if (!fallback.success) return fallback;
 
-        const fb = (fallback.data as any[]).filter(p => p.id !== productId).slice(0, limit);
-        return { success: true, data: fb as any };
+        const fb = fallback.data.filter(p => (p as Record<string, unknown>)["id"] !== productId).slice(0, limit);
+
+        return { success: true, data: fb };
       }
 
       return { success: true, data: serializeProductArray(related.slice(0, limit)) };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching related products";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching related products";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -458,7 +522,9 @@ export const adminProductService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error adding product";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error adding product";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -518,7 +584,9 @@ export const adminProductService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error updating product";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error updating product";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -537,9 +605,10 @@ export const adminProductService = {
 
       if (!docSnap.exists) return { success: false, error: "Product not found", status: 404 };
 
-      const data = (docSnap.data() ?? {}) as Record<string, unknown>;
-      const imageUrl = data.image;
-      const additionalImages = Array.isArray(data.additionalImages) ? data.additionalImages : [];
+      const data = asRecord(docSnap.data());
+      const imageUrl = data["image"];
+      const additionalImagesRaw = data["additionalImages"];
+      const additionalImages = Array.isArray(additionalImagesRaw) ? additionalImagesRaw : [];
 
       await docRef.delete();
 
@@ -553,7 +622,9 @@ export const adminProductService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error deleting product";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error deleting product";
       return { success: false, error: message, status: 500 };
     }
   }

@@ -16,7 +16,7 @@ export default function NotAuthorizedPage() {
       </div>
       <h1 className="text-3xl font-bold mb-2">Access Denied</h1>
       <p className="text-muted-foreground mb-6 max-w-md">
-        You don't have permission to access this page. If you believe this is an error, please contact your
+        You don&apos;t have permission to access this page. If you believe this is an error, please contact your
         administrator.
       </p>
       <div className="flex flex-col sm:flex-row gap-4">

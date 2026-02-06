@@ -3,11 +3,9 @@ import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { UpdateProductForm } from "@/components/dashboard/admin/products/UpdateProductForm";
 import { getProductByIdAction } from "@/actions/products/get-product";
-import { UserService } from "@/lib/services/user-service";
 
 export default async function AdminProductEditPage({ params }: { params: Promise<{ id: string }> }) {
   try {
-    // Dynamic import for auth to avoid build-time issues
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -15,23 +13,20 @@ export default async function AdminProductEditPage({ params }: { params: Promise
       redirect("/login");
     }
 
-    // Check admin role using UserService
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
-    // Await params for Next.js 15 compatibility
     const { id } = await params;
 
-    // Fetch product data
     const result = await getProductByIdAction(id);
 
     if (!result.success) {
       redirect("/admin/products");
     }
 
-    // Type guard to ensure we have the product
+    // keep your legacy guard shape
     if (!("product" in result) || !result.product) {
       redirect("/admin/products");
     }

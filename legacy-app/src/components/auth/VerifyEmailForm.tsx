@@ -75,7 +75,9 @@ export function VerifyEmailForm() {
 
         // Fallback: treat as success but no redirect
         setStatus("success");
-      } catch (e) {
+      } catch (error: unknown) {
+        console.error("Resolve order error:", error);
+
         setStatus("error");
         setErrorMessage("An unexpected error occurred. Please try again.");
       }

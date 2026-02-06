@@ -3,6 +3,16 @@ import { logActivity } from "@/firebase/actions";
 import { getAllProductsPublic } from "@/lib/services/products-public-service";
 import { adminProductService } from "@/lib/services/admin-product-service";
 
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+function asNumber(v: unknown): number | undefined {
+  return typeof v === "number" ? v : undefined;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -65,7 +75,8 @@ export async function GET(req: NextRequest) {
     const result = await getAllProductsPublic(publicFilters);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: (result as any).status ?? 500 });
+      const status = "status" in result ? (result.status ?? 500) : 500;
+      return NextResponse.json({ success: false, error: result.error }, { status });
     }
 
     return NextResponse.json({ success: true, data: result.data }, { status: 200 });
@@ -88,10 +99,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    const data = await request.json();
+    const raw = (await request.json()) as unknown;
+    const data = asRecord(raw);
 
     // Minimal safety (kept from original)
-    if (!data.image || typeof data.image !== "string" || !data.image.startsWith("http")) {
+    const image = asString(data.image);
+    if (!image || !image.startsWith("http")) {
       return NextResponse.json(
         {
           success: false,
@@ -113,12 +126,12 @@ export async function POST(request: NextRequest) {
       await logActivity({
         userId: session.user.id,
         type: "create_product",
-        description: `Created product: ${data.name}`,
+        description: `Created product: ${asString(data.name) ?? "Unknown"}`,
         status: "success",
         metadata: {
           productId: result.data.id,
-          productName: data.name,
-          price: data.price
+          productName: asString(data.name),
+          price: asNumber(data.price)
         }
       });
     } catch (logError) {
@@ -136,11 +149,12 @@ export async function POST(request: NextRequest) {
     console.error("[POST /api/products]", error);
 
     // Safely attempt to read body for logging (clone)
-    let data: any;
+    let data: Record<string, unknown> = { name: "Unknown" };
     try {
-      data = await request.clone().json();
+      const raw = (await request.clone().json()) as unknown;
+      data = asRecord(raw);
     } catch {
-      data = { name: "Unknown" };
+      // keep fallback
     }
 
     // Log failed attempt (best-effort)
@@ -148,14 +162,15 @@ export async function POST(request: NextRequest) {
       const { auth } = await import("@/auth");
       const session = await auth();
       if (session?.user) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
         await logActivity({
           userId: session.user.id,
           type: "create_product",
-          description: `Failed to create product: ${error instanceof Error ? error.message : "Unknown error"}`,
+          description: `Failed to create product: ${msg}`,
           status: "error",
           metadata: {
-            error: error instanceof Error ? error.message : "Unknown error",
-            attemptedProductName: data?.name || "Unknown"
+            error: msg,
+            attemptedProductName: asString(data.name) ?? "Unknown"
           }
         });
       }

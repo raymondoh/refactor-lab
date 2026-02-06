@@ -33,25 +33,10 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
 
   const verificationEmailSent = useRef(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginState, isLoginPending] = useActionState(loginUser, null);
 
   const [state, action, isPending] = useActionState<RegisterState, FormData>(registerUser, null, formKey.toString());
 
   const registerErrorToastShown = useRef(false);
-  const isRedirecting = useRef(false);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
-  function resetForm() {
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    setPasswordError(null);
-    setConfirmPasswordError(null);
-    registerErrorToastShown.current = false;
-    isRedirecting.current = false;
-    verificationEmailSent.current = false;
-    nameInputRef.current?.focus();
-  }
 
   const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (value: string) => {
     setter(value);
@@ -63,17 +48,17 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   };
 
   // Password validation
-  const validatePassword = (password: string) => {
-    if (password.length < 8) {
+  const validatePassword = (passwordValue: string) => {
+    if (passwordValue.length < 8) {
       return "Password must be at least 8 characters long";
     }
-    if (!/(?=.*[a-z])/.test(password)) {
+    if (!/(?=.*[a-z])/.test(passwordValue)) {
       return "Password must contain at least one lowercase letter";
     }
-    if (!/(?=.*[A-Z])/.test(password)) {
+    if (!/(?=.*[A-Z])/.test(passwordValue)) {
       return "Password must contain at least one uppercase letter";
     }
-    if (!/(?=.*\d)/.test(password)) {
+    if (!/(?=.*\d)/.test(passwordValue)) {
       return "Password must contain at least one number";
     }
     return null;
@@ -144,6 +129,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
           loginFormData.append("password", password);
           loginFormData.append("isRegistration", "true");
           loginFormData.append("skipSession", "true");
+
           const loginRes = await loginUser(null, loginFormData);
 
           if (!loginRes?.success || !loginRes.data?.customToken) {

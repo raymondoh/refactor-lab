@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react"; // Removed ShieldCheck as it was only for 2FA UI
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button"; // Kept, but ensure it's used if 2FA cancel button was its only use. It is used for "Cancel" in the original, but that part of UI is gone. Assuming it might be used by other components or future states, otherwise can be removed if no other Button component is used. Re-checking the final JSX, there is no regular <Button /> left, only <SubmitButton /> and <GoogleAuthButton />. So if this 'Button' specifically refers to the generic one, it might be removable. However, 'SubmitButton' likely uses 'Button' as a base or has its own styling. For safety, let's assume `Button` from `components/ui/button` might be used by `SubmitButton` or `GoogleAuthButton` as a primitive or is generally available. If SubmitButton and GoogleAuthButton are self-contained or use a different Button primitive, then this specific import might be unneeded. *User should verify this based on their `SubmitButton` and `GoogleAuthButton` implementations.* For now, I will keep it as it's a common UI component.
 import { toast } from "sonner";
 import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "@/firebase/client/firebase-client-init";
@@ -36,14 +35,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const loginErrorToastShown = useRef(false);
   const isRedirecting = useRef(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
-
-  function resetForm() {
-    setEmail("");
-    setPassword("");
-    loginErrorToastShown.current = false;
-    isRedirecting.current = false;
-    emailInputRef.current?.focus();
-  }
 
   const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (value: string) => {
     setter(value);
@@ -175,7 +166,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
 
         <div className="pt-6 text-center">
           <p className="text-base text-muted-foreground">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="font-semibold text-primary hover:underline">
               Sign up
             </Link>

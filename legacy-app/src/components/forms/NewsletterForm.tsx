@@ -25,9 +25,10 @@ export function NewsletterForm() {
     defaultValues: { email: "" }
   });
 
-  // 2. The submit handler points to your new Mailchimp API route
+  // 2. The submit handler points to your Mailchimp API route
   async function onSubmit(values: NewsletterFormValues) {
     setIsSubmitting(true);
+
     try {
       const response = await fetch("/api/mailchimp/subscribe", {
         method: "POST",
@@ -43,16 +44,17 @@ export function NewsletterForm() {
 
       toast.success(data.message || "Successfully subscribed!");
       form.reset();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to subscribe.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to subscribe.";
+
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
-  }
+  } // ✅ Missing brace was here
 
   return (
     <Form {...form}>
-      {/* 3. The form layout is simpler, designed for one line */}
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col sm:flex-row gap-2">
         <FormField
           control={form.control}
@@ -71,6 +73,7 @@ export function NewsletterForm() {
             </FormItem>
           )}
         />
+
         <Button
           type="submit"
           disabled={isSubmitting}
@@ -79,7 +82,8 @@ export function NewsletterForm() {
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              Subscribe <ArrowRight className="ml-2 h-4 w-4" />
+              Subscribe
+              <ArrowRight className="ml-2 h-4 w-4" />
             </>
           )}
         </Button>

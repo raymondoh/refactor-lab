@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";

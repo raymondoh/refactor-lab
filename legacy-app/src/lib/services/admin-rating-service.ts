@@ -70,7 +70,7 @@ export const adminRatingService = {
         let count = 0;
 
         reviewsSnap.forEach(doc => {
-          const r = Number((doc.data() as any).rating);
+          const r = Number((doc.data() as Record<string, unknown>).rating);
           if (!Number.isNaN(r)) {
             sum += r;
             count += 1;

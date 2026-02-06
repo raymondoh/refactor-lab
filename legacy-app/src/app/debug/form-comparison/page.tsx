@@ -50,7 +50,7 @@ export default function FormComparisonPage() {
         <div className="space-y-2">
           <p>1. ✅ Check if AddProductForm exists</p>
           <p>2. 🔄 If it exists, compare with UpdateProductForm for consistency</p>
-          <p>3. 🔄 If it doesn't exist, create it based on UpdateProductForm</p>
+          <p>3. 🔄 If it doesn&apos;t exist, create it based on UpdateProductForm</p>
           <p>4. 🔄 Ensure both use the same field structure and validation</p>
           <p>5. 🔄 Create shared components for common form sections</p>
         </div>

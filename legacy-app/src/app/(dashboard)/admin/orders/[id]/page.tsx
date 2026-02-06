@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
-import { UserService } from "@/lib/services/user-service";
 import { formatPrice } from "@/lib/utils";
 import { adminOrderService } from "@/lib/services/admin-order-service";
 
@@ -14,8 +13,8 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       redirect("/login");
     }
 
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
@@ -23,15 +22,11 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
     const result = await adminOrderService.getOrderById(id);
 
-    if (!result.success) {
+    if (!result.success || !result.data) {
       redirect("/admin/orders");
     }
 
     const order = result.data;
-
-    if (!order) {
-      redirect("/admin/orders");
-    }
 
     return (
       <DashboardShell>
@@ -75,7 +70,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <h3 className="text-lg font-semibold mb-4">Order Items</h3>
               <div className="space-y-4">
                 {order.items.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center p-4 bg-secondary/10 rounded-lg">
+                  <div
+                    key={`${item.id ?? item.name}-${index}`}
+                    className="flex justify-between items-center p-4 bg-secondary/10 rounded-lg">
                     <div>
                       <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>

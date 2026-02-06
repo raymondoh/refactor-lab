@@ -5,15 +5,13 @@ import type { ProductFilterOptions } from "@/types/filters/product-filters";
 /**
  * Client-side action to fetch filtered products
  */
-export async function fetchAllProductsClient(
-  filters?: ProductFilterOptions
-): Promise<GetAllProductsResult> {
+export async function fetchAllProductsClient(filters?: ProductFilterOptions): Promise<GetAllProductsResult> {
   try {
     const query = filters
       ? "?" +
         new URLSearchParams(
           Object.entries(filters)
-            .filter(([_, value]) => value !== undefined && value !== "")
+            .filter(([value]) => value !== undefined && value !== "")
             .map(([key, value]) => [key, String(value)])
         ).toString()
       : "";

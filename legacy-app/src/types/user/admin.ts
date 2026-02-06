@@ -25,7 +25,7 @@ export interface FetchUserByIdResponse extends ActionResponse {
 // Added this type definition
 export interface AdminUpdateUserInput extends Partial<User> {
   // Allow additional fields if necessary, or keep strict to User model
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type UpdateUserResponse = ActionResponse;

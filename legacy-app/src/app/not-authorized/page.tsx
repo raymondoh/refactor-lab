@@ -18,8 +18,8 @@ export default function NotAuthorizedPage() {
               <h1 className="text-3xl md:text-4xl font-bold">Access Denied</h1>
               <div className="w-12 h-0.5 bg-primary mx-auto" />
               <p className="text-muted-foreground max-w-md text-lg">
-                You don't have permission to access this page. Please contact an administrator if you believe this is an
-                error.
+                You don&apos;t have permission to access this page. Please contact an administrator if you believe this
+                is an error.
               </p>
             </div>
 

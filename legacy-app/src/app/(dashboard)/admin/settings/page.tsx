@@ -15,6 +15,11 @@ export default async function AdminSettingsPage() {
       redirect("/login");
     }
 
+    // ✅ simplest + cheapest admin gate (consistent with other admin pages)
+    if (session.user.role !== "admin") {
+      redirect("/not-authorized");
+    }
+
     return (
       <DashboardShell>
         <DashboardHeader

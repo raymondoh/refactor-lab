@@ -67,9 +67,12 @@ export function RatingInput({ productId, onRatingSubmitted }: RatingInputProps) 
       toast.success(data.message || "Thank you for your rating!");
       setSelectedRating(0); // Reset stars after submission
       onRatingSubmitted?.(); // Call any parent callback
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error submitting rating:", error);
-      toast.error(error.message || "An unexpected error occurred.");
+
+      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

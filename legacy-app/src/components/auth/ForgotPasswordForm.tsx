@@ -74,7 +74,7 @@ export function ForgotPasswordForm() {
           <div className="space-y-2 mb-6">
             <h1 className="text-3xl font-semibold tracking-tight">Check your email</h1>
             <p className="text-muted-foreground">
-              We've sent you a password reset link. Please check your inbox and spam folder.
+              We&apos;ve sent you a password reset link. Please check your inbox and spam folder.
             </p>
           </div>
 

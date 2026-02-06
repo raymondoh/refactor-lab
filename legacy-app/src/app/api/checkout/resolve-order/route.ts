@@ -42,8 +42,8 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ status: "ready", orderId: orderResult.data.id }, { status: 200 });
-  } catch (err: any) {
-    const msg = err?.message || "Failed to resolve order.";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to resolve order.";
     const isNoSuchSession = typeof msg === "string" && msg.includes("No such checkout.session");
 
     if (isNoSuchSession) {

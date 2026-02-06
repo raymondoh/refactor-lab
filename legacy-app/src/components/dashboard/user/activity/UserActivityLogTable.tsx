@@ -12,17 +12,57 @@ import { serializeData } from "@/utils/serializeData";
 
 import type { ActivityLogClientProps } from "@/types/dashboard/activity";
 
+type ActivityRow = {
+  id: string;
+  description: string;
+  type: string;
+  status: string;
+  timestamp?: string | Date;
+};
+
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+function getStringField(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  return typeof v === "string" ? v : "";
+}
+function getOptionalDateish(obj: Record<string, unknown>, key: string): string | Date | undefined {
+  const v = obj[key];
+  if (typeof v === "string") return v;
+  if (v instanceof Date) return v;
+  return undefined;
+}
+
 export function UserActivityLogTable({ activities, showFilters = true, isRefreshing = false }: ActivityLogClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string | null>(null);
 
   // Normalize the activities using serializeData to convert any Timestamps to ISO strings.
-  const normalizedActivities = serializeData(activities);
+  const normalizedActivitiesUnknown = serializeData(activities) as unknown;
 
-  const filteredActivities = normalizedActivities.filter((activity: any) => {
+  // Coerce into a safe, minimal shape for UI usage (no `any`)
+  const normalizedActivities: ActivityRow[] = Array.isArray(normalizedActivitiesUnknown)
+    ? normalizedActivitiesUnknown
+        .map(item => {
+          const rec = asRecord(item);
+          const id = getStringField(rec, "id");
+          const description = getStringField(rec, "description");
+          const type = getStringField(rec, "type");
+          const status = getStringField(rec, "status");
+          const timestamp = getOptionalDateish(rec, "timestamp");
+
+          if (!id) return null;
+          return { id, description, type, status, timestamp };
+        })
+        .filter((v): v is ActivityRow => v !== null)
+    : [];
+
+  const filteredActivities = normalizedActivities.filter(activity => {
+    const lower = searchTerm.toLowerCase();
+
     const matchesSearch = searchTerm
-      ? activity.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        activity.type.toLowerCase().includes(searchTerm.toLowerCase())
+      ? activity.description.toLowerCase().includes(lower) || activity.type.toLowerCase().includes(lower)
       : true;
 
     const matchesType = filterType ? activity.type === filterType : true;
@@ -30,7 +70,7 @@ export function UserActivityLogTable({ activities, showFilters = true, isRefresh
     return matchesSearch && matchesType;
   });
 
-  const activityTypes = Array.from(new Set(normalizedActivities.map((activity: any) => activity.type)));
+  const activityTypes = Array.from(new Set(normalizedActivities.map(activity => activity.type))).filter(Boolean);
 
   const getBadgeVariant = (status: string): "default" | "destructive" | "outline" | "secondary" => {
     if (["failed", "failure"].includes(status)) return "destructive";
@@ -93,7 +133,7 @@ export function UserActivityLogTable({ activities, showFilters = true, isRefresh
                 </TableCell>
               </TableRow>
             ) : (
-              filteredActivities.map((activity: any) => (
+              filteredActivities.map(activity => (
                 <TableRow key={activity.id}>
                   <TableCell className="font-medium">{activity.description}</TableCell>
                   <TableCell className="whitespace-nowrap">{activity.type.replace(/_/g, " ")}</TableCell>

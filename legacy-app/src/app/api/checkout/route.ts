@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Product with ID ${item.id} not found.` }, { status: 404 });
       }
 
-      const data = doc.data() as any;
+      const data = doc.data() as Record<string, unknown>;
 
       // Minimal fields checkout needs (fallbacks protect you from legacy docs)
       const product = {

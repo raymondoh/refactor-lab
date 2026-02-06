@@ -36,7 +36,8 @@ export function TestimonialSection() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">What Our Customers Say</h2>
           <div className="w-12 h-0.5 bg-primary mb-6"></div>
           <p className="text-muted-foreground text-center max-w-2xl">
-            Don't just take our word for it - hear from riders who've transformed their bikes with our products.
+            Don&apos;t just take our word for it - hear from riders who&apos;ve transformed their bikes with our
+            products.
           </p>
         </div>
 

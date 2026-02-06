@@ -101,7 +101,7 @@ export default async function SaleProductsDebugPage() {
           <p>
             1. ✅ Check that your products have <code>onSale: true</code> in the database
           </p>
-          <p>2. ✅ Verify the field name is exactly "onSale" (case-sensitive)</p>
+          <p>2. ✅ Verify the field name is exactly &quot;onSale&quot; (case-sensitive)</p>
           <p>3. ✅ Make sure you have at least 3 products with onSale: true</p>
           <p>4. ✅ Check the server console for any Firebase errors</p>
         </div>

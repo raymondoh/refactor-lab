@@ -9,7 +9,6 @@ import { StickySideFilterWrapper } from "./StickySideFilterWrapper";
 import { ThemeFilterWrapper } from "./ThemeFilterWrapper";
 import { SaleFilterWrapper } from "./SaleFilterWrapper";
 import { CategoryFilter } from "./CategoryFilter";
-import { useProducts } from "../ProductsProvider";
 import { AnimatedFilterSection } from "./AnimatedFilterSection";
 
 // Define the CategoryData interface
@@ -32,8 +31,6 @@ interface ProductFiltersProps {
 }
 
 export function ProductFilters({ selectedCategory, onCategoryChange, categoriesData = [] }: ProductFiltersProps) {
-  const { hasActiveFilters } = useProducts();
-
   return (
     <div className="space-y-6">
       <div>

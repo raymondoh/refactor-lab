@@ -15,7 +15,7 @@ function isoOrValue(value: unknown) {
 }
 
 function mapDocToSerializedUser(doc: DocumentSnapshot): SerializedUser {
-  const data = (doc.data() ?? {}) as any;
+  const data = (doc.data() ?? {}) as Record<string, unknown>;
 
   const rawUser = {
     id: doc.id,

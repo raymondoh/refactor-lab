@@ -13,7 +13,7 @@ const updatePasswordSchema = z
   })
   .refine(d => d.newPassword === d.confirmPassword, { message: "Passwords don't match", path: ["confirmPassword"] });
 
-export async function updatePassword(_prevState: any, formData: FormData) {
+export async function updatePassword(_prevState: unknown, formData: FormData) {
   try {
     const { auth } = await import("@/auth");
     const session = await auth();

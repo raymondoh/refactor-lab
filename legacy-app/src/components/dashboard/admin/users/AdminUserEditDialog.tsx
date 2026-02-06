@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import type { UserRole, SerializedUser } from "@/types/models/user";
-import { SubmitButton } from "@/components/shared/SubmitButton"; // make sure this is imported
+import { SubmitButton } from "@/components/shared/SubmitButton";
 
 interface AdminUserEditDialogProps {
   user: SerializedUser;
@@ -40,7 +40,6 @@ export function AdminUserEditDialog({ user, open, onOpenChange, onSuccess }: Adm
 
   const [formData, setFormData] = useState(initial);
 
-  // If a different user is passed in while dialog is reused, keep state in sync.
   useEffect(() => {
     setFormData(initial);
   }, [initial]);
@@ -81,7 +80,8 @@ export function AdminUserEditDialog({ user, open, onOpenChange, onSuccess }: Adm
       onSuccess?.();
     } catch (error) {
       console.error("Error updating user:", error);
-      toast.error("An unexpected error occurred");
+      const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

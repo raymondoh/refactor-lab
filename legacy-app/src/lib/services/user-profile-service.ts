@@ -10,6 +10,7 @@ import type { User } from "@/types/user";
 import type { SerializedUser } from "@/types/models/user";
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
+
 // ✅ typed helper (fixes "unknown" problem)
 function dateish(value: unknown): string | Timestamp | Date | undefined {
   if (value instanceof Timestamp) return value;
@@ -62,7 +63,8 @@ export const userProfileService = {
     }
   },
 
-  async updateMyProfile(updateData: Record<string, unknown>): Promise<ServiceResponse<{}>> {
+  // ✅ fix: avoid ServiceResponse<{}> ({} is banned by eslint rule)
+  async updateMyProfile(updateData: Record<string, unknown>): Promise<ServiceResponse<Record<string, never>>> {
     const gate = await requireSession();
     if (!gate.success) return gate;
 
@@ -88,9 +90,10 @@ export const userProfileService = {
   /**
    * Update Firebase Auth profile for the current user
    */
+  // ✅ fix: avoid ServiceResponse<{}> ({} is banned by eslint rule)
   async updateMyAuthProfile(
     authUpdate: Parameters<ReturnType<typeof getAdminAuth>["updateUser"]>[1]
-  ): Promise<ServiceResponse<{}>> {
+  ): Promise<ServiceResponse<Record<string, never>>> {
     const gate = await requireSession();
     if (!gate.success) return gate;
 

@@ -1,15 +1,19 @@
-// src/actions/dashboard/activity-logs.ts
 "use server";
 
-import { adminActivityService, type ActivityLog } from "@/lib/services/admin-activity-service";
+import { adminActivityService } from "@/lib/services/admin-activity-service";
+import { adminUserService } from "@/lib/services/admin-user-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
-import type { SerializedActivity, ActivityLogWithId } from "@/types/firebase/activity";
+import type { ActivityLogWithId, SerializedActivity } from "@/types/firebase/activity";
 
-// ✅ NEW: service-layer lookup (no direct users collection read here)
-import { adminUserService } from "@/lib/services/admin-user-service";
+export type ActivityLogsResult = { success: true; logs: SerializedActivity[] } | { success: false; error: string };
 
-type ActivityLogsResult = { success: true; logs: SerializedActivity[] } | { success: false; error: string };
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
 
 /**
  * Helper function to enrich activity logs with user data (name, email, image).
@@ -21,18 +25,20 @@ async function enrichActivityLogs(logs: ActivityLogWithId[]): Promise<Serialized
     throw new Error(usersResult.error);
   }
 
-  // FIX: Access the nested usersById property
   const usersLookup = usersResult.data.usersById;
 
   return logs.map(log => {
     const user = usersLookup[log.userId];
-    // ... rest of function
 
     const userEmail = user?.email || log.userEmail;
+
     const name =
       user?.displayName ?? (user?.email ? user.email.split("@")[0] : (userEmail?.split("@")[0] ?? "Unknown User"));
 
-    const image = user?.image || (log as any).image || null;
+    // log may contain extra fields depending on the source; read safely without `any`
+    const logRec = asRecord(log);
+    const imageFromLog = asString(logRec["image"]);
+    const image = user?.image || imageFromLog || null;
 
     const timestamp =
       log.timestamp instanceof Date
@@ -41,14 +47,16 @@ async function enrichActivityLogs(logs: ActivityLogWithId[]): Promise<Serialized
           ? log.timestamp
           : new Date(log.timestamp.toMillis()).toISOString();
 
+    const metadata = (log.metadata && typeof log.metadata === "object" ? log.metadata : {}) as Record<string, unknown>;
+
     return {
       ...log,
       name,
       userEmail,
       image,
       timestamp,
-      metadata: log.metadata || {}
-    } as SerializedActivity;
+      metadata
+    };
   });
 }
 
@@ -62,10 +70,8 @@ export async function fetchAllActivityLogs(limit = 100): Promise<ActivityLogsRes
       return { success: false, error: "Not authenticated" };
     }
 
-    const { UserService } = await import("@/lib/services/user-service");
-    const userRole = await UserService.getUserRole(session.user.id);
-
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
+    if (session.user.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
@@ -76,7 +82,7 @@ export async function fetchAllActivityLogs(limit = 100): Promise<ActivityLogsRes
 
     const enrichedLogs = await enrichActivityLogs(result.data.logs);
     return { success: true, logs: enrichedLogs };
-  } catch (error) {
+  } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
@@ -96,14 +102,12 @@ export async function fetchUserActivityLogs(userId?: string, limit = 100): Promi
       return { success: false, error: "Not authenticated" };
     }
 
-    const targetUserId = userId || session.user.id;
+    const targetUserId = userId ?? session.user.id;
 
     // If requesting another user's logs, check admin permission
     if (targetUserId !== session.user.id) {
-      const { UserService } = await import("@/lib/services/user-service");
-      const userRole = await UserService.getUserRole(session.user.id);
-
-      if (userRole !== "admin") {
+      // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
+      if (session.user.role !== "admin") {
         return { success: false, error: "Unauthorized. Admin access required." };
       }
     }
@@ -119,7 +123,7 @@ export async function fetchUserActivityLogs(userId?: string, limit = 100): Promi
 
     const enrichedLogs = await enrichActivityLogs(result.data.logs);
     return { success: true, logs: enrichedLogs };
-  } catch (error) {
+  } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error

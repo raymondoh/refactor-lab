@@ -23,22 +23,24 @@ export default function TermsOfServicePage() {
 
           <article className="prose dark:prose-invert max-w-4xl mx-auto mt-12">
             <p className="lead">
-              Welcome to MotoStix! These Terms of Service ("Terms") govern your use of the website located at{" "}
-              {siteConfig.url} (the "Site") and any related services provided by MotoStix ("we", "us", or "our").
+              Welcome to MotoStix! These Terms of Service (&quot;Terms&quot;) govern your use of the website located at{" "}
+              {siteConfig.url} (the &quot;Site&quot;) and any related services provided by MotoStix (&quot;we&quot;,
+              &quot;us&quot;, or &quot;our&quot;).
             </p>
+
             <p>Last updated: June 5, 2025</p>
 
             <h2>1. Agreement to Terms</h2>
             <p>
-              By accessing our Site and purchasing our products, you engage in our "Service" and agree to be bound by
-              the following terms and conditions. These Terms apply to all users of the site, including without
+              By accessing our Site and purchasing our products, you engage in our &quot;Service&quot; and agree to be
+              bound by the following terms and conditions. These Terms apply to all users of the site, including without
               limitation users who are browsers, vendors, customers, merchants, and/ or contributors of content.
             </p>
 
             <h2>2. Products and Services</h2>
             <p>
               We make every effort to display as accurately as possible the colors and images of our products that
-              appear at the store. We cannot guarantee that your computer monitor's display of any color will be
+              appear at the store. We cannot guarantee that your computer monitor&apos;s display of any color will be
               accurate. We reserve the right to limit the quantities of any products or services that we offer. All
               descriptions of products or product pricing are subject to change at any time without notice, at our sole
               discretion.

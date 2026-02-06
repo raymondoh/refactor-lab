@@ -15,6 +15,31 @@ import {
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
+/* ---------------------------------- */
+/* Helpers */
+/* ---------------------------------- */
+
+type ProductSnapshot = {
+  category?: string;
+  subcategory?: string;
+  productType?: string;
+  designThemes?: string[];
+};
+
+type FeaturedCategory = {
+  name: string;
+  image: string;
+  slug: string;
+  count: number;
+};
+
+type FeaturedCategoryMapping = {
+  category?: string;
+  subcategory?: string;
+  productType?: string;
+  designThemes?: string[];
+};
+
 function getCategoryImage(category: string): string | undefined {
   const categoryImages: Record<string, string> = {
     Cars: "/images/categories/cars.jpg",
@@ -26,6 +51,24 @@ function getCategoryImage(category: string): string | undefined {
   };
   return categoryImages[category];
 }
+
+function asProductSnapshot(data: unknown): ProductSnapshot {
+  if (!data || typeof data !== "object") return {};
+  const d = data as Record<string, unknown>;
+
+  return {
+    category: typeof d.category === "string" ? d.category : undefined,
+    subcategory: typeof d.subcategory === "string" ? d.subcategory : undefined,
+    productType: typeof d.productType === "string" ? d.productType : undefined,
+    designThemes: Array.isArray(d.designThemes)
+      ? d.designThemes.filter((t): t is string => typeof t === "string")
+      : undefined
+  };
+}
+
+/* ---------------------------------- */
+/* Service */
+/* ---------------------------------- */
 
 export const adminCategoryService = {
   async getCategories(): Promise<ServiceResponse<{ categories: Category[] }>> {
@@ -45,7 +88,9 @@ export const adminCategoryService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching categories";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching categories";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -56,24 +101,31 @@ export const adminCategoryService = {
       const snap = await db.collection("products").select("category").get();
 
       const counts: Record<string, number> = {};
+
       snap.docs.forEach(doc => {
-        const category = (doc.data() as any).category;
+        const data = doc.data();
+        const category = typeof data?.category === "string" ? data.category : undefined;
         if (category) counts[category] = (counts[category] || 0) + 1;
       });
 
-      const data: Category[] = categories.map(category => ({
-        id: category.toLowerCase().replace(/\s+/g, "-"),
-        name: category,
-        count: counts[category] || 0,
-        image: getCategoryImage(category),
-        icon: category.toLowerCase().replace(/\s+/g, "-")
-      }));
+      const data: Category[] = categories.map(category => {
+        const id = category.toLowerCase().replace(/\s+/g, "-");
+        return {
+          id,
+          name: category,
+          count: counts[category] || 0,
+          image: getCategoryImage(category),
+          icon: id
+        };
+      });
 
       return { success: true, data: { categories: data } };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching categories";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching categories";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -88,7 +140,9 @@ export const adminCategoryService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching subcategories";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching subcategories";
       return { success: false, error: message, status: 500 };
     }
   },
@@ -109,9 +163,9 @@ export const adminCategoryService = {
     return { success: true, data: { placements: [...placements] } };
   },
 
-  async getFeaturedCategories(): Promise<ServiceResponse<{ featuredCategories: any[] }>> {
+  async getFeaturedCategories(): Promise<ServiceResponse<{ featuredCategories: FeaturedCategory[] }>> {
     try {
-      const featuredCategories = [
+      const featuredCategories: FeaturedCategory[] = [
         { name: "Sport Bike Decals", image: "/bike.jpg", slug: "sport-bike", count: 0 },
         { name: "Cruiser Graphics", image: "/car.jpg", slug: "cruiser", count: 0 },
         { name: "Off-Road Stickers", image: "/bike.jpg", slug: "off-road", count: 0 },
@@ -122,30 +176,26 @@ export const adminCategoryService = {
       const db = getAdminFirestore();
       const snap = await db.collection("products").get();
 
-      const products = snap.docs.map(doc => {
-        const d = doc.data() as any;
-        return {
-          category: d.category as string | undefined,
-          subcategory: d.subcategory as string | undefined,
-          productType: d.productType as string | undefined,
-          designThemes: d.designThemes as string[] | undefined
-        };
-      });
+      const products: ProductSnapshot[] = snap.docs.map(doc => asProductSnapshot(doc.data()));
 
       for (const cat of featuredCategories) {
-        const mapping = (featuredCategoryMappings as any)[cat.slug];
+        const mapping = featuredCategoryMappings[cat.slug as keyof typeof featuredCategoryMappings] as
+          | FeaturedCategoryMapping
+          | undefined;
+
         if (!mapping) continue;
 
         let count = 0;
 
         for (const p of products) {
           let matches = true;
+
           if (mapping.category && p.category !== mapping.category) matches = false;
           if (mapping.subcategory && p.subcategory !== mapping.subcategory) matches = false;
           if (mapping.productType && p.productType !== mapping.productType) matches = false;
 
-          if (mapping.designThemes && mapping.designThemes.length > 0) {
-            const ok = p.designThemes?.some(t => mapping.designThemes.includes(t as any));
+          if (mapping.designThemes?.length) {
+            const ok = p.designThemes?.some(t => mapping.designThemes!.includes(t));
             if (!ok) matches = false;
           }
 
@@ -159,7 +209,9 @@ export const adminCategoryService = {
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
-        : (error as Error)?.message || "Unknown error fetching featured categories";
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching featured categories";
       return { success: false, error: message, status: 500 };
     }
   }

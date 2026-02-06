@@ -12,64 +12,84 @@ import type { ProductFilterOptions } from "@/types/filters/product-filters";
 import { serializeProduct, serializeProductArray } from "@/utils/serializeProduct";
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
-//import { average } from "firebase/firestore"; // This import seems unused and can be removed
+
+// --------------------
+// helpers (no any)
+// --------------------
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
 
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
-  const data = doc.data() ?? {};
+  const data = asRecord(doc.data());
+
+  // Note: This keeps your existing defaults but avoids unsafe field access.
+  const imageRaw = data["image"];
+  const image = typeof imageRaw === "string" && imageRaw ? imageRaw : "/placeholder.svg";
+
+  const additionalImagesRaw = data["additionalImages"];
+  const additionalImages = Array.isArray(additionalImagesRaw) ? additionalImagesRaw : [];
+
+  const imagesRaw = data["images"];
+  const images =
+    Array.isArray(imagesRaw) && imagesRaw.length > 0
+      ? imagesRaw.map(v => (typeof v === "string" ? v : "")).filter(Boolean)
+      : imageRaw
+        ? [image, ...additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean)]
+        : additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean);
+
   return {
     id: doc.id,
-    name: data?.name || "",
-    description: data?.description || "",
-    details: data?.details || "",
-    sku: data?.sku || "",
-    barcode: data?.barcode || "",
-    category: data.category || "",
-    subcategory: data.subcategory || "",
-    designThemes: data.designThemes || [],
-    productType: data.productType || "",
-    tags: data.tags || [],
-    brand: data.brand || "",
-    manufacturer: data?.manufacturer || "",
-    dimensions: data?.dimensions || "",
-    weight: data?.weight || "",
-    shippingWeight: data?.shippingWeight || "",
-    material: data?.material || "",
-    finish: data?.finish || undefined,
-    color: data?.color || "",
-    baseColor: data?.baseColor || "",
-    colorDisplayName: data?.colorDisplayName || "",
-    stickySide: data?.stickySide || undefined,
-    size: data?.size || "",
-    image: data?.image || "/placeholder.svg",
-    additionalImages: data?.additionalImages || [],
-    images:
-      data?.images || (data?.image ? [data.image, ...(data?.additionalImages || [])] : data?.additionalImages || []),
-    placements: data?.placements || [],
-    price: data?.price || 0,
-    salePrice: data?.salePrice || undefined,
-    onSale: data?.onSale || false,
-    costPrice: data?.costPrice || undefined,
-    stockQuantity: data?.stockQuantity || undefined,
-    lowStockThreshold: data?.lowStockThreshold || undefined,
-    shippingClass: data?.shippingClass || "",
-    inStock: data?.inStock ?? true,
-    badge: data?.badge || "",
-    isFeatured: data?.isFeatured ?? false,
-    isHero: data?.isHero ?? false,
-    isLiked: data?.isLiked ?? false,
-    isCustomizable: data?.isCustomizable ?? false,
-    isNewArrival: data?.isNewArrival ?? false,
-    createdAt: data?.createdAt,
-    updatedAt: data?.updatedAt,
-    averageRating: data?.averageRating || 0,
-    reviewCount: data?.reviewCount || 0
+    name: typeof data["name"] === "string" ? data["name"] : "",
+    description: typeof data["description"] === "string" ? data["description"] : "",
+    details: typeof data["details"] === "string" ? data["details"] : "",
+    sku: typeof data["sku"] === "string" ? data["sku"] : "",
+    barcode: typeof data["barcode"] === "string" ? data["barcode"] : "",
+    category: typeof data["category"] === "string" ? data["category"] : "",
+    subcategory: typeof data["subcategory"] === "string" ? data["subcategory"] : "",
+    designThemes: Array.isArray(data["designThemes"]) ? (data["designThemes"] as string[]) : [],
+    productType: typeof data["productType"] === "string" ? data["productType"] : "",
+    tags: Array.isArray(data["tags"]) ? (data["tags"] as string[]) : [],
+    brand: typeof data["brand"] === "string" ? data["brand"] : "",
+    manufacturer: typeof data["manufacturer"] === "string" ? data["manufacturer"] : "",
+    dimensions: typeof data["dimensions"] === "string" ? data["dimensions"] : "",
+    weight: typeof data["weight"] === "string" ? data["weight"] : "",
+    shippingWeight: typeof data["shippingWeight"] === "string" ? data["shippingWeight"] : "",
+    material: typeof data["material"] === "string" ? data["material"] : "",
+    finish: typeof data["finish"] === "string" ? data["finish"] : undefined,
+    color: typeof data["color"] === "string" ? data["color"] : "",
+    baseColor: typeof data["baseColor"] === "string" ? data["baseColor"] : "",
+    colorDisplayName: typeof data["colorDisplayName"] === "string" ? data["colorDisplayName"] : "",
+    stickySide: typeof data["stickySide"] === "string" ? data["stickySide"] : undefined,
+    size: typeof data["size"] === "string" ? data["size"] : "",
+    image,
+    additionalImages: additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean),
+    images,
+    placements: Array.isArray(data["placements"]) ? (data["placements"] as string[]) : [],
+    price: typeof data["price"] === "number" ? data["price"] : 0,
+    salePrice: typeof data["salePrice"] === "number" ? data["salePrice"] : undefined,
+    onSale: typeof data["onSale"] === "boolean" ? data["onSale"] : false,
+    costPrice: typeof data["costPrice"] === "number" ? data["costPrice"] : undefined,
+    stockQuantity: typeof data["stockQuantity"] === "number" ? data["stockQuantity"] : undefined,
+    lowStockThreshold: typeof data["lowStockThreshold"] === "number" ? data["lowStockThreshold"] : undefined,
+    shippingClass: typeof data["shippingClass"] === "string" ? data["shippingClass"] : "",
+    inStock: typeof data["inStock"] === "boolean" ? data["inStock"] : true,
+    badge: typeof data["badge"] === "string" ? data["badge"] : "",
+    isFeatured: typeof data["isFeatured"] === "boolean" ? data["isFeatured"] : false,
+    isHero: typeof data["isHero"] === "boolean" ? data["isHero"] : false,
+    isLiked: typeof data["isLiked"] === "boolean" ? data["isLiked"] : false,
+    isCustomizable: typeof data["isCustomizable"] === "boolean" ? data["isCustomizable"] : false,
+    isNewArrival: typeof data["isNewArrival"] === "boolean" ? data["isNewArrival"] : false,
+    createdAt: data["createdAt"],
+    updatedAt: data["updatedAt"],
+    averageRating: typeof data["averageRating"] === "number" ? data["averageRating"] : 0,
+    reviewCount: typeof data["reviewCount"] === "number" ? data["reviewCount"] : 0
   };
 }
 
 // ===================
 // GET ALL PRODUCTS
 // ===================
-// NEW: Update filters type to include query
 export async function getAllProducts(filters?: {
   category?: string;
   subcategory?: string;
@@ -87,19 +107,16 @@ export async function getAllProducts(filters?: {
   productType?: string;
   designThemes?: string[];
   limit?: number;
-  query?: string; // NEW: Added query parameter here
+  query?: string;
 }) {
-  // If any filters (including query) are provided, use getFilteredProducts
   if (filters && Object.keys(filters).some(key => key !== "limit")) {
     return await getFilteredProducts(filters);
   }
 
-  // Original logic for fetching all products if no specific filters are applied
   try {
     const db = getAdminFirestore();
     let query = db.collection("products").orderBy("createdAt", "desc");
 
-    // Apply limit if provided
     if (filters?.limit && typeof filters.limit === "number" && filters.limit > 0) {
       query = query.limit(filters.limit);
     }
@@ -122,7 +139,6 @@ export async function getFilteredProducts(filters: ProductFilterOptions) {
   try {
     console.log("getFilteredProducts - Received filters:", filters);
 
-    // Normalize category and subcategory using the mapping functions
     if (filters.category) {
       const normalizedCategory = normalizeCategory(filters.category);
       if (normalizedCategory) {
@@ -141,87 +157,52 @@ export async function getFilteredProducts(filters: ProductFilterOptions) {
     }
 
     const db = getAdminFirestore();
-    // Start with the base query. We'll apply string-based filters in-memory later if needed.
     let query = db.collection("products").orderBy("createdAt", "desc");
 
-    // Apply direct Firestore filters (exact matches, ranges, booleans)
-    if (filters.category) {
-      console.log("getFilteredProducts - Adding category filter:", filters.category);
-      query = query.where("category", "==", filters.category);
-    }
-    if (filters.subcategory) {
-      console.log("getFilteredProducts - Adding subcategory filter:", filters.subcategory);
-      query = query.where("subcategory", "==", filters.subcategory);
-    }
-    if (filters.material) {
-      query = query.where("material", "==", filters.material);
-    }
-    if (filters.finish) {
-      query = query.where("finish", "==", filters.finish);
-    }
-    if (filters.productType) {
-      query = query.where("productType", "==", filters.productType);
-    }
-    if (filters.stickySide) {
-      query = query.where("stickySide", "==", filters.stickySide);
-    }
-    if (filters.brand) {
-      query = query.where("brand", "==", filters.brand);
-    }
-    if (filters.baseColor) {
-      query = query.where("baseColor", "==", filters.baseColor);
-    }
+    if (filters.category) query = query.where("category", "==", filters.category);
+    if (filters.subcategory) query = query.where("subcategory", "==", filters.subcategory);
+    if (filters.material) query = query.where("material", "==", filters.material);
+    if (filters.finish) query = query.where("finish", "==", filters.finish);
+    if (filters.productType) query = query.where("productType", "==", filters.productType);
+    if (filters.stickySide) query = query.where("stickySide", "==", filters.stickySide);
+    if (filters.brand) query = query.where("brand", "==", filters.brand);
+    if (filters.baseColor) query = query.where("baseColor", "==", filters.baseColor);
 
-    // Boolean filters
-    if (filters.isFeatured !== undefined) {
-      query = query.where("isFeatured", "==", filters.isFeatured);
-    }
-    if (filters.isCustomizable !== undefined) {
-      query = query.where("isCustomizable", "==", filters.isCustomizable);
-    }
-    if (filters.onSale !== undefined) {
-      query = query.where("onSale", "==", filters.onSale);
-    }
-    if (filters.isNewArrival !== undefined) {
-      query = query.where("isNewArrival", "==", filters.isNewArrival);
-    }
-    if (filters.inStock !== undefined) {
-      query = query.where("inStock", "==", filters.inStock);
-    }
+    if (filters.isFeatured !== undefined) query = query.where("isFeatured", "==", filters.isFeatured);
+    if (filters.isCustomizable !== undefined) query = query.where("isCustomizable", "==", filters.isCustomizable);
+    if (filters.onSale !== undefined) query = query.where("onSale", "==", filters.onSale);
+    if (filters.isNewArrival !== undefined) query = query.where("isNewArrival", "==", filters.isNewArrival);
+    if (filters.inStock !== undefined) query = query.where("inStock", "==", filters.inStock);
 
-    // Price range filter
     if (filters.priceRange) {
       const [minPriceStr, maxPriceStr] = filters.priceRange.split("-");
       const minPrice = Number.parseFloat(minPriceStr);
       const maxPrice = Number.parseFloat(maxPriceStr);
 
-      if (!isNaN(minPrice)) {
-        query = query.where("price", ">=", minPrice);
-      }
-      if (!isNaN(maxPrice)) {
-        query = query.where("price", "<=", maxPrice);
-      }
+      if (!Number.isNaN(minPrice)) query = query.where("price", ">=", minPrice);
+      if (!Number.isNaN(maxPrice)) query = query.where("price", "<=", maxPrice);
     }
 
     const snapshot = await query.get();
     let products = snapshot.docs.map(mapDocToProduct);
 
-    // NEW: Apply in-memory search query filter
+    // query filter (no explicit any)
     if (filters.query) {
-      const lowerCaseQuery = filters.query.toLowerCase();
-      products = products.filter(
-        product =>
-          // Safely access product.name and product.description
-          (product.name?.toLowerCase() || "").includes(lowerCaseQuery) || // FIX: Safely access name
-          (product.description?.toLowerCase() || "").includes(lowerCaseQuery) || // FIX: Safely access description
-          product.tags?.some(tag => tag.toLowerCase().includes(lowerCaseQuery))
-      );
-      console.log(
-        `getFilteredProducts - Applied in-memory search for "${filters.query}", found ${products.length} results.`
-      );
+      const q = filters.query.toLowerCase();
+      products = products.filter(p => {
+        const name = (p.name ?? "").toLowerCase().includes(q);
+        const desc = (p.description ?? "").toLowerCase().includes(q);
+        const tags =
+          Array.isArray(p.tags) &&
+          (p.tags as unknown[]).some(t =>
+            String(t ?? "")
+              .toLowerCase()
+              .includes(q)
+          );
+        return name || desc || tags;
+      });
     }
 
-    // In-memory filters for array fields (these were already here, keep them after the main query filter)
     if (filters.designThemes && filters.designThemes.length > 0) {
       products = products.filter(product => product.designThemes?.some(theme => filters.designThemes?.includes(theme)));
     }
@@ -231,20 +212,9 @@ export async function getFilteredProducts(filters: ProductFilterOptions) {
       );
     }
     if (filters.tags && filters.tags.length > 0) {
-      // Note: tags already handled in main query filter above if `filters.query` exists.
-      // This part ensures that if tags are used as a *direct filter* (e.g., `tags=sport,cars`), they are still applied.
-      // If `filters.query` also matches tags, some redundancy, but correct filtering logic.
-      products = products.filter(product => product.tags?.some(tag => filters.tags?.includes(tag as string)));
-    }
-
-    // Log a sample product to see its structure
-    if (products.length > 0) {
-      console.log("getFilteredProducts - Sample product:", {
-        id: products[0].id,
-        name: products[0].name, // NEW: Include name for easier debugging
-        category: products[0].category,
-        subcategory: products[0].subcategory
-      });
+      // remove "as any" by treating tags as string[] and using String() fallback
+      const wanted = new Set(filters.tags.map(t => String(t).toLowerCase()));
+      products = products.filter(product => (product.tags ?? []).some(tag => wanted.has(String(tag).toLowerCase())));
     }
 
     return { success: true as const, data: serializeProductArray(products) };
@@ -257,17 +227,15 @@ export async function getFilteredProducts(filters: ProductFilterOptions) {
   }
 }
 
-// ... (rest of your file, e.g., addProduct, getProductById, etc. remain unchanged)
-
 // ===================
 // ADD PRODUCT
 // ===================
-export async function addProduct(data: any) {
+// ✅ fix @typescript-eslint/no-explicit-any at line ~265
+export async function addProduct(data: unknown) {
   try {
     console.log("🚀 addProduct - Starting creation");
     console.log("📋 addProduct - Raw input data:", JSON.stringify(data, null, 2));
 
-    // Validate using the full product schema
     const validationResult = productSchema.safeParse(data);
 
     if (!validationResult.success) {
@@ -279,34 +247,23 @@ export async function addProduct(data: any) {
     }
 
     const validatedData = validationResult.data;
-    console.log("✅ Schema validation passed. Validated data:", JSON.stringify(validatedData, null, 2));
-
     const now = new Date();
 
-    // Data to be added to Firestore
     const newProductData = {
       ...validatedData,
       createdAt: now,
       updatedAt: now
     };
 
-    console.log("🔥 FINAL - Product data being sent to Firebase:", JSON.stringify(newProductData, null, 2));
-
     const db = getAdminFirestore();
     const docRef = await db.collection("products").add(newProductData);
-    console.log("✅ Firebase creation completed successfully with ID:", docRef.id);
 
-    // SKU Generation Logic
     const finalSku = validatedData.sku ?? `SKU-${docRef.id.substring(0, 8).toUpperCase()}`;
 
-    // If a new SKU was generated, update the document in Firestore
     if (!validatedData.sku) {
-      console.log(`📦 SKU not provided. Generating and updating with: ${finalSku}`);
       await docRef.update({ sku: finalSku });
-      console.log("✅ SKU updated in Firebase.");
     }
 
-    // Construct the complete product object to return to the caller
     const fullProduct = {
       id: docRef.id,
       ...validatedData,
@@ -333,35 +290,24 @@ export async function addProduct(data: any) {
 // GET PRODUCT BY ID
 // ===================
 export async function getProductById(id: string) {
-  console.log(`[getProductById] Called for product ID: ${id}`);
-
   try {
     const db = getAdminFirestore();
-    console.log(`[getProductById] Using Firestore client for product ID: ${id}`);
-
     const doc = await db.collection("products").doc(id).get();
 
     if (!doc.exists) {
-      console.warn(`[getProductById] Product with ID: '${id}' not found in Firestore.`);
       return { success: false as const, error: "Product not found" };
     }
 
-    console.log(`[getProductById] Successfully fetched document for product ID: '${id}'. Exists: true.`);
     const product = mapDocToProduct(doc);
     const serialized = serializeProduct(product);
 
-    console.log(`[getProductById] Product mapped and serialized for ID: '${id}'.`);
     return { success: true as const, product: serialized };
   } catch (error) {
-    console.error(`[getProductById] Firebase error occurred while fetching product ID '${id}':`, error);
-
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
         : "Unknown error fetching product by ID";
-
-    console.error(`[getProductById] Processed error message for ID '${id}': ${message}`);
     return { success: false as const, error: message };
   }
 }
@@ -369,20 +315,14 @@ export async function getProductById(id: string) {
 // ===================
 // UPDATE PRODUCT
 // ===================
-export async function updateProduct(id: string, data: any) {
+// ✅ fix @typescript-eslint/no-explicit-any at line ~372
+export async function updateProduct(id: string, data: unknown) {
   try {
-    if (!id) {
-      throw new Error("Product ID is required");
-    }
+    if (!id) throw new Error("Product ID is required");
 
-    console.log("🚀 updateProduct - Starting update for:", id);
-    console.log("📋 updateProduct - Raw input data:", JSON.stringify(data, null, 2));
-
-    // Use the update schema for validation (all fields optional)
     const validationResult = productUpdateSchema.safeParse(data);
 
     if (!validationResult.success) {
-      console.error("❌ Schema validation failed:", validationResult.error.errors);
       const errorMessages = validationResult.error.errors
         .map(err => `${err.path.join(".")}: ${err.message}`)
         .join(", ");
@@ -390,31 +330,21 @@ export async function updateProduct(id: string, data: any) {
     }
 
     const validatedData = validationResult.data;
-    console.log("✅ Schema validation passed. Validated data:", JSON.stringify(validatedData, null, 2));
 
-    // Specifically log sale-related fields
-    console.log("🏷️ Sale fields after validation:", {
-      onSale: validatedData.onSale,
-      salePrice: validatedData.salePrice,
-      price: validatedData.price
-    });
-
-    // Create update object with validated fields
-    const updateData: Record<string, any> = {
+    // ✅ fix explicit any in update object (line ~403)
+    const updateData: Record<string, unknown> = {
       ...validatedData,
       updatedAt: new Date()
     };
 
-    console.log("🔥 FINAL - Update data being sent to Firebase:", JSON.stringify(updateData, null, 2));
+    // optional: strip undefineds
+    Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
 
     const db = getAdminFirestore();
     await db.collection("products").doc(id).update(updateData);
 
-    console.log("✅ Firebase update completed successfully");
-
     return { success: true as const, data: id };
   } catch (error) {
-    console.error("❌ updateProduct error:", error);
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error updating product";
@@ -435,18 +365,17 @@ export async function deleteProduct(productId: string) {
       return { success: false as const, error: "Product not found" };
     }
 
-    const data = docSnap.data();
-    const imageUrl = data?.image;
-    const additionalImages = data?.additionalImages || [];
+    const data = asRecord(docSnap.data());
+    const imageUrl = data["image"];
+    const additionalImagesRaw = data["additionalImages"];
+    const additionalImages = Array.isArray(additionalImagesRaw) ? additionalImagesRaw : [];
 
     await docRef.delete();
 
-    // Delete main image
-    if (imageUrl) await deleteProductImage(imageUrl);
+    if (typeof imageUrl === "string" && imageUrl) await deleteProductImage(imageUrl);
 
-    // Delete additional images
     for (const imgUrl of additionalImages) {
-      await deleteProductImage(imgUrl);
+      if (typeof imgUrl === "string" && imgUrl) await deleteProductImage(imgUrl);
     }
 
     return { success: true as const };
@@ -454,7 +383,6 @@ export async function deleteProduct(productId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error deleting product";
-    console.error("Error deleting product:", message);
     return { success: false as const, error: message };
   }
 }
@@ -477,7 +405,6 @@ export async function deleteProductImage(imageUrl: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error deleting image";
-    console.error("❌ Error deleting image:", message);
     return { success: false as const, error: message };
   }
 }
@@ -504,10 +431,8 @@ export async function getFeaturedProducts() {
 // ===================
 export async function getOnSaleProducts(limit = 10) {
   try {
-    console.log("🏷️ getOnSaleProducts - Starting query for sale products");
-
     const db = getAdminFirestore();
-    let snapshot;
+    let snapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>;
 
     try {
       snapshot = await db
@@ -516,41 +441,22 @@ export async function getOnSaleProducts(limit = 10) {
         .orderBy("createdAt", "desc")
         .limit(limit)
         .get();
+    } catch (err) {
+      // ✅ fix unused var: remove queryError name and keep useful logging
+      console.warn("getOnSaleProducts - direct query failed, using fallback:", err);
 
-      console.log("🏷️ getOnSaleProducts - Direct query found:", snapshot.docs.length, "products");
-    } catch (queryError) {
-      console.log("🏷️ getOnSaleProducts - Direct query failed, trying fallback approach");
-
-      // Fallback: get all products and filter in memory
       snapshot = await db.collection("products").orderBy("createdAt", "desc").get();
-
-      console.log("🏷️ getOnSaleProducts - Fallback: got", snapshot.docs.length, "total products");
     }
 
     const products = snapshot.docs.map(mapDocToProduct);
 
-    // Always filter in memory to be extra sure
-    const saleProducts = products.filter(product => {
-      const isOnSale = product.onSale === true;
-      if (isOnSale) {
-        console.log("🏷️ Found sale product:", {
-          name: product.name,
-          onSale: product.onSale,
-          price: product.price,
-          salePrice: product.salePrice
-        });
-      }
-      return isOnSale;
-    });
+    const saleProducts = products.filter(p => p.onSale === true);
 
-    // Apply limit if we did fallback approach
+    // If fallback fetched all, enforce limit
     const finalProducts = saleProducts.slice(0, limit);
-
-    console.log("🏷️ getOnSaleProducts - Final result:", finalProducts.length, "sale products");
 
     return { success: true as const, data: serializeProductArray(finalProducts) };
   } catch (error) {
-    console.error("❌ getOnSaleProducts error:", error);
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error fetching sale products";
@@ -609,27 +515,11 @@ export async function getRelatedProducts({
     const db = getAdminFirestore();
     let query = db.collection("products") as FirebaseFirestore.Query<DocumentData>;
 
-    // Apply category filter
-    if (category) {
-      query = query.where("category", "==", category);
-    }
+    if (category) query = query.where("category", "==", category);
+    if (subcategory) query = query.where("subcategory", "==", subcategory);
+    if (productType) query = query.where("productType", "==", productType);
+    if (brand) query = query.where("brand", "==", brand);
 
-    // Apply subcategory filter if provided
-    if (subcategory) {
-      query = query.where("subcategory", "==", subcategory);
-    }
-
-    // Apply product type filter if provided
-    if (productType) {
-      query = query.where("productType", "==", productType);
-    }
-
-    // Apply brand filter if provided
-    if (brand) {
-      query = query.where("brand", "==", brand);
-    }
-
-    // Apply ordering and limit
     const snapshot = await query
       .orderBy("createdAt", "desc")
       .limit(limit + 1)
@@ -640,29 +530,22 @@ export async function getRelatedProducts({
       .filter(product => product.id !== productId)
       .slice(0, limit);
 
-    // If design theme is provided, filter in memory
     if (designTheme && related.length > 0) {
+      const dt = designTheme.toLowerCase();
       const filteredByTheme = related.filter(product =>
-        product.designThemes?.some(theme => theme === designTheme || theme.toLowerCase() === designTheme.toLowerCase())
+        (product.designThemes ?? []).some(theme => String(theme).toLowerCase() === dt)
       );
-
-      // If we have enough products with the theme, use those
-      if (filteredByTheme.length >= 2) {
-        related = filteredByTheme.slice(0, limit);
-      }
+      if (filteredByTheme.length >= 2) related = filteredByTheme.slice(0, limit);
     }
 
-    // If tags are provided, filter in memory
     if (tags && tags.length > 0 && related.length > 0) {
-      const filteredByTags = related.filter(product => product.tags?.some(tag => tags.includes(tag)));
-
-      // If we have enough products with matching tags, use those
-      if (filteredByTags.length >= 2) {
-        related = filteredByTags.slice(0, limit);
-      }
+      const wanted = new Set(tags.map(t => t.toLowerCase()));
+      const filteredByTags = related.filter(product =>
+        (product.tags ?? []).some(tag => wanted.has(String(tag).toLowerCase()))
+      );
+      if (filteredByTags.length >= 2) related = filteredByTags.slice(0, limit);
     }
 
-    // If no products found with the filters, try a broader search
     if (related.length === 0) {
       const fallbackSnapshot = await db.collection("products").orderBy("createdAt", "desc").limit(limit).get();
 
@@ -702,7 +585,6 @@ export async function likeProduct(userId: string, productId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error liking product";
-    console.error("Error liking product:", message);
     return { success: false as const, error: message };
   }
 }
@@ -720,7 +602,6 @@ export async function unlikeProduct(userId: string, productId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error unliking product";
-    console.error("Error unliking product:", message);
     return { success: false as const, error: message };
   }
 }
@@ -745,7 +626,6 @@ export async function getUserLikedProducts(userId: string) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : (error as Error)?.message || "Unknown error fetching liked products";
-    console.error("Error fetching liked products:", message);
     return { success: false as const, error: message };
   }
 }

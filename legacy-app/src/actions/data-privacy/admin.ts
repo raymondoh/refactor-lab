@@ -6,6 +6,7 @@ import { adminUserService } from "@/lib/services/admin-user-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
+import type { SerializedUser } from "@/types/models/user";
 
 // Get deletion requests
 export async function getDeletionRequests() {
@@ -18,13 +19,14 @@ export async function getDeletionRequests() {
     }
 
     // ✅ Admin check via service
-    // NOTE: assumes adminUserService.getUserById exists. If yours is named differently, tell me the method name.
     const adminRes = await adminUserService.getUserById(session.user.id);
+
     if (!adminRes.success || !adminRes.data) {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
-    const adminUser = adminRes.data as any;
+    const adminUser: SerializedUser = adminRes.data;
+
     if (adminUser.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
@@ -35,7 +37,6 @@ export async function getDeletionRequests() {
       return { success: false, error: listRes.error };
     }
 
-    // Keep response shape similar to your original `requests`
     return { success: true, requests: listRes.data.users };
   } catch (error) {
     const message = isFirebaseError(error)
@@ -43,6 +44,7 @@ export async function getDeletionRequests() {
       : error instanceof Error
         ? error.message
         : "Unknown error getting deletion requests";
+
     console.error("Error getting deletion requests:", message);
     return { success: false, error: message };
   }
@@ -60,11 +62,13 @@ export async function processDeletionRequest(userId: string, action: "approve" |
 
     // ✅ Admin check via service
     const adminRes = await adminUserService.getUserById(session.user.id);
+
     if (!adminRes.success || !adminRes.data) {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
-    const adminUser = adminRes.data as any;
+    const adminUser: SerializedUser = adminRes.data;
+
     if (adminUser.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
@@ -83,7 +87,6 @@ export async function processDeletionRequest(userId: string, action: "approve" |
         metadata: { targetUserId: userId }
       });
     } else {
-      // ✅ Reject deletion via service (no direct Firestore here)
       const rejectRes = await adminUserService.patchUser(userId, {
         deletionRequested: false,
         deletionRequestedAt: null,
@@ -112,6 +115,7 @@ export async function processDeletionRequest(userId: string, action: "approve" |
       : error instanceof Error
         ? error.message
         : "Unknown error processing deletion request";
+
     console.error("Error processing deletion request:", message);
     return { success: false, error: message };
   }

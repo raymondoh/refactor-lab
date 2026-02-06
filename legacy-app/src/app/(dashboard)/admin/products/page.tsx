@@ -4,7 +4,6 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { redirect } from "next/navigation";
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { adminCategoryService } from "@/lib/services/admin-category-service";
-import { UserService } from "@/lib/services/user-service";
 import { AdminProductsClient } from "@/components/dashboard/admin/products/AdminProductsClient";
 
 export const metadata: Metadata = {
@@ -21,8 +20,8 @@ export default async function AdminProductsPage() {
       redirect("/login");
     }
 
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
@@ -36,7 +35,6 @@ export default async function AdminProductsPage() {
 
     // Fetch featured categories data (service layer)
     const featuredRes = await adminCategoryService.getFeaturedCategories();
-
     const featuredCategories = featuredRes.success
       ? featuredRes.data.featuredCategories.map(cat => ({
           id: cat.slug, // Use slug as id

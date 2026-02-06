@@ -4,7 +4,7 @@ import type { Order } from "@/types/order";
 export async function generateReceiptPdf(order: Order) {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([500, 700]);
-  const { width, height } = page.getSize();
+  const { height } = page.getSize();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const y = height - 50;
@@ -28,7 +28,7 @@ export async function generateReceiptPdf(order: Order) {
   let itemOffset = 120;
   drawText("Items:", itemOffset);
 
-  order.items.forEach((item, index) => {
+  order.items.forEach(item => {
     itemOffset += 20;
     drawText(`${item.quantity} × ${item.name} @ £${item.price.toFixed(2)}`, itemOffset);
   });

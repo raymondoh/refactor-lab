@@ -53,8 +53,10 @@ export function ContactForm() {
 
       toast.success("Message sent successfully! We'll get back to you soon.");
       form.reset();
-    } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

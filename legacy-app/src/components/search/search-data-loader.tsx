@@ -23,7 +23,7 @@ export function SearchDataLoader({
     async function fetchData() {
       try {
         console.log("Fetching product data for search...");
-        const allData: any[] = [];
+        const allData: unknown[] = [];
 
         // Fetch data from each collection (should only be products)
         for (const collectionName of collections) {

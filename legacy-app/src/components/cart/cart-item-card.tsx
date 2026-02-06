@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Plus, Minus } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
-import { useState } from "react";
 
 interface CartItemCardProps {
   item: CartItem;
@@ -16,10 +15,9 @@ interface CartItemCardProps {
 export function CartItemCard({ item }: CartItemCardProps) {
   const { product, quantity } = item;
   const { updateQuantity, removeItem } = useCart();
-  const [currentQuantity, setCurrentQuantity] = useState(quantity);
+  //const [currentQuantity, setCurrentQuantity] = useState(quantity);
 
   const handleQuantityChange = (newQuantity: number) => {
-    setCurrentQuantity(newQuantity);
     updateQuantity(product.id, newQuantity);
   };
 

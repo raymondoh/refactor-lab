@@ -1,5 +1,7 @@
 // legacy-app/src/app/(dashboard)/admin/page.tsx
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+
 import { fetchAllActivityLogs } from "@/actions/dashboard";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -10,12 +12,10 @@ import {
   AdminUserPreview,
   AdminActivityPreview
 } from "@/components";
-import { redirect } from "next/navigation";
-import { UserService } from "@/lib/services/user-service";
 import { serializeData } from "@/utils";
 import type { SerializedActivity } from "@/types/firebase";
 
-// ✅ Services
+// ✅ Services (only keep what you actually use in this file)
 import { adminUserService } from "@/lib/services/admin-user-service";
 import { adminActivityService } from "@/lib/services/admin-activity-service";
 
@@ -33,10 +33,8 @@ export default async function AdminDashboardOverviewPage() {
       redirect("/login");
     }
 
-    const userId = session.user.id;
-    const userRole = await UserService.getUserRole(userId);
-
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
@@ -60,8 +58,6 @@ export default async function AdminDashboardOverviewPage() {
       } else {
         const { totalUsers } = stats.data;
         systemStats.totalUsers = totalUsers;
-        //.activeUsers = activeUsers7d;
-        //systemStats.newUsersToday = newUsersToday;
       }
 
       // ✅ Activity count via service

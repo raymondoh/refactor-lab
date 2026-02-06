@@ -21,10 +21,6 @@ import type {
   AdminUpdateUserInput // Added
 } from "@/types/user/admin";
 
-// FIXED: Removed invalid import from "@/types/user/roles"
-// UserRole is imported here:
-import type { UserRole, User, SerializedUser } from "@/types/models/user";
-
 // ================= Admin User Actions =================
 
 /**

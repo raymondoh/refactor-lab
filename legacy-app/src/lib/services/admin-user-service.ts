@@ -10,6 +10,15 @@ import type { SerializedUser } from "@/types/models/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
 import { userRepo } from "@/lib/repos/user-repo";
+
+type UserLookupDoc = Partial<Pick<User, "email" | "name" | "displayName" | "role">> & {
+  // image-ish fields that may exist in your documents
+  image?: string;
+  picture?: string;
+  photoURL?: string;
+  profileImage?: string;
+};
+
 /**
  * Admin gate – ensures the caller is authenticated AND an admin
  */
@@ -82,14 +91,17 @@ export const adminUserService = {
         string,
         { id: string; email?: string; displayName?: string; image?: string; role?: UserRole }
       > = {};
-
       for (const doc of snap.docs) {
-        const data = doc.data() as any;
+        const data = doc.data() as UserLookupDoc;
+
         usersById[doc.id] = {
           id: doc.id,
-          email: data.email,
-          displayName: data.displayName || data.name,
-          image: getUserImage(data) || undefined,
+          // Use the nullish coalescing operator (??) to convert null to undefined
+          email: data.email ?? undefined,
+          // Convert the result of the fallback check to undefined if it's null
+          displayName: (data.displayName || data.name) ?? undefined,
+          // getUserImage returns 'string | null', so convert null to undefined
+          image: getUserImage(data) ?? undefined,
           role: data.role
         };
       }

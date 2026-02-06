@@ -1,126 +1,151 @@
-// legacy-app/src/lib/services/user-service.ts
+// src/lib/services/admin-activity-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";
 
-import type { User, UserRole } from "@/types/models/user";
-import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { getUserImage } from "@/utils/get-user-image";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
-// User service class
-export class UserService {
-  // Get users with pagination (general use; NOT admin gated)
-  static async getUsers(
-    limit = 10,
-    startAfter?: string
-  ): Promise<
-    ServiceResponse<{
-      users: User[];
-      lastVisible?: string;
-    }>
-  > {
+/**
+ * For metadata, use unknown (not any). This keeps it flexible but type-safe.
+ */
+export type ActivityMetadata = Record<string, unknown>;
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  type: string;
+  description: string;
+  status: "success" | "error" | "warning" | "info";
+  timestamp: Date | Timestamp;
+  metadata?: ActivityMetadata;
+}
+
+type ActivityLogDoc = {
+  userId?: unknown;
+  type?: unknown;
+  description?: unknown;
+  status?: unknown;
+  timestamp?: unknown;
+  metadata?: unknown;
+};
+
+function asActivityLogDoc(data: unknown): ActivityLogDoc {
+  return data && typeof data === "object" ? (data as ActivityLogDoc) : {};
+}
+
+function toStatus(value: unknown): ActivityLog["status"] {
+  return value === "success" || value === "error" || value === "warning" || value === "info" ? value : "info";
+}
+
+function toTimestamp(value: unknown): Date | Timestamp {
+  if (value instanceof Timestamp) return value;
+  if (value instanceof Date) return value;
+  return new Date();
+}
+
+function toMetadata(value: unknown): ActivityMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as ActivityMetadata;
+}
+
+function mapDocToActivityLog(doc: FirebaseFirestore.QueryDocumentSnapshot): ActivityLog {
+  const raw = doc.data();
+  const data = asActivityLogDoc(raw);
+
+  return {
+    id: doc.id,
+    userId: typeof data.userId === "string" ? data.userId : "",
+    type: typeof data.type === "string" ? data.type : "",
+    description: typeof data.description === "string" ? data.description : "",
+    status: toStatus(data.status),
+    timestamp: toTimestamp(data.timestamp),
+    metadata: toMetadata(data.metadata)
+  };
+}
+
+export type LogActivityInput = {
+  userId: string;
+  type: string;
+  description: string;
+  status?: ActivityLog["status"];
+  metadata?: ActivityMetadata;
+};
+
+export const adminActivityService = {
+  async logActivity(input: LogActivityInput): Promise<ServiceResponse<{ id: string }>> {
     try {
       const db = getAdminFirestore();
-      let query = db.collection("users").orderBy("createdAt", "desc").limit(limit);
+      const ref = db.collection("activity").doc();
 
-      if (startAfter) {
-        const lastDoc = await db.collection("users").doc(startAfter).get();
-        if (lastDoc.exists) {
-          query = query.startAfter(lastDoc);
-        }
-      }
-
-      const snapshot = await query.get();
-
-      const users: User[] = snapshot.docs.map(doc => {
-        const data = doc.data() as any;
-
-        return {
-          id: doc.id,
-          ...data,
-          image: getUserImage(data),
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt,
-          lastLoginAt:
-            data.lastLoginAt instanceof Timestamp ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt,
-          emailVerified: Boolean(data.emailVerified) // ✅ boolean
-        } as User;
+      await ref.set({
+        userId: input.userId,
+        type: input.type,
+        description: input.description,
+        status: input.status ?? "info",
+        timestamp: new Date(),
+        metadata: input.metadata ?? {}
       });
 
-      const lastVisible = snapshot.docs[snapshot.docs.length - 1];
-
-      return {
-        success: true,
-        data: {
-          users,
-          lastVisible: lastVisible?.id
-        }
-      };
-    } catch (error: unknown) {
+      return { success: true, data: { id: ref.id } };
+    } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error occurred while fetching users";
-
-      console.error("Error fetching users:", message);
-      return { success: false, error: message };
+          : "Unknown error logging activity";
+      return { success: false, error: message, status: 500 };
     }
-  }
+  },
 
-  // Get current user (safely)
-  static async getCurrentUser(): Promise<ServiceResponse<User>> {
-    try {
-      const { auth } = await import("@/auth");
-      const session = await auth();
-
-      if (!session?.user) {
-        return { success: false, error: "No authenticated user found" };
-      }
-
-      const role = await UserService.getUserRole(session.user.id);
-
-      return {
-        success: true,
-        data: {
-          id: session.user.id,
-          firstName: session.user.firstName || "",
-          lastName: session.user.lastName || "",
-          displayName: session.user.displayName || "",
-          name: session.user.name || "",
-          email: session.user.email || "",
-          image: getUserImage(session.user),
-          role,
-          bio: session.user.bio || ""
-        }
-      };
-    } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error getting current user";
-
-      return { success: false, error: message };
-    }
-  }
-
-  // Get user role
-  static async getUserRole(userId: string): Promise<UserRole> {
+  async getAllActivityLogs(limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
     try {
       const db = getAdminFirestore();
-      const userDoc = await db.collection("users").doc(userId).get();
-      const userData = userDoc.data() as any;
-      return (userData?.role as UserRole) || "user";
-    } catch (error: unknown) {
+      const snap = await db.collection("activity").orderBy("timestamp", "desc").limit(limit).get();
+
+      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+    } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error getting user role";
+          : "Unknown error fetching activity logs";
+      return { success: false, error: message, status: 500 };
+    }
+  },
 
-      console.error("Error getting user role:", message);
-      return "user";
+  async getUserActivityLogs(userId: string, limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
+    try {
+      const db = getAdminFirestore();
+      const snap = await db
+        .collection("activity")
+        .where("userId", "==", userId)
+        .orderBy("timestamp", "desc")
+        .limit(limit)
+        .get();
+
+      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error fetching user activity logs";
+      return { success: false, error: message, status: 500 };
+    }
+  },
+
+  async countAll(): Promise<ServiceResponse<{ total: number }>> {
+    try {
+      const db = getAdminFirestore();
+      const snap = await db.collection("activity").count().get();
+      return { success: true, data: { total: snap.data().count } };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error counting activity logs";
+      return { success: false, error: message, status: 500 };
     }
   }
-}
+};

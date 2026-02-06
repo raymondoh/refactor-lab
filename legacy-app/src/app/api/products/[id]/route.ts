@@ -10,6 +10,14 @@ import { getProductByIdPublic } from "@/lib/services/products-public-service";
 // ✅ ADMIN writes
 import { adminProductService } from "@/lib/services/admin-product-service";
 
+type ApiErrorDetails = {
+  success: false;
+  error: string;
+  timestamp: string;
+  productId: string;
+  stack?: string;
+};
+
 // GET - Fetch a single product by ID (PUBLIC)
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -53,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    let body: any;
+    let body: unknown;
     try {
       body = await request.json();
     } catch (parseError) {
@@ -135,7 +143,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     console.error("💥 [PUT /api/products/[id]] Unexpected error:", error);
 
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-    const errorDetails: any = {
+
+    const errorDetails: ApiErrorDetails = {
       success: false,
       error: errorMessage,
       timestamp: new Date().toISOString(),
@@ -148,7 +157,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     try {
       const { id } = await params;
       errorDetails.productId = id;
-    } catch {}
+    } catch {
+      // ignore
+    }
 
     // Log failed update (best-effort)
     try {
@@ -175,7 +186,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // DELETE - Remove a product (ADMIN)
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
@@ -232,7 +243,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     console.error("💥 [DELETE /api/products/[id]] Unexpected error:", error);
 
     const errorMessage = error instanceof Error ? error.message : "Failed to delete product";
-    const errorDetails: any = {
+
+    const errorDetails: ApiErrorDetails = {
       success: false,
       error: errorMessage,
       timestamp: new Date().toISOString(),
@@ -245,7 +257,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     try {
       const { id } = await params;
       errorDetails.productId = id;
-    } catch {}
+    } catch {
+      // ignore
+    }
 
     // Log failed delete (best-effort)
     try {

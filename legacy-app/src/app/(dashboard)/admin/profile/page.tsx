@@ -4,7 +4,7 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { UserProfileForm } from "@/components/auth/UserProfileForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { UserService } from "@/lib/services/user-service";
+import { userProfileService } from "@/lib/services/user-profile-service";
 
 export default async function AdminProfilePage() {
   try {
@@ -17,18 +17,16 @@ export default async function AdminProfilePage() {
       redirect("/login");
     }
 
-    // Check if the user is an admin using UserService
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
-    // Get current user using UserService
-    const userResult = await UserService.getCurrentUser();
+    // ✅ Fetch profile via service (avoids UserService.getCurrentUser dependency)
+    const profileResult = await userProfileService.getMyProfile();
 
-    // Handle error case
-    if (!userResult.success) {
-      console.error("Error getting current user:", userResult.error);
+    if (!profileResult.success) {
+      console.error("Error loading admin profile:", profileResult.error);
       return (
         <DashboardShell>
           <DashboardHeader
@@ -39,13 +37,13 @@ export default async function AdminProfilePage() {
           <Separator className="mb-8" />
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Error loading profile: {userResult.error}</AlertDescription>
+            <AlertDescription>Error loading profile: {profileResult.error}</AlertDescription>
           </Alert>
         </DashboardShell>
       );
     }
 
-    const user = userResult.data;
+    const user = profileResult.data.user;
 
     return (
       <DashboardShell>

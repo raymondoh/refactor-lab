@@ -5,8 +5,7 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { AdminActivityPageClient } from "@/components";
 import { redirect } from "next/navigation";
 import { fetchAllActivityLogs } from "@/actions/dashboard";
-import { UserService } from "@/lib/services/user-service";
-import type { Firebase } from "@/types"; // Make sure Firebase type is correctly imported from types/firebase
+import type { Firebase } from "@/types"; // keep your existing Firebase namespace import
 
 export const metadata: Metadata = {
   title: "Activity Log - Admin",
@@ -22,18 +21,15 @@ export default async function AdminActivityPage() {
       redirect("/login");
     }
 
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
-    // ✅ Fetch initial logs on the server. fetchActivityLogs now returns SerializedActivity[]
-    const result = await fetchAllActivityLogs(10);
+    // ✅ Fetch initial logs on the server (already enriched/serialized by your action)
+    const result = await fetchAllActivityLogs(100);
 
-    // Highlight: Directly use result.logs, no more mapping needed
     const logs: Firebase.SerializedActivity[] = result.success ? result.logs : [];
-    console.log("LOGS:", logs);
-
     console.log("[AdminActivityPage] Logs length:", logs.length);
 
     return (

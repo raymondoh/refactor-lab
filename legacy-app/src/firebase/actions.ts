@@ -10,7 +10,7 @@ export async function logActivity(input: {
   type: string;
   description: string;
   status?: "success" | "error" | "warning" | "info";
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }) {
   const result = await adminActivityService.logActivity(input);
 

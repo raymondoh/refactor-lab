@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const { name, email, subject, message } = validatedData.data;
 
     // Send the email using Resend
-    const { data, error } = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: "Contact Form <onboarding@resend.dev>", // Use a default Resend address for now
       to: ["raymondmhylton@gmail.com"], // <<< YOUR EMAIL ADDRESS HERE
       subject: `New MotoStix Contact Form Submission: ${subject}`,

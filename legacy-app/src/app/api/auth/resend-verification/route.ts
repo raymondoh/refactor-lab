@@ -90,7 +90,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json<OkResponse>(generic, { headers: NO_STORE_HEADERS });
-  } catch (err: unknown) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Failed to resolve order.";
+
+    console.error("Resend verification error:", msg);
+
     return NextResponse.json<ErrorResponse>(
       { ok: false, error: "Failed to resend verification email" },
       { status: 500, headers: NO_STORE_HEADERS }

@@ -4,9 +4,10 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { UserActivityPageClient } from "@/components";
 import { fetchUserActivityLogs } from "@/actions/dashboard";
 import type { Firebase } from "@/types";
+import { ActivityLogWithId } from "@/types/firebase/activity";
 
 // Helper function to convert ActivityLog to SerializedActivity
-function convertToSerializedActivity(log: any): Firebase.SerializedActivity {
+function convertToSerializedActivity(log: ActivityLogWithId): Firebase.SerializedActivity {
   return {
     id: log.id,
     userId: log.userId,

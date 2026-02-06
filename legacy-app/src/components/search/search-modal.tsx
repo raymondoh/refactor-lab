@@ -169,7 +169,7 @@ export function SearchModal() {
                   closeSearch();
                   router.push(`/products?q=${encodeURIComponent(query.trim())}`);
                 }}>
-                Search all products for "{query}"
+                Search all products for &quot;{query}&quot;
               </Button>
             </div>
           ) : (

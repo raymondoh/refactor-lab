@@ -6,7 +6,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { adminOrderService } from "@/lib/services/admin-order-service";
 
-export async function exportUserData(_prevState: any, formData: FormData) {
+export async function exportUserData(_prevState: unknown, formData: FormData) {
   try {
     const { auth } = await import("@/auth");
     const session = await auth();

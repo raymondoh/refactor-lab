@@ -20,17 +20,10 @@ type EmailVerificationTokenResult = {
   error?: string | null;
 };
 
-function maskToken(token: string): string {
-  if (token.length <= 12) return token;
-  return `${token.slice(0, 6)}...${token.slice(-4)}`;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { token } = tokenSchema.parse(body);
-
-    const masked = maskToken(token);
 
     const tokenResult = (await tokenService.verifyAndConsumeEmailVerificationToken(
       token

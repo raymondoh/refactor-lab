@@ -43,7 +43,7 @@ export function AppSidebar() {
 
   const navItems = getNavItems();
 
-  const handleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleLinkClick = () => {
     if (isMobile) {
       setOpenMobile(false);
     }

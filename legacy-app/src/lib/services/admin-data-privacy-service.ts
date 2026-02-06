@@ -3,6 +3,23 @@ import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initial
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import type { ServiceResponse } from "@/types/service-response";
 
+// --------------------
+// helpers (no any)
+// --------------------
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+}
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+function getStringField(obj: Record<string, unknown>, key: string): string | undefined {
+  const v = obj[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+type ExportedDoc = Record<string, unknown> & { id: string };
+type ExportedUser = (Record<string, unknown> & { id: string }) | null;
+
 export const adminDataPrivacyService = {
   async listDeletionRequests(): Promise<
     ServiceResponse<{ users: Array<{ id: string; email?: string; name?: string }> }>
@@ -12,8 +29,8 @@ export const adminDataPrivacyService = {
       const snapshot = await db.collection("users").where("deletionRequested", "==", true).get();
 
       const users = snapshot.docs.map(d => {
-        const data = d.data() as any;
-        return { id: d.id, email: data.email, name: data.name };
+        const data = asRecord(d.data());
+        return { id: d.id, email: getStringField(data, "email"), name: getStringField(data, "name") };
       });
 
       return { success: true, data: { users } };
@@ -29,18 +46,24 @@ export const adminDataPrivacyService = {
 
   async exportUserData(
     userId: string
-  ): Promise<ServiceResponse<{ user: any; likes: any[]; activity: any[]; orders?: any[] }>> {
+  ): Promise<
+    ServiceResponse<{ user: ExportedUser; likes: ExportedDoc[]; activity: ExportedDoc[]; orders?: ExportedDoc[] }>
+  > {
     try {
       const db = getAdminFirestore();
 
       const userDoc = await db.collection("users").doc(userId).get();
-      const user = userDoc.exists ? { id: userDoc.id, ...(userDoc.data() as any) } : null;
+      const user: ExportedUser = userDoc.exists ? ({ id: userDoc.id, ...(userDoc.data() ?? {}) } as ExportedDoc) : null;
 
       const likesSnapshot = await db.collection("users").doc(userId).collection("likes").get();
-      const likes = likesSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const likes = likesSnapshot.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) }) as ExportedDoc);
 
       const activitySnapshot = await db.collection("activity").where("userId", "==", userId).get();
-      const activity = activitySnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const activity = activitySnapshot.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) }) as ExportedDoc);
+
+      // If you later export orders, follow the same pattern:
+      // const ordersSnap = await db.collection("orders").where("userId", "==", userId).get();
+      // const orders = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) })) as ExportedDoc[];
 
       return { success: true, data: { user, likes, activity } };
     } catch (error) {
@@ -53,7 +76,7 @@ export const adminDataPrivacyService = {
     }
   },
 
-  async markDeletionRequested(userId: string): Promise<ServiceResponse<{}>> {
+  async markDeletionRequested(userId: string): Promise<ServiceResponse<Record<string, never>>> {
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).update({ deletionRequested: true });
@@ -89,7 +112,7 @@ export const adminDataPrivacyService = {
    * Deletes user-owned "likes" docs and attempts to delete the profile image referenced by `users/{userId}.picture`.
    * Does NOT delete the user doc itself (leave that to adminAuthService.deleteUserAuthAndDoc).
    */
-  async deleteUserLikesAndProfileImage(userId: string): Promise<ServiceResponse<{}>> {
+  async deleteUserLikesAndProfileImage(userId: string): Promise<ServiceResponse<Record<string, never>>> {
     try {
       const db = getAdminFirestore();
       const storage = getAdminStorage();
@@ -97,16 +120,38 @@ export const adminDataPrivacyService = {
       // Get user data (for picture cleanup)
       const userRef = db.collection("users").doc(userId);
       const userSnap = await userRef.get();
-      const userData = userSnap.data() as any;
+      const userData = asRecord(userSnap.data());
+
+      const picture = asString(userData["picture"]);
 
       // Delete user's profile image if exists (non-fatal)
-      if (userData?.picture) {
+      if (picture) {
         try {
           const bucket = storage.bucket();
-          const url = new URL(userData.picture);
-          const fullPath = url.pathname.slice(1); // remove leading "/"
-          const storagePath = fullPath.replace(`${bucket.name}/`, "");
-          await bucket.file(storagePath).delete();
+          const url = new URL(picture);
+
+          // Matches: https://storage.googleapis.com/<bucket>/<path>
+          // We only delete when it clearly belongs to THIS bucket.
+          const pathParts = url.pathname.split("/").filter(Boolean);
+          const bucketName = bucket.name;
+
+          // storage.googleapis.com/<bucket>/<path>
+          let storagePath: string | null = null;
+          if (url.hostname === "storage.googleapis.com") {
+            if (pathParts.length >= 2 && pathParts[0] === bucketName) {
+              storagePath = pathParts.slice(1).join("/");
+            }
+          }
+
+          // firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>
+          if (!storagePath && url.hostname === "firebasestorage.googleapis.com") {
+            const m = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+            if (m && m[1] === bucketName) storagePath = decodeURIComponent(m[2]);
+          }
+
+          if (storagePath) {
+            await bucket.file(storagePath).delete({ ignoreNotFound: true });
+          }
         } catch (imageError) {
           console.error("Error deleting profile image:", imageError);
         }
@@ -126,6 +171,26 @@ export const adminDataPrivacyService = {
       return { success: false, error: message, status: 500 };
     }
   },
+  async cancelDeletionRequested(userId: string): Promise<ServiceResponse<Record<string, never>>> {
+    try {
+      const db = getAdminFirestore();
+      await db.collection("users").doc(userId).update({
+        deletionRequested: false,
+        deletionRequestedAt: null,
+        deletionRejectedAt: null,
+        deletionRejectedBy: null
+      });
+      return { success: true, data: {} };
+    } catch (error) {
+      const message = isFirebaseError(error)
+        ? firebaseError(error)
+        : error instanceof Error
+          ? error.message
+          : "Unknown error cancelling deletion request";
+      return { success: false, error: message, status: 500 };
+    }
+  },
+
   async createSignedExportFile(input: {
     userId: string;
     fileContent: string;

@@ -11,45 +11,65 @@ export async function fetchUserOrdersClient(): Promise<Order.Order[]> {
       const errorText = await res.text();
       let errorMessage = "Failed to fetch orders";
       try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.error || errorMessage;
-      } catch (e) {
+        const errorData: unknown = JSON.parse(errorText);
+        if (
+          typeof errorData === "object" &&
+          errorData !== null &&
+          "error" in errorData &&
+          typeof (errorData as Record<string, unknown>).error === "string"
+        ) {
+          errorMessage = (errorData as Record<string, string>).error;
+        }
+      } catch {
         console.error("Non-JSON error response:", errorText);
       }
       throw new Error(errorMessage);
     }
 
-    const data = await res.json();
+    const raw: unknown = await res.json();
+
+    if (typeof raw !== "object" || raw === null || !("success" in raw)) {
+      throw new Error("Invalid response format");
+    }
+
+    const data = raw as {
+      success: boolean;
+      error?: string;
+      orders?: unknown;
+    };
 
     if (!data.success) {
       throw new Error(data.error || "Failed to fetch orders");
     }
 
-    // --- THIS IS THE FIX ---
-    // 1. Check if data.orders exists and is an array. If not, use an empty array.
     const ordersArray = Array.isArray(data.orders) ? data.orders : [];
 
-    // 2. Map over the guaranteed 'ordersArray'
-    const mappedOrders: Order.Order[] = ordersArray.map((order: any) => ({
-      id: order.id ?? "",
-      userId: order.userId ?? "",
-      paymentIntentId: order.paymentIntentId,
-      amount: order.amount,
-      customerEmail: order.customerEmail,
-      customerName: order.customerName,
-      items: order.items ?? [],
-      shippingAddress: order.shippingAddress ?? {
-        address: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: ""
-      },
-      status: order.status ?? "processing",
-      // Safely create Date objects
-      createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
-      updatedAt: order.updatedAt ? new Date(order.updatedAt) : new Date()
-    }));
+    const mappedOrders: Order.Order[] = ordersArray.map((order): Order.Order => {
+      const o = typeof order === "object" && order !== null ? (order as Record<string, unknown>) : {};
+
+      return {
+        id: typeof o.id === "string" ? o.id : "",
+        userId: typeof o.userId === "string" ? o.userId : "",
+        paymentIntentId: typeof o.paymentIntentId === "string" ? o.paymentIntentId : undefined,
+        amount: typeof o.amount === "number" ? o.amount : 0,
+        customerEmail: typeof o.customerEmail === "string" ? o.customerEmail : "",
+        customerName: typeof o.customerName === "string" ? o.customerName : "",
+        items: Array.isArray(o.items) ? o.items : [],
+        shippingAddress:
+          typeof o.shippingAddress === "object" && o.shippingAddress !== null
+            ? (o.shippingAddress as Order.Order["shippingAddress"])
+            : {
+                address: "",
+                city: "",
+                state: "",
+                zipCode: "",
+                country: ""
+              },
+        status: typeof o.status === "string" ? o.status : "processing",
+        createdAt: typeof o.createdAt === "string" || o.createdAt instanceof Date ? new Date(o.createdAt) : new Date(),
+        updatedAt: typeof o.updatedAt === "string" || o.updatedAt instanceof Date ? new Date(o.updatedAt) : new Date()
+      };
+    });
 
     return mappedOrders;
   } catch (error) {

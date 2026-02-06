@@ -77,7 +77,7 @@ export interface SerializedActivity {
   location?: string;
   device?: string;
   deviceType?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
