@@ -1,3 +1,4 @@
+// src/schemas/product/product.ts
 import { z } from "zod";
 
 export const productSchema = z.object({

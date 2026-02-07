@@ -6,19 +6,19 @@ import { revalidatePath } from "next/cache";
 
 import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { adminUserService } from "@/lib/services/admin-user-service";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { logger } from "@/utils/logger";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 
-// FIXED: Added missing types to this import
 import type {
   CreateUserInput,
   CreateUserResponse,
   FetchUsersResponse,
   UpdateUserResponse,
-  FetchUserByIdResponse, // Added
-  DeleteUserResponse, // Added
-  DeleteUserAccountResponse, // Added
-  AdminUpdateUserInput // Added
+  FetchUserByIdResponse,
+  DeleteUserResponse,
+  AdminUpdateUserInput
 } from "@/types/user/admin";
 
 // ================= Admin User Actions =================
@@ -26,11 +26,13 @@ import type {
 /**
  * Create a new user (admin only)
  */
+/**
+ * Create a new user (admin only)
+ */
 export async function createUser({ email, password, name, role }: CreateUserInput): Promise<CreateUserResponse> {
-  const { auth } = await import("@/auth");
-  const session = await auth();
-
-  if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+  // ✅ centralised gate
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
 
   try {
     // 1) Create Auth user
@@ -62,23 +64,30 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
     }
 
     // 3) Log admin activity
-    await logActivity({
-      userId: session.user.id,
-      type: "admin-action",
-      description: `Created a new user (${email})`,
-      status: "success",
-      metadata: {
-        createdUserId: newUserId,
-        createdUserEmail: email,
-        createdUserRole: role ?? "user"
-      }
-    });
+    try {
+      await logActivity({
+        userId: gate.userId,
+        type: "admin-action",
+        description: `Created a new user (${email})`,
+        status: "success",
+        metadata: {
+          createdUserId: newUserId,
+          createdUserEmail: email,
+          createdUserRole: role ?? "user"
+        }
+      });
+    } catch {
+      // best-effort: don't fail the main action if logging fails
+    }
 
     revalidatePath("/admin/users");
-
     return { success: true, userId: newUserId };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+  } catch (error: unknown) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error";
 
     logger({
       type: "error",
@@ -95,9 +104,19 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
  * Fetch users (admin only)
  */
 export async function fetchUsers(limit = 10, offset = 0): Promise<FetchUsersResponse> {
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
+
   const result = await adminUserService.listUsers(limit, offset);
 
   if (!result.success) {
+    logger({
+      type: "error",
+      message: "Error in fetchUsers",
+      metadata: { error: result.error, limit, offset },
+      context: "admin-users"
+    });
+
     return { success: false, error: result.error };
   }
 
@@ -112,9 +131,21 @@ export async function fetchUsers(limit = 10, offset = 0): Promise<FetchUsersResp
  * Fetch a single user (admin only)
  */
 export async function fetchUserById(userId: string): Promise<FetchUserByIdResponse> {
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
+
+  if (!userId) return { success: false, error: "User ID is required" };
+
   const result = await adminUserService.getUserById(userId);
 
   if (!result.success) {
+    logger({
+      type: "error",
+      message: "Error in fetchUserById",
+      metadata: { error: result.error, userId },
+      context: "admin-users"
+    });
+
     return { success: false, error: result.error };
   }
 
@@ -125,82 +156,196 @@ export async function fetchUserById(userId: string): Promise<FetchUserByIdRespon
  * Update user fields (admin only)
  */
 export async function updateUser(userId: string, userData: AdminUpdateUserInput): Promise<UpdateUserResponse> {
-  const result = await adminUserService.updateUser(userId, userData);
+  // ✅ centralised gate
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
 
-  if (!result.success) {
+  if (!userId) return { success: false, error: "User ID is required" };
+
+  try {
+    const result = await adminUserService.updateUser(userId, userData);
+
+    if (!result.success) {
+      logger({
+        type: "error",
+        message: "Error in updateUser",
+        metadata: { error: result.error, userId },
+        context: "admin-users"
+      });
+
+      return { success: false, error: result.error };
+    }
+
+    // best-effort log (don’t fail if logging fails)
+    try {
+      await logActivity({
+        userId: gate.userId,
+        type: "admin-update-user",
+        description: `Admin updated user ${userId}`,
+        status: "success",
+        metadata: {
+          targetUserId: userId,
+          updatedFields: Object.keys(userData ?? {})
+        }
+      });
+    } catch {}
+
+    revalidatePath("/admin/users");
+
     logger({
-      type: "error",
-      message: "Error in updateUser",
-      metadata: { error: result.error, userId },
+      type: "info",
+      message: `Updated user ${userId}`,
       context: "admin-users"
     });
 
-    return { success: false, error: result.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error";
+
+    logger({
+      type: "error",
+      message: "Unexpected error in updateUser",
+      metadata: { error: message, userId },
+      context: "admin-users"
+    });
+
+    return { success: false, error: message };
   }
-
-  revalidatePath("/admin/users");
-
-  logger({
-    type: "info",
-    message: `Updated user ${userId}`,
-    context: "admin-users"
-  });
-
-  return { success: true };
 }
 
 /**
  * Delete Firestore user doc only (admin only)
+ * Keep this ONLY if you still need doc-only deletes.
+ */
+/**
+ * Delete Firestore user doc only (admin only)
  */
 export async function deleteUserDoc(userId: string): Promise<DeleteUserResponse> {
-  const result = await adminUserService.deleteUserDoc(userId);
+  // ✅ centralised gate
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
 
-  if (!result.success) {
+  if (!userId) return { success: false, error: "User ID is required" };
+
+  try {
+    const result = await adminUserService.deleteUserDoc(userId);
+
+    if (!result.success) {
+      logger({
+        type: "error",
+        message: "Error in deleteUserDoc",
+        metadata: { error: result.error, userId },
+        context: "admin-users"
+      });
+
+      return { success: false, error: result.error };
+    }
+
+    // best-effort audit log
+    try {
+      await logActivity({
+        userId: gate.userId,
+        type: "admin-delete-user-doc",
+        description: `Admin deleted Firestore user doc ${userId}`,
+        status: "success",
+        metadata: { targetUserId: userId }
+      });
+    } catch {}
+
+    revalidatePath("/admin/users");
+
     logger({
-      type: "error",
-      message: "Error in deleteUserDoc",
-      metadata: { error: result.error, userId },
+      type: "info",
+      message: `Deleted Firestore user doc ${userId}`,
       context: "admin-users"
     });
 
-    return { success: false, error: result.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error deleting Firestore user doc";
+
+    logger({
+      type: "error",
+      message: "Unexpected error in deleteUserDoc",
+      metadata: { error: message, userId },
+      context: "admin-users"
+    });
+
+    return { success: false, error: message };
   }
-
-  revalidatePath("/admin/users");
-
-  logger({
-    type: "info",
-    message: `Deleted Firestore user doc ${userId}`,
-    context: "admin-users"
-  });
-
-  return { success: true };
 }
 
-/**
- * Delete user account (admin only) - Auth + Firestore doc
- */
-export async function deleteUserAccount(userId: string): Promise<DeleteUserAccountResponse> {
-  const result = await adminUserService.deleteUserAccount(userId);
+// ================= Canonical admin delete =================
 
-  if (!result.success) {
+/**
+ * Canonical "delete user" for admins.
+ * Uses adminUserService.deleteUserFully() (single source of truth).
+ */
+export type DeleteUserResult = { success: true } | { success: false; error: string };
+
+export async function deleteUserAsAdmin(userId: string): Promise<DeleteUserResult> {
+  // ✅ centralised gate
+  const gate = await requireAdmin();
+  if (!gate.success) return { success: false, error: gate.error };
+
+  if (!userId) return { success: false, error: "User ID is required" };
+
+  try {
+    const res = await adminUserService.deleteUserFully(userId);
+
+    if (!res.success) {
+      logger({
+        type: "error",
+        message: "Error in deleteUserAsAdmin",
+        metadata: { error: res.error, userId },
+        context: "admin-users"
+      });
+
+      return { success: false, error: res.error || "Failed to delete user" };
+    }
+
+    // best-effort activity log
+    try {
+      await logActivity({
+        userId: gate.userId,
+        type: "admin-delete-user",
+        description: `Admin deleted user ${userId}`,
+        status: "success",
+        metadata: { targetUserId: userId }
+      });
+    } catch {}
+
+    revalidatePath("/admin/users");
+
     logger({
-      type: "error",
-      message: "Error in deleteUserAccount",
-      metadata: { error: result.error, userId },
+      type: "info",
+      message: `Admin deleted user ${userId}`,
       context: "admin-users"
     });
 
-    return { success: false, error: result.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error deleting user";
+
+    logger({
+      type: "error",
+      message: "Unexpected error in deleteUserAsAdmin",
+      metadata: { error: message, userId },
+      context: "admin-users"
+    });
+
+    return { success: false, error: message };
   }
-
-  revalidatePath("/admin/users");
-
-  logger({
-    type: "info",
-    message: `Deleted user account ${userId}`,
-    context: "admin-users"
-  });
-
-  return { success: true };
 }

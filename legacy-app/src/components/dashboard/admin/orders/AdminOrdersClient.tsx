@@ -40,7 +40,7 @@ export function AdminOrdersClient({ orders: initialOrders }: AdminOrdersClientPr
           setData(refreshedOrders);
         } else if (isOrdersResponseObject(refreshedOrders)) {
           // Case 2: function returns { success, data }
-          setData(refreshedOrders.data);
+          setData((refreshedOrders as OrdersResponseObject).data);
         } else {
           console.error("Refreshed orders data is not in expected format:", refreshedOrders);
         }

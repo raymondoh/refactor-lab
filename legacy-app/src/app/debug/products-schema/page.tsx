@@ -77,7 +77,7 @@ export default async function ProductsSchemaDebugPage() {
           {sampleProducts.map((product, index) => (
             <details key={product.id} className="border rounded p-4">
               <summary className="cursor-pointer font-medium text-black">
-                Product {index + 1}: {product.name || product.title || product.id}
+                Product {index + 1}: {String((product as any).name || (product as any).title || (product as any).id)}
               </summary>
               <pre className="mt-4 p-4 bg-gray-50 rounded text-xs overflow-auto text-black">
                 {JSON.stringify(product, null, 2)}

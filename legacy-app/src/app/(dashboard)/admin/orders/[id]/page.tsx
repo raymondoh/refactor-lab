@@ -71,7 +71,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <div className="space-y-4">
                 {order.items.map((item, index) => (
                   <div
-                    key={`${item.id ?? item.name}-${index}`}
+                    key={`${item.productId ?? item.name}-${index}`}
                     className="flex justify-between items-center p-4 bg-secondary/10 rounded-lg">
                     <div>
                       <p className="font-medium">{item.name}</p>

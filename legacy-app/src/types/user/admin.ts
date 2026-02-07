@@ -31,3 +31,10 @@ export interface AdminUpdateUserInput extends Partial<User> {
 export type UpdateUserResponse = ActionResponse;
 export type DeleteUserResponse = ActionResponse;
 export type DeleteUserAccountResponse = ActionResponse;
+
+export interface DeleteAccountState {
+  success: boolean;
+  error?: string;
+  message?: string;
+  shouldRedirect?: boolean;
+}

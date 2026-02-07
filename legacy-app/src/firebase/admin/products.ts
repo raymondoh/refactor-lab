@@ -23,7 +23,6 @@ function asRecord(v: unknown): Record<string, unknown> {
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
   const data = asRecord(doc.data());
 
-  // Note: This keeps your existing defaults but avoids unsafe field access.
   const imageRaw = data["image"];
   const image = typeof imageRaw === "string" && imageRaw ? imageRaw : "/placeholder.svg";
 
@@ -37,6 +36,14 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
       : imageRaw
         ? [image, ...additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean)]
         : additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean);
+
+  // --- MOVE LOGIC HERE (BEFORE THE RETURN) ---
+  const rawSticky = data["stickySide"];
+  const stickySide = rawSticky === "Front" || rawSticky === "Back" ? rawSticky : undefined;
+
+  const createdAt = data["createdAt"];
+  const updatedAt = data["updatedAt"];
+  // --------------------------------------------
 
   return {
     id: doc.id,
@@ -60,7 +67,10 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     color: typeof data["color"] === "string" ? data["color"] : "",
     baseColor: typeof data["baseColor"] === "string" ? data["baseColor"] : "",
     colorDisplayName: typeof data["colorDisplayName"] === "string" ? data["colorDisplayName"] : "",
-    stickySide: typeof data["stickySide"] === "string" ? data["stickySide"] : undefined,
+
+    // Use the variables calculated above
+    stickySide,
+
     size: typeof data["size"] === "string" ? data["size"] : "",
     image,
     additionalImages: additionalImages.map(v => (typeof v === "string" ? v : "")).filter(Boolean),
@@ -80,8 +90,12 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     isLiked: typeof data["isLiked"] === "boolean" ? data["isLiked"] : false,
     isCustomizable: typeof data["isCustomizable"] === "boolean" ? data["isCustomizable"] : false,
     isNewArrival: typeof data["isNewArrival"] === "boolean" ? data["isNewArrival"] : false,
-    createdAt: data["createdAt"],
-    updatedAt: data["updatedAt"],
+
+    // Assign calculated variables
+    // In mapDocToProduct functions:
+    createdAt: data["createdAt"] as any, // Or use a helper to ensure it's Timestamp | string
+    updatedAt: data["updatedAt"] as any,
+
     averageRating: typeof data["averageRating"] === "number" ? data["averageRating"] : 0,
     reviewCount: typeof data["reviewCount"] === "number" ? data["reviewCount"] : 0
   };

@@ -8,7 +8,7 @@ import { PromoSection } from "@/components/homepage-sections/PromoSection";
 import StickerGridSectionsStatic from "@/components/homepage-sections/StickerGridSectionStatic";
 import { serializeProductArray } from "@/utils/serializeProduct";
 import { ProductCarousel } from "@/components/shared/ProductCarousel";
-
+import { Product } from "@/types/models/product";
 import { getAllProductsPublic } from "@/lib/services/products-public-service";
 
 // Force dynamic rendering to get fresh data
@@ -37,12 +37,11 @@ export default async function HomePage() {
     getAllProductsPublic({ themedOnly: true, limit: 8 })
   ]);
 
-  const featuredProducts = featuredRes.success ? serializeProductArray(featuredRes.data) : [];
-  const trendingProducts = trendingRes.success ? serializeProductArray(trendingRes.data) : [];
-  const saleProducts = saleRes.success ? serializeProductArray(saleRes.data) : [];
-  const newArrivals = newRes.success ? serializeProductArray(newRes.data) : [];
-  const themedProducts = themedRes.success ? serializeProductArray(themedRes.data) : [];
-
+  const featuredProducts = featuredRes.success ? serializeProductArray(featuredRes.data as Product[]) : [];
+  const trendingProducts = trendingRes.success ? serializeProductArray(trendingRes.data as Product[]) : [];
+  const saleProducts = saleRes.success ? serializeProductArray(saleRes.data as Product[]) : [];
+  const newArrivals = newRes.success ? serializeProductArray(newRes.data as Product[]) : [];
+  const themedProducts = themedRes.success ? serializeProductArray(themedRes.data as Product[]) : [];
   // Fix the console logs as well (accessing .length directly on the serialized array)
   console.log("🏠 Featured products count:", featuredProducts.length);
   console.log("🏠 Sale products count:", saleProducts.length);

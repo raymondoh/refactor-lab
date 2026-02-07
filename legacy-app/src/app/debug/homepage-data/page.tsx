@@ -76,22 +76,26 @@ export default async function HomepageDataDebugPage() {
             <div className="mt-4">
               <h3 className="font-semibold mb-2">Sale Products:</h3>
               <div className="space-y-2 text-sm">
-                {saleProducts.data.map(product => (
-                  <div key={product.id} className="p-2 bg-gray-50 rounded">
-                    <p>
-                      <strong>Name:</strong> {product.name}
-                    </p>
-                    <p>
-                      <strong>Price:</strong> £{product.price}
-                    </p>
-                    <p>
-                      <strong>Sale Price:</strong> {product.salePrice ? `£${product.salePrice}` : "None"}
-                    </p>
-                    <p>
-                      <strong>On Sale:</strong> {product.onSale ? "✅ Yes" : "❌ No"}
-                    </p>
-                  </div>
-                ))}
+                {saleProducts.data.map(untypedProduct => {
+                  const product = untypedProduct as any; // debug quick fix
+
+                  return (
+                    <div key={product.id} className="p-2 bg-gray-50 rounded">
+                      <p>
+                        <strong>Name:</strong> {product.name}
+                      </p>
+                      <p>
+                        <strong>Price:</strong> £{product.price}
+                      </p>
+                      <p>
+                        <strong>Sale Price:</strong> {product.salePrice ? `£${product.salePrice}` : "None"}
+                      </p>
+                      <p>
+                        <strong>On Sale:</strong> {product.onSale ? "✅ Yes" : "❌ No"}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

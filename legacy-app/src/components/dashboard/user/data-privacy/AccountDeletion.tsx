@@ -1,3 +1,4 @@
+// src/components/dashboard/user/data-privacy/AccountDeletion.tsx
 "use client";
 
 import React, { useState, useEffect, useActionState } from "react";
@@ -23,6 +24,7 @@ import { requestAccountDeletion } from "@/actions/data-privacy/deletion";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+import type { DeleteAccountState } from "@/types/user/admin";
 
 export function AccountDeletion() {
   const router = useRouter();
@@ -105,7 +107,7 @@ export function AccountDeletion() {
     const formData = new FormData(form);
 
     React.startTransition(() => {
-      formAction(formData); // ✅ pass the FormData
+      formAction(formData);
     });
   };
 

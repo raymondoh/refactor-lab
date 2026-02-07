@@ -21,9 +21,9 @@ function mapDocToSerializedUser(doc: DocumentSnapshot): SerializedUser {
     id: doc.id,
     ...data,
     image: getUserImage(data),
-    createdAt: isoOrValue(data.createdAt),
-    updatedAt: isoOrValue(data.updatedAt),
-    lastLoginAt: isoOrValue(data.lastLoginAt),
+    createdAt: isoOrValue(data.createdAt) as string, // Cast to string
+    updatedAt: isoOrValue(data.updatedAt) as string,
+    lastLoginAt: isoOrValue(data.lastLoginAt) as string,
     emailVerified: Boolean(data.emailVerified)
   };
 

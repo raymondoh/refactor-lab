@@ -90,8 +90,9 @@ export function UserActivityPreview({
                       {formatDate(activity.timestamp, { relative: true })}
                     </span>
                   </div>
-                  {activity.metadata?.details && (
-                    <p className="text-xs text-muted-foreground mt-1">{activity.metadata.details}</p>
+
+                  {(activity.metadata as any)?.details && (
+                    <p className="text-xs text-muted-foreground mt-1">{String((activity.metadata as any).details)}</p>
                   )}
                 </div>
               </div>

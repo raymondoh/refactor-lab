@@ -4,7 +4,7 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { UserProfileForm } from "@/components/auth/UserProfileForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { UserService } from "@/lib/services/user-service";
+import { userProfileService } from "@/lib/services/user-profile-service";
 
 export default async function UserProfilePage() {
   try {
@@ -18,7 +18,7 @@ export default async function UserProfilePage() {
     }
 
     // Get current user using UserService
-    const userResult = await UserService.getCurrentUser();
+    const userResult = await userProfileService.getMyProfile();
 
     // Handle error case
     if (!userResult.success) {
@@ -39,7 +39,8 @@ export default async function UserProfilePage() {
       );
     }
 
-    const user = userResult.data;
+    // Line 52 Change:
+    const user = userResult.data.user; // Access .user
 
     return (
       <DashboardShell>

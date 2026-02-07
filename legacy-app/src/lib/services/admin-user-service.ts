@@ -8,7 +8,8 @@ import type { User, UserRole } from "@/types/user";
 // FIXED: Changed from "@/types/user/common" to "@/types/models/user"
 import type { SerializedUser } from "@/types/models/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
-
+import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { userRepo } from "@/lib/repos/user-repo";
 
 type UserLookupDoc = Partial<Pick<User, "email" | "name" | "displayName" | "role">> & {
@@ -181,26 +182,44 @@ export const adminUserService = {
   },
 
   /**
-   * Delete Firebase Auth account + Firestore user doc (admin only).
-   * Note: best-effort cleanup (if auth delete fails, we return the failure and do not delete doc).
+   * Delete user everywhere (ADMIN only)
+   * - deletes likes + profile image (best-effort)
+   * - deletes storage folder (best-effort if you use one)
+   * - deletes firestore doc (best-effort)
+   * - deletes auth user (source of truth)
    */
-  async deleteUserAccount(userId: string): Promise<ServiceResponse<{ id: string }>> {
+  async deleteUserFully(userId: string): Promise<ServiceResponse<{ id: string }>> {
     const gate = await requireAdmin();
     if (!gate.success) return gate;
 
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
 
     try {
-      const { adminAuthService } = await import("@/lib/services/admin-auth-service");
+      // 1) Best-effort: delete likes + referenced profile image
+      try {
+        await adminDataPrivacyService.deleteUserLikesAndProfileImage(userId);
+      } catch {}
 
-      // delete auth user
-      const delRes = await adminAuthService.deleteUserAuthAndDoc(userId);
-      if (!delRes.success) {
-        return { success: false, error: delRes.error || "Failed to delete auth user", status: delRes.status ?? 500 };
+      // 2) Best-effort: delete known storage folder if your app uses one
+      // (adjust prefix to your actual storage layout)
+      try {
+        await adminDataPrivacyService.deleteUserStorageFolder(`users/${userId}/`);
+      } catch {}
+
+      // 3) Delete Auth user (most important)
+      const authRes = await adminAuthService.deleteUserAuthAndDoc(userId);
+      if (!authRes.success) {
+        return {
+          success: false,
+          error: authRes.error || "Failed to delete Firebase Auth user",
+          status: authRes.status ?? 500
+        };
       }
 
-      // delete firestore doc (best effort)
-      await adminUserService.deleteUserDoc(userId);
+      // 4) Best-effort: ensure firestore doc is gone (authRes may already do it)
+      try {
+        await this.deleteUserDoc(userId);
+      } catch {}
 
       return { success: true, data: { id: userId } };
     } catch (error: unknown) {
@@ -208,7 +227,7 @@ export const adminUserService = {
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error deleting user account";
+          : "Unknown error deleting user";
       return { success: false, error: message, status: 500 };
     }
   },

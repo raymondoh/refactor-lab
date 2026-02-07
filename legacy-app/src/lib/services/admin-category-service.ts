@@ -1,6 +1,7 @@
 // src/lib/services/admin-category-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 import {
   categories,
   subcategories,
@@ -19,13 +20,6 @@ import type { ServiceResponse } from "@/lib/services/types/service-response";
 /* Helpers */
 /* ---------------------------------- */
 
-type ProductSnapshot = {
-  category?: string;
-  subcategory?: string;
-  productType?: string;
-  designThemes?: string[];
-};
-
 type FeaturedCategory = {
   name: string;
   image: string;
@@ -33,37 +27,14 @@ type FeaturedCategory = {
   count: number;
 };
 
-type FeaturedCategoryMapping = {
-  category?: string;
-  subcategory?: string;
-  productType?: string;
-  designThemes?: string[];
-};
-
 function getCategoryImage(category: string): string | undefined {
   const categoryImages: Record<string, string> = {
     Cars: "/images/categories/cars.jpg",
     Motorbikes: "/images/categories/motorbikes.jpg",
     EVs: "/images/categories/evs.jpg",
-    Trucks: "/images/categories/trucks.jpg",
-    Boats: "/images/categories/boats.jpg",
-    Planes: "/images/categories/planes.jpg"
+    Other: "/images/categories/other.jpg"
   };
   return categoryImages[category];
-}
-
-function asProductSnapshot(data: unknown): ProductSnapshot {
-  if (!data || typeof data !== "object") return {};
-  const d = data as Record<string, unknown>;
-
-  return {
-    category: typeof d.category === "string" ? d.category : undefined,
-    subcategory: typeof d.subcategory === "string" ? d.subcategory : undefined,
-    productType: typeof d.productType === "string" ? d.productType : undefined,
-    designThemes: Array.isArray(d.designThemes)
-      ? d.designThemes.filter((t): t is string => typeof t === "string")
-      : undefined
-  };
 }
 
 /* ---------------------------------- */
@@ -71,6 +42,9 @@ function asProductSnapshot(data: unknown): ProductSnapshot {
 /* ---------------------------------- */
 
 export const adminCategoryService = {
+  /**
+   * Public-safe: Get base category definitions without counts
+   */
   async getCategories(): Promise<ServiceResponse<{ categories: Category[] }>> {
     try {
       const data: Category[] = categories.map(category => {
@@ -85,51 +59,66 @@ export const adminCategoryService = {
       });
 
       return { success: true, data: { categories: data } };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching categories";
+          : "Failed to fetch categories";
       return { success: false, error: message, status: 500 };
     }
   },
 
+  /**
+   * Admin-only: Optimized count() aggregation per category
+   */
   async getCategoriesWithCounts(): Promise<ServiceResponse<{ categories: Category[] }>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const db = getAdminFirestore();
-      const snap = await db.collection("products").select("category").get();
 
-      const counts: Record<string, number> = {};
+      const categoryCounts = await Promise.all(
+        categories.map(async category => {
+          const snapshot = await db.collection("products").where("category", "==", category).count().get();
+          return { category, count: snapshot.data().count };
+        })
+      );
 
-      snap.docs.forEach(doc => {
-        const data = doc.data();
-        const category = typeof data?.category === "string" ? data.category : undefined;
-        if (category) counts[category] = (counts[category] || 0) + 1;
-      });
+      const countsMap = categoryCounts.reduce(
+        (acc, curr) => {
+          acc[curr.category] = curr.count;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
 
       const data: Category[] = categories.map(category => {
         const id = category.toLowerCase().replace(/\s+/g, "-");
         return {
           id,
           name: category,
-          count: counts[category] || 0,
+          count: countsMap[category] || 0,
           image: getCategoryImage(category),
           icon: id
         };
       });
 
       return { success: true, data: { categories: data } };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching categories";
+          : "Error counting categories";
       return { success: false, error: message, status: 500 };
     }
   },
 
+  /**
+   * Get subcategories for a specific category
+   */
   async getSubcategories(categoryParam: string): Promise<ServiceResponse<{ subcategories: string[] }>> {
     try {
       const normalized = normalizeCategory(categoryParam);
@@ -137,16 +126,19 @@ export const adminCategoryService = {
 
       const list = subcategories[normalized as keyof typeof subcategories];
       return { success: true, data: { subcategories: list ? [...list] : [] } };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching subcategories";
+          : "Error fetching subcategories";
       return { success: false, error: message, status: 500 };
     }
   },
 
+  /**
+   * Static lookup methods for config-driven values
+   */
   async getDesignThemes(): Promise<ServiceResponse<{ designThemes: string[] }>> {
     return { success: true, data: { designThemes: [...designThemes] } };
   },
@@ -163,7 +155,13 @@ export const adminCategoryService = {
     return { success: true, data: { placements: [...placements] } };
   },
 
+  /**
+   * Admin-only: Featured category counts using Firestore count() aggregation
+   */
   async getFeaturedCategories(): Promise<ServiceResponse<{ featuredCategories: FeaturedCategory[] }>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const featuredCategories: FeaturedCategory[] = [
         { name: "Sport Bike Decals", image: "/bike.jpg", slug: "sport-bike", count: 0 },
@@ -174,44 +172,33 @@ export const adminCategoryService = {
       ];
 
       const db = getAdminFirestore();
-      const snap = await db.collection("products").get();
 
-      const products: ProductSnapshot[] = snap.docs.map(doc => asProductSnapshot(doc.data()));
+      await Promise.all(
+        featuredCategories.map(async cat => {
+          const mapping = featuredCategoryMappings[cat.slug as keyof typeof featuredCategoryMappings];
+          if (!mapping) return;
 
-      for (const cat of featuredCategories) {
-        const mapping = featuredCategoryMappings[cat.slug as keyof typeof featuredCategoryMappings] as
-          | FeaturedCategoryMapping
-          | undefined;
+          let query = db.collection("products") as FirebaseFirestore.Query;
+          if (mapping.category) query = query.where("category", "==", mapping.category);
+          if (mapping.subcategory) query = query.where("subcategory", "==", mapping.subcategory);
+          if (mapping.productType) query = query.where("productType", "==", mapping.productType);
 
-        if (!mapping) continue;
-
-        let count = 0;
-
-        for (const p of products) {
-          let matches = true;
-
-          if (mapping.category && p.category !== mapping.category) matches = false;
-          if (mapping.subcategory && p.subcategory !== mapping.subcategory) matches = false;
-          if (mapping.productType && p.productType !== mapping.productType) matches = false;
-
-          if (mapping.designThemes?.length) {
-            const ok = p.designThemes?.some(t => mapping.designThemes!.includes(t));
-            if (!ok) matches = false;
+          if (mapping.designThemes && mapping.designThemes.length > 0) {
+            query = query.where("designThemes", "array-contains-any", mapping.designThemes);
           }
 
-          if (matches) count++;
-        }
-
-        cat.count = count;
-      }
+          const countSnap = await query.count().get();
+          cat.count = countSnap.data().count;
+        })
+      );
 
       return { success: true, data: { featuredCategories } };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching featured categories";
+          : "Error counting featured categories";
       return { success: false, error: message, status: 500 };
     }
   }

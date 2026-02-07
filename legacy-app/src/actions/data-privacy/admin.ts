@@ -25,7 +25,8 @@ export async function getDeletionRequests() {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
-    const adminUser: SerializedUser = adminRes.data;
+    // Line 28 Change:
+    const adminUser: SerializedUser = adminRes.data.user; // Access .user
 
     if (adminUser.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };
@@ -67,7 +68,7 @@ export async function processDeletionRequest(userId: string, action: "approve" |
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
-    const adminUser: SerializedUser = adminRes.data;
+    const adminUser: SerializedUser = adminRes.data.user;
 
     if (adminUser.role !== "admin") {
       return { success: false, error: "Unauthorized. Admin access required." };

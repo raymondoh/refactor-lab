@@ -8,15 +8,20 @@ import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { orderSchema } from "@/schemas/order";
 import type { Order, OrderData } from "@/types/order";
-import { logger } from "@/utils/logger";
+import { logServerEvent } from "@/lib/services/logging-service";
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 
-// Server timestamp helper (keep same semantics as before)
+// Server timestamp helper
 export const serverTimestamp = () => FieldValue.serverTimestamp();
 
 type EmptyData = Record<string, never>;
 type FirestoreData = Record<string, unknown>;
+
+/* ---------------------------------- */
+/* Helpers */
+/* ---------------------------------- */
 
 function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
@@ -58,18 +63,12 @@ function mapShippingAddress(v: unknown): Order["shippingAddress"] {
   };
 }
 
-/**
- * Maps a Firestore document to an Order object
- */
 function mapDocToOrder(doc: FirebaseFirestore.DocumentSnapshot): Order {
   const data = (doc.data() ?? {}) as FirestoreData;
-
   const statusRaw = data.status;
   const status: Order["status"] = isOrderStatus(statusRaw) ? statusRaw : "processing";
-
-  // IMPORTANT: keep nulls as nulls for userId
   const userIdRaw = data.userId;
-  const userId: string | null = typeof userIdRaw === "string" ? userIdRaw : userIdRaw === null ? null : null;
+  const userId: string | null = typeof userIdRaw === "string" ? userIdRaw : null;
 
   return {
     id: doc.id,
@@ -91,171 +90,148 @@ function errMessage(error: unknown, fallback: string) {
   return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
 }
 
+/* ---------------------------------- */
+/* Service Implementation */
+/* ---------------------------------- */
+
+/**
+ * INTERNAL CORE LOGIC
+ * Callable by webhooks (System) or Admin actions (Session).
+ * No requireAdmin gate here; security is handled by the caller.
+ */
+async function _createOrderInternal(orderData: OrderData): Promise<ServiceResponse<{ orderId: string }>> {
+  const db = getAdminFirestore();
+
+  try {
+    const validatedData = orderSchema.parse(orderData);
+
+    // Idempotency check: lookup by paymentIntentId
+    const existing = await db
+      .collection("orders")
+      .where("paymentIntentId", "==", validatedData.paymentIntentId)
+      .limit(1)
+      .get();
+
+    if (!existing.empty) {
+      return { success: true, data: { orderId: existing.docs[0].id } };
+    }
+
+    const orderRef = await db.collection("orders").add({
+      ...validatedData,
+      userId: validatedData.userId ?? null,
+      status: validatedData.status || "processing",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true, data: { orderId: orderRef.id } };
+  } catch (error: unknown) {
+    const message = errMessage(error, "Failed to create order");
+    await logServerEvent({
+      type: "error",
+      message: `Order Creation Error: ${message}`,
+      context: "order:system",
+      metadata: { orderData, error }
+    });
+    return { success: false, error: message, status: 500 };
+  }
+}
+
 export const adminOrderService = {
   /**
-   * Creates a new order in Firestore (idempotent by paymentIntentId).
-   * Returns { orderId } in the success payload.
+   * SYSTEM: Webhook entry point. No session required.
+   * Call this from /api/webhooks/stripe
    */
-  async createOrder(orderData: OrderData): Promise<ServiceResponse<{ orderId: string }>> {
-    const db = getAdminFirestore();
-
-    try {
-      const validatedData = orderSchema.parse(orderData);
-
-      // Idempotency: if an order already exists for this paymentIntentId, return it.
-      const existing = await db
-        .collection("orders")
-        .where("paymentIntentId", "==", validatedData.paymentIntentId)
-        .limit(1)
-        .get();
-
-      if (!existing.empty) {
-        return { success: true, data: { orderId: existing.docs[0].id } };
-      }
-
-      const finalAmount = validatedData.amount;
-
-      const orderRef = await db.collection("orders").add({
-        ...validatedData,
-        userId: validatedData.userId ?? null,
-        status: validatedData.status || "processing",
-        amount: finalAmount,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      return { success: true, data: { orderId: orderRef.id } };
-    } catch (error: unknown) {
-      console.error("Error creating order in Firestore:", error);
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
-    }
+  async createOrderFromWebhook(orderData: OrderData) {
+    return _createOrderInternal(orderData);
   },
 
   /**
-   * Fetches all orders belonging to a specific user
+   * ADMIN: Dashboard entry point. Requires admin session.
+   */
+  async createOrder(orderData: OrderData) {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+    return _createOrderInternal(orderData);
+  },
+
+  /**
+   * USER: Fetch personal orders (Used by UserOrdersClient)
    */
   async getUserOrders(userId: string): Promise<ServiceResponse<Order[]>> {
+    // Only authenticated users can call this (check logic usually in Action)
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").where("userId", "==", userId).orderBy("createdAt", "desc").get();
 
-      const orders = snapshot.docs.map(mapDocToOrder);
-      return { success: true, data: orders };
+      return { success: true, data: snapshot.docs.map(mapDocToOrder) };
     } catch (error: unknown) {
-      console.error("Error fetching user orders:", error);
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
   /**
-   * Fetches a single order by its Stripe Payment Intent ID
-   */
-  async getOrderByPaymentIntentId(paymentIntentId: string): Promise<ServiceResponse<Order | null>> {
-    try {
-      const db = getAdminFirestore();
-      const snapshot = await db.collection("orders").where("paymentIntentId", "==", paymentIntentId).limit(1).get();
-
-      if (snapshot.empty) {
-        return { success: true, data: null };
-      }
-
-      return { success: true, data: mapDocToOrder(snapshot.docs[0]) };
-    } catch (error: unknown) {
-      console.error("Error fetching order by Payment Intent ID:", error);
-
-      logger({
-        type: "error",
-        message: "Failed to fetch order by Payment Intent ID",
-        metadata: { error, paymentIntentId },
-        context: "orders"
-      });
-
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
-    }
-  },
-
-  /**
-   * Fetches all orders (Admin use)
+   * ADMIN: Fetch all orders for management
    */
   async getAllOrders(): Promise<ServiceResponse<Order[]>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").orderBy("createdAt", "desc").get();
-
-      const orders = snapshot.docs.map(mapDocToOrder);
-      return { success: true, data: orders };
+      return { success: true, data: snapshot.docs.map(mapDocToOrder) };
     } catch (error: unknown) {
-      console.error("Error fetching all orders:", error);
-
-      logger({
-        type: "error",
-        message: "Failed to fetch all orders",
-        metadata: { error },
-        context: "orders"
-      });
-
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
-  /**
-   * Fetches a single order by ID (Admin use)
-   */
   async getOrderById(id: string): Promise<ServiceResponse<Order | null>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const db = getAdminFirestore();
       const doc = await db.collection("orders").doc(id).get();
-
-      if (!doc.exists) {
-        return { success: true, data: null };
-      }
-
+      if (!doc.exists) return { success: true, data: null };
       return { success: true, data: mapDocToOrder(doc) };
     } catch (error: unknown) {
-      console.error("Error fetching order by ID:", error);
-
-      logger({
-        type: "error",
-        message: "Failed to fetch order by ID",
-        metadata: { error, id },
-        context: "orders"
-      });
-
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
 
-  /**
-   * Update a single order status by ID (Admin use)
-   */
   async updateOrderStatus(orderId: string, status: Order["status"]): Promise<ServiceResponse<EmptyData>> {
+    const gate = await requireAdmin();
+    if (!gate.success) return gate;
+
     try {
       const db = getAdminFirestore();
-
       await db.collection("orders").doc(orderId).update({
         status,
         updatedAt: serverTimestamp()
       });
 
-      logger({
+      await logServerEvent({
         type: "order:status",
         message: `Order status updated to ${status}`,
         context: "orders",
-        metadata: { orderId, status }
+        metadata: { orderId, status, adminId: gate.userId }
       });
 
       return { success: true, data: {} };
     } catch (error: unknown) {
-      console.error("Error updating order status:", error);
-
-      logger({
-        type: "error",
-        message: "Failed to update order status",
-        context: "orders",
-        metadata: { orderId, error }
-      });
-
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+    }
+  },
+  async getOrderByPaymentIntentId(paymentIntentId: string): Promise<ServiceResponse<Order | null>> {
+    try {
+      const db = getAdminFirestore();
+      const snapshot = await db.collection("orders").where("paymentIntentId", "==", paymentIntentId).limit(1).get();
+
+      if (snapshot.empty) return { success: true, data: null };
+      return { success: true, data: mapDocToOrder(snapshot.docs[0]) };
+    } catch (error) {
+      return { success: false, error: errMessage(error, "Failed to fetch order"), status: 500 };
     }
   }
 };

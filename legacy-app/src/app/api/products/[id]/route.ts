@@ -205,7 +205,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
       return NextResponse.json({ success: false, error: "Product ID is required" }, { status: 400 });
     }
 
-    const result = await adminProductService.deleteProduct(id);
+    const result = await adminProductService.deleteProductDoc(id);
 
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: result.status ?? 400 });

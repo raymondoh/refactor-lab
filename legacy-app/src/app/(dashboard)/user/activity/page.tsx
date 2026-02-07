@@ -14,7 +14,12 @@ function convertToSerializedActivity(log: ActivityLogWithId): Firebase.Serialize
     type: log.type,
     description: log.description,
     status: log.status,
-    timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : log.timestamp,
+    timestamp:
+      log.timestamp instanceof Date
+        ? log.timestamp.toISOString()
+        : typeof log.timestamp === "string"
+          ? log.timestamp
+          : new Date().toISOString(),
     metadata: log.metadata || {},
     name: log.description || log.type // Use description as name fallback
   };

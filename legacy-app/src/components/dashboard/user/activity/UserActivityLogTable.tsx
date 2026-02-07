@@ -42,18 +42,23 @@ export function UserActivityLogTable({ activities, showFilters = true, isRefresh
   const normalizedActivitiesUnknown = serializeData(activities) as unknown;
 
   // Coerce into a safe, minimal shape for UI usage (no `any`)
+
   const normalizedActivities: ActivityRow[] = Array.isArray(normalizedActivitiesUnknown)
     ? normalizedActivitiesUnknown
-        .map(item => {
+        .map((item): ActivityRow | null => {
           const rec = asRecord(item);
           const id = getStringField(rec, "id");
-          const description = getStringField(rec, "description");
-          const type = getStringField(rec, "type");
-          const status = getStringField(rec, "status");
-          const timestamp = getOptionalDateish(rec, "timestamp");
 
+          // If no ID exists, discard this row
           if (!id) return null;
-          return { id, description, type, status, timestamp };
+
+          return {
+            id,
+            description: getStringField(rec, "description"),
+            type: getStringField(rec, "type"),
+            status: getStringField(rec, "status"),
+            timestamp: getOptionalDateish(rec, "timestamp")
+          };
         })
         .filter((v): v is ActivityRow => v !== null)
     : [];
