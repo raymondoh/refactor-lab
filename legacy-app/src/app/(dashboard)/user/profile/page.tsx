@@ -5,11 +5,11 @@ import { UserProfileForm } from "@/components/auth/UserProfileForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { userProfileService } from "@/lib/services/user-profile-service";
-
+import { auth } from "@/auth";
 export default async function UserProfilePage() {
   try {
     // Dynamic import for auth to avoid build-time issues
-    const { auth } = await import("@/auth");
+
     const session = await auth();
 
     // Check authentication
@@ -18,7 +18,7 @@ export default async function UserProfilePage() {
     }
 
     // Get current user using UserService
-    const userResult = await userProfileService.getMyProfile();
+    const userResult = await userProfileService.getProfileByUserId(session.user.id);
 
     // Handle error case
     if (!userResult.success) {

@@ -5,11 +5,11 @@ import { UserProfileForm } from "@/components/auth/UserProfileForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { userProfileService } from "@/lib/services/user-profile-service";
+import { auth } from "@/auth";
 
 export default async function AdminProfilePage() {
   try {
     // Dynamic import for auth to avoid build-time issues
-    const { auth } = await import("@/auth");
     const session = await auth();
 
     // Check authentication
@@ -23,7 +23,7 @@ export default async function AdminProfilePage() {
     }
 
     // ✅ Fetch profile via service (avoids UserService.getCurrentUser dependency)
-    const profileResult = await userProfileService.getMyProfile();
+    const profileResult = await userProfileService.getProfileByUserId(session.user.id);
 
     if (!profileResult.success) {
       console.error("Error loading admin profile:", profileResult.error);

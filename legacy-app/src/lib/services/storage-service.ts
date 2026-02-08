@@ -26,7 +26,7 @@ export async function uploadFile({ file, userId, userRole }: UploadFileOptions):
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const bucket = getAdminStorage().bucket();
-    const fileExtension = file.name.split(".").pop();
+    const fileExtension = file.name.split(".").pop() || "png";
     const isAdmin = userRole === "admin";
     const isProfileImage = file.name.startsWith("profile-");
 
@@ -78,6 +78,7 @@ export async function uploadFile({ file, userId, userRole }: UploadFileOptions):
     };
   }
 }
+
 export type DeleteResult =
   | { success: true; deleted: number; skipped: number }
   | { success: false; error: string; status: number };
@@ -112,7 +113,7 @@ export function toStoragePath(input: string): string | null {
       return path || null;
     }
 
-    // If you ever store Firebase download URLs:
+    // Firebase download URLs:
     // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>?alt=media
     if (url.hostname === "firebasestorage.googleapis.com") {
       const match = url.pathname.match(/\/v0\/b\/[^/]+\/o\/(.+)/);

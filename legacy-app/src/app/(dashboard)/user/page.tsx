@@ -9,6 +9,7 @@ import { UserAccountPreview } from "@/components/dashboard/user/overview/UserAcc
 import { UserActivityPreview } from "@/components";
 import { Clock, UserIcon } from "lucide-react";
 import { userProfileService } from "@/lib/services/user-profile-service";
+import { auth } from "@/auth";
 
 type ServiceUser = Partial<User> & {
   passwordHash?: string;
@@ -18,7 +19,7 @@ type ServiceUser = Partial<User> & {
 
 export default async function UserDashboardOverviewPage() {
   try {
-    const { auth } = await import("@/auth");
+    //const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user) {
@@ -48,7 +49,7 @@ export default async function UserDashboardOverviewPage() {
     };
 
     // ✅ Replace Firestore doc fetch with service call
-    const profileResult = await userProfileService.getMyProfile();
+    const profileResult = await userProfileService.getProfileByUserId(session.user.id);
 
     if (!profileResult.success) {
       redirect("/login");

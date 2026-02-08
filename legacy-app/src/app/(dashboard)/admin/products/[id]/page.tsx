@@ -1,3 +1,4 @@
+// src/app/(dashboard)/admin/products/[id]/page.tsx
 import { redirect } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";

@@ -3,12 +3,11 @@
 // Admin product service (Firestore only)
 // NOTE: Admin gating + activity logging belong in actions.
 // ===============================
-
-"use server";
+import "server-only";
 
 import type { DocumentData } from "firebase-admin/firestore";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
-
+import { Timestamp } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
@@ -47,6 +46,17 @@ function toMillisSafe(v: unknown): number {
   if (!v || typeof v !== "object") return 0;
   const m = (v as CreatedAtSortable).toMillis;
   return typeof m === "function" ? m.call(v) : 0;
+}
+function asTimestampOrString(v: unknown, fallback: Timestamp | string): Timestamp | string {
+  if (v instanceof Timestamp) return v;
+  if (typeof v === "string") return v;
+  return fallback;
+}
+
+function asTimestampOrStringOptional(v: unknown): Timestamp | string | undefined {
+  if (v instanceof Timestamp) return v;
+  if (typeof v === "string") return v;
+  return undefined;
 }
 
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
@@ -106,8 +116,9 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     isLiked: asBoolean(data["isLiked"], false),
     isCustomizable: asBoolean(data["isCustomizable"], false),
     isNewArrival: asBoolean(data["isNewArrival"], false),
-    createdAt: data["createdAt"] as unknown,
-    updatedAt: data["updatedAt"] as unknown,
+    createdAt: asTimestampOrString(data["createdAt"], Timestamp.now()),
+    updatedAt: asTimestampOrStringOptional(data["updatedAt"]),
+
     averageRating: asNumber(data["averageRating"], 0),
     reviewCount: asNumber(data["reviewCount"], 0)
   };
@@ -269,7 +280,8 @@ export const adminProductService = {
         const all = await adminProductService.listProducts({ limit: limit * 4 });
         if (!all.success) return all;
 
-        const featured = all.data.filter(p => (p as Record<string, unknown>)["isFeatured"] === true).slice(0, limit);
+        const featured = all.data.filter(p => p.isFeatured === true).slice(0, limit);
+
         return { success: true, data: featured };
       }
     } catch (error) {
@@ -324,13 +336,7 @@ export const adminProductService = {
     const res = await adminProductService.listProducts({ limit: limit * 4 });
     if (!res.success) return res;
 
-    const themed = res.data
-      .filter(p => {
-        const rec = p as Record<string, unknown>;
-        const dt = rec["designThemes"];
-        return Array.isArray(dt) && dt.length > 0;
-      })
-      .slice(0, limit);
+    const themed = res.data.filter(p => Array.isArray(p.designThemes) && p.designThemes.length > 0).slice(0, limit);
 
     return { success: true, data: themed };
   },
@@ -377,7 +383,8 @@ export const adminProductService = {
         const fallback = await adminProductService.listProducts({ limit: limit + 6 });
         if (!fallback.success) return fallback;
 
-        const fb = fallback.data.filter(p => (p as Record<string, unknown>)["id"] !== productId).slice(0, limit);
+        const fb = fallback.data.filter(p => p.id !== productId).slice(0, limit);
+
         return { success: true, data: fb };
       }
 

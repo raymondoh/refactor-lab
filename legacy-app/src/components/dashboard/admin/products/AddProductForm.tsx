@@ -256,11 +256,11 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
           colorDisplayName: colorDisplayName || undefined,
           stickySide: stickySide || undefined,
           weight: weight || undefined,
-          size: size || undefined,
+          //size: size || undefined,
 
-          barcode: barcode || undefined,
+          //barcode: barcode || undefined,
           brand: brand || undefined,
-          manufacturer: manufacturer || undefined,
+          //manufacturer: manufacturer || undefined,
           shippingClass: shippingClass || undefined,
           shippingWeight: shippingWeight || undefined,
 
