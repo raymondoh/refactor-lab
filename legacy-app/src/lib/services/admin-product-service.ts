@@ -1,11 +1,14 @@
 // ===============================
 // 📂 src/lib/services/admin-product-service.ts
-// Admin-only product service (Firestore + storage)
+// Admin product service (Firestore only)
+// NOTE: Admin gating + activity logging belong in actions.
 // ===============================
+
+"use server";
 
 import type { DocumentData } from "firebase-admin/firestore";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
-import { requireAdmin } from "@/actions/_helpers/require-admin";
+
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
@@ -14,7 +17,6 @@ import type { Product, ProductFilterOptions } from "@/types/product";
 import { serializeProduct, serializeProductArray } from "@/utils/serializeProduct";
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
-import { adminActivityService } from "@/lib/services/admin-activity-service";
 
 // --------------------
 // helpers (no any)
@@ -39,10 +41,6 @@ function asBoolean(v: unknown, fallback = false): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
-function isHttpUrl(value: unknown): value is string {
-  return typeof value === "string" && (value.startsWith("http://") || value.startsWith("https://"));
-}
-
 type CreatedAtSortable = { toMillis?: () => number };
 
 function toMillisSafe(v: unknown): number {
@@ -64,9 +62,6 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
       : image
         ? [image, ...additionalImagesStrings]
         : additionalImagesStrings;
-
-  // (unused right now, but kept in case you later validate URLs)
-  void isHttpUrl;
 
   return {
     id: doc.id,
@@ -111,9 +106,8 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     isLiked: asBoolean(data["isLiked"], false),
     isCustomizable: asBoolean(data["isCustomizable"], false),
     isNewArrival: asBoolean(data["isNewArrival"], false),
-    // In mapDocToProduct functions:
-    createdAt: data["createdAt"] as any, // Or use a helper to ensure it's Timestamp | string
-    updatedAt: data["updatedAt"] as any,
+    createdAt: data["createdAt"] as unknown,
+    updatedAt: data["updatedAt"] as unknown,
     averageRating: asNumber(data["averageRating"], 0),
     reviewCount: asNumber(data["reviewCount"], 0)
   };
@@ -121,14 +115,11 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
 
 export const adminProductService = {
   // ===================
-  // LIST PRODUCTS (ADMIN)  ✅ canonical
+  // LIST PRODUCTS
   // ===================
   async listProducts(
     filters?: ProductFilterOptions & { limit?: number }
   ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     // If any filters (including query) are provided, use filter path
     if (filters && Object.keys(filters).some(key => key !== "limit")) {
       return adminProductService.filterProducts(filters);
@@ -156,14 +147,11 @@ export const adminProductService = {
   },
 
   // ===================
-  // FILTER PRODUCTS (ADMIN) ✅ canonical
+  // FILTER PRODUCTS
   // ===================
   async filterProducts(
     filters: ProductFilterOptions
   ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     try {
       // Normalize category/subcategory
       if (filters.category) {
@@ -207,7 +195,7 @@ export const adminProductService = {
       const snapshot = await q.get();
       let products = snapshot.docs.map(mapDocToProduct);
 
-      // In-memory query filter (no any)
+      // In-memory query filter
       if (filters.query) {
         const lower = filters.query.toLowerCase();
         products = products.filter(p => {
@@ -250,7 +238,7 @@ export const adminProductService = {
   },
 
   // ===================
-  // LEGACY ALIASES ✅ (to stop TS errors across the app)
+  // LEGACY ALIASES
   // ===================
   async getAllProducts(
     filters?: ProductFilterOptions & { limit?: number }
@@ -265,12 +253,9 @@ export const adminProductService = {
   },
 
   async getFeaturedProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
-    // Firestore filter + limit is safe; if index missing, fallback to in-memory
     try {
-      const gate = await requireAdmin(); // ✅ shared helper
-      if (!gate.success) return gate;
-
       const db = getAdminFirestore();
+
       try {
         const snap = await db
           .collection("products")
@@ -284,10 +269,7 @@ export const adminProductService = {
         const all = await adminProductService.listProducts({ limit: limit * 4 });
         if (!all.success) return all;
 
-        // res.data is already serialized; keep it strongly typed
-        const featured = all.data
-          .filter(p => (p as unknown as Record<string, unknown>)["isFeatured"] === true)
-          .slice(0, limit);
+        const featured = all.data.filter(p => (p as Record<string, unknown>)["isFeatured"] === true).slice(0, limit);
         return { success: true, data: featured };
       }
     } catch (error) {
@@ -302,12 +284,8 @@ export const adminProductService = {
 
   async getOnSaleProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     try {
-      const gate = await requireAdmin(); // ✅ shared helper
-      if (!gate.success) return gate;
-
       const db = getAdminFirestore();
 
-      // Primary attempt: fast + ordered
       try {
         const snap = await db
           .collection("products")
@@ -319,11 +297,9 @@ export const adminProductService = {
         const products = snap.docs.map(mapDocToProduct);
         return { success: true, data: serializeProductArray(products) };
       } catch {
-        // ✅ Safe fallback: still limited, no “fetch all”
         const snap = await db.collection("products").where("onSale", "==", true).limit(limit).get();
         const products = snap.docs.map(mapDocToProduct);
 
-        // Optional: sort in-memory if createdAt exists (no any)
         products.sort((a, b) => toMillisSafe(b.createdAt) - toMillisSafe(a.createdAt));
 
         return { success: true, data: serializeProductArray(products.slice(0, limit)) };
@@ -341,8 +317,6 @@ export const adminProductService = {
   async getNewArrivals(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
     const res = await adminProductService.filterProducts({ isNewArrival: true } as ProductFilterOptions);
     if (!res.success) return res;
-
-    // res.data is serialized array already
     return { success: true, data: res.data.slice(0, limit) };
   },
 
@@ -352,7 +326,7 @@ export const adminProductService = {
 
     const themed = res.data
       .filter(p => {
-        const rec = p as unknown as Record<string, unknown>;
+        const rec = p as Record<string, unknown>;
         const dt = rec["designThemes"];
         return Array.isArray(dt) && dt.length > 0;
       })
@@ -371,9 +345,6 @@ export const adminProductService = {
     tags?: string[];
     limit?: number;
   }): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     const { productId, category, subcategory, designTheme, productType, brand, tags, limit = 4 } = params;
 
     try {
@@ -406,10 +377,7 @@ export const adminProductService = {
         const fallback = await adminProductService.listProducts({ limit: limit + 6 });
         if (!fallback.success) return fallback;
 
-        const fb = fallback.data
-          .filter(p => (p as unknown as Record<string, unknown>)["id"] !== productId)
-          .slice(0, limit);
-
+        const fb = fallback.data.filter(p => (p as Record<string, unknown>)["id"] !== productId).slice(0, limit);
         return { success: true, data: fb };
       }
 
@@ -425,12 +393,9 @@ export const adminProductService = {
   },
 
   // ===================
-  // ADD PRODUCT (ADMIN)
+  // ADD PRODUCT
   // ===================
   async addProduct(data: unknown): Promise<ServiceResponse<{ id: string; product: unknown }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const validationResult = productSchema.safeParse(data);
       if (!validationResult.success) {
@@ -448,30 +413,17 @@ export const adminProductService = {
       const finalSku = validatedData.sku ?? `SKU-${docRef.id.substring(0, 8).toUpperCase()}`;
       if (!validatedData.sku) await docRef.update({ sku: finalSku });
 
-      // ✅ Encapsulated side effect: Log the activity within the service
-      await adminActivityService.logActivity({
-        userId: gate.userId,
-        type: "create_product",
-        description: `Created product: ${validatedData.name}`,
-        status: "success",
-        metadata: { productId: docRef.id, sku: finalSku }
-      });
-
       return { success: true, data: { id: docRef.id, product: { ...validatedData, sku: finalSku } } };
     } catch (error) {
-      // ✅ Log failure for audit trails
       const message = isFirebaseError(error) ? firebaseError(error) : "Unknown error";
       return { success: false, error: message, status: 500 };
     }
   },
 
   // ===================
-  // GET PRODUCT BY ID (ADMIN)
+  // GET PRODUCT BY ID
   // ===================
   async getProductById(id: string): Promise<ServiceResponse<{ product: ReturnType<typeof serializeProduct> }>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
       const doc = await db.collection("products").doc(id).get();
@@ -491,12 +443,9 @@ export const adminProductService = {
   },
 
   // ===================
-  // UPDATE PRODUCT (ADMIN)
+  // UPDATE PRODUCT
   // ===================
   async updateProduct(id: string, data: unknown): Promise<ServiceResponse<{ id: string }>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     try {
       if (!id) return { success: false, error: "Product ID is required", status: 400 };
 
@@ -528,13 +477,9 @@ export const adminProductService = {
   },
 
   // ===================
-  // DELETE PRODUCT (ADMIN)
+  // DELETE PRODUCT helpers
   // ===================
-  // Firestore-only: fetch raw product doc mapped to Product
   async getProductDoc(productId: string): Promise<ServiceResponse<{ product: Product }>> {
-    const gate = await requireAdmin(); // ✅ shared helper
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("products").doc(productId).get();
@@ -553,38 +498,21 @@ export const adminProductService = {
   },
 
   async deleteProductDoc(productId: string): Promise<ServiceResponse<Record<string, never>>> {
-    const gate = await requireAdmin(); //
-    if (!gate.success) return gate;
-
     try {
-      const db = getAdminFirestore(); //
+      const db = getAdminFirestore();
       const docRef = db.collection("products").doc(productId);
       const snap = await docRef.get();
 
-      if (!snap.exists) {
-        return { success: false, error: "Product not found", status: 404 };
-      }
+      if (!snap.exists) return { success: false, error: "Product not found", status: 404 };
 
-      const productName = snap.data()?.name || "Unknown Product";
       await docRef.delete();
-
-      // Side effect: Log the successful deletion
-      await adminActivityService.logActivity({
-        userId: gate.userId,
-        type: "delete_product",
-        description: `Deleted product: ${productName}`,
-        status: "warning",
-        metadata: { productId }
-      }); //
-
       return { success: true, data: {} };
     } catch (error: unknown) {
-      // ✅ Restored Firebase helper to fix type error
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error deleting product"; //
+          : "Unknown error deleting product";
 
       return { success: false, error: message, status: 500 };
     }

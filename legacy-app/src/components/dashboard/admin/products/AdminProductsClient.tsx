@@ -13,7 +13,8 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import type { GetAllProductsSuccess } from "@/types/api/product-results";
 import type { Product } from "@/types/models/product";
 import type { Category } from "@/types/category"; // Make sure this type is correctly defined
-import { deleteProductClient as deleteProduct } from "@/actions/client";
+import { deleteProductAction as deleteProduct } from "@/actions/products/delete-product";
+
 import { fetchAllProductsClient } from "@/actions/client";
 
 import {
@@ -75,8 +76,8 @@ export function AdminProductsClient({
       const message = isFirebaseError(err)
         ? firebaseError(err)
         : err instanceof Error
-        ? err.message
-        : "Failed to fetch products";
+          ? err.message
+          : "Failed to fetch products";
       toast.error(message);
     }
   };
@@ -98,8 +99,8 @@ export function AdminProductsClient({
       const message = isFirebaseError(err)
         ? firebaseError(err)
         : err instanceof Error
-        ? err.message
-        : "An error occurred while deleting the product";
+          ? err.message
+          : "An error occurred while deleting the product";
       toast.error(message);
     } finally {
       setIsDeleting(false);

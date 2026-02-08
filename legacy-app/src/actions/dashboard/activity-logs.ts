@@ -3,6 +3,7 @@
 import { adminActivityService } from "@/lib/services/admin-activity-service";
 import { adminUserService } from "@/lib/services/admin-user-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 
 import type { ActivityLogWithId, SerializedActivity } from "@/types/firebase/activity";
 
@@ -63,16 +64,10 @@ async function enrichActivityLogs(logs: ActivityLogWithId[]): Promise<Serialized
 // Get all activity logs (admin only)
 export async function fetchAllActivityLogs(limit = 100): Promise<ActivityLogsResult> {
   try {
-    const { auth } = await import("@/auth");
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
-    if (session.user.role !== "admin") {
-      return { success: false, error: "Unauthorized. Admin access required." };
+    // ✅ canonical guard: shared helper (auth + admin check)
+    const gate = await requireAdmin();
+    if (!gate.success) {
+      return { success: false, error: gate.error };
     }
 
     const result = await adminActivityService.getAllActivityLogs(limit);
@@ -104,16 +99,16 @@ export async function fetchUserActivityLogs(userId?: string, limit = 100): Promi
 
     const targetUserId = userId ?? session.user.id;
 
-    // If requesting another user's logs, check admin permission
-    if (targetUserId !== session.user.id) {
-      // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole crash)
-      if (session.user.role !== "admin") {
-        return { success: false, error: "Unauthorized. Admin access required." };
-      }
-    }
-
     if (!targetUserId) {
       return { success: false, error: "User ID is required" };
+    }
+
+    // If requesting another user's logs, require admin
+    if (targetUserId !== session.user.id) {
+      const gate = await requireAdmin();
+      if (!gate.success) {
+        return { success: false, error: gate.error };
+      }
     }
 
     const result = await adminActivityService.getUserActivityLogs(targetUserId, limit);
@@ -134,3 +129,4 @@ export async function fetchUserActivityLogs(userId?: string, limit = 100): Promi
 }
 
 // Alias for backward compatibility (keep if you have one)
+// export { fetchAllActivityLogs as fetchActivityLogs };

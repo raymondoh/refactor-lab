@@ -7,6 +7,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
 import type { SerializedUser } from "@/types/models/user";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 
 // Get deletion requests
 export async function getDeletionRequests() {

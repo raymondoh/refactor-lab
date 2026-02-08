@@ -1,7 +1,6 @@
 // src/lib/services/admin-category-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { requireAdmin } from "@/actions/_helpers/require-admin";
 import {
   categories,
   subcategories,
@@ -38,7 +37,7 @@ function getCategoryImage(category: string): string | undefined {
 }
 
 /* ---------------------------------- */
-/* Service */
+/* Service (Firestore-only; caller gates admin) */
 /* ---------------------------------- */
 
 export const adminCategoryService = {
@@ -70,12 +69,9 @@ export const adminCategoryService = {
   },
 
   /**
-   * Admin-only: Optimized count() aggregation per category
+   * Admin-only (caller must gate): Optimized count() aggregation per category
    */
   async getCategoriesWithCounts(): Promise<ServiceResponse<{ categories: Category[] }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
 
@@ -156,12 +152,9 @@ export const adminCategoryService = {
   },
 
   /**
-   * Admin-only: Featured category counts using Firestore count() aggregation
+   * Admin-only (caller must gate): Featured category counts using Firestore count() aggregation
    */
   async getFeaturedCategories(): Promise<ServiceResponse<{ featuredCategories: FeaturedCategory[] }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const featuredCategories: FeaturedCategory[] = [
         { name: "Sport Bike Decals", image: "/bike.jpg", slug: "sport-bike", count: 0 },

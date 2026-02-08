@@ -31,7 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { updateProductClient as updateProduct } from "@/actions/client";
+import { updateProductAction as updateProduct } from "@/actions/products/update-product";
 
 interface UpdateProductFormProps {
   product: Product;

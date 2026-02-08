@@ -1,89 +1,52 @@
 // src/lib/services/admin-user-service.ts
+"use server";
 
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { getUserImage } from "@/utils/get-user-image";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 import type { User, UserRole } from "@/types/user";
-// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
 import type { SerializedUser } from "@/types/models/user";
 import type { ServiceResponse } from "@/lib/services/types/service-response";
+
 import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
 import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { userRepo } from "@/lib/repos/user-repo";
 
 type UserLookupDoc = Partial<Pick<User, "email" | "name" | "displayName" | "role">> & {
-  // image-ish fields that may exist in your documents
   image?: string;
   picture?: string;
   photoURL?: string;
   profileImage?: string;
 };
 
-/**
- * Admin gate – ensures the caller is authenticated AND an admin
- */
-async function requireAdmin(): Promise<ServiceResponse<{ userId: string }>> {
-  const { auth } = await import("@/auth");
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return { success: false, error: "Not authenticated", status: 401 };
-  }
-
-  try {
-    const db = getAdminFirestore();
-    const adminDoc = await db.collection("users").doc(session.user.id).get();
-    const adminData = adminDoc.data() as Partial<User> | undefined;
-
-    if (!adminData || adminData.role !== "admin") {
-      return { success: false, error: "Unauthorized. Admin access required.", status: 403 };
-    }
-
-    return { success: true, data: { userId: session.user.id } };
-  } catch (error: unknown) {
-    const message = isFirebaseError(error)
-      ? firebaseError(error)
-      : error instanceof Error
-        ? error.message
-        : "Unknown error checking admin access";
-    return { success: false, error: message, status: 500 };
-  }
-}
-
 export const adminUserService = {
   /**
-   * List users with pagination (admin only)
+   * List users with pagination.
+   * NOTE: Admin gating must happen in actions.
    */
   async listUsers(limit = 20, offset = 0): Promise<ServiceResponse<{ users: SerializedUser[]; total: number }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     return userRepo.listUsers(limit, offset);
   },
 
   /**
-   * Fetch a single user by id (admin only) – serialized shape for UI
+   * Fetch a single user by id – serialized shape for UI
+   * NOTE: Admin gating must happen in actions.
    */
   async getUserById(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     return userRepo.getUserById(userId);
   },
 
   /**
    * Lightweight lookup map for UI tables/logs
    * Returns a map keyed by userId with minimal identity fields.
+   * NOTE: Admin gating must happen in actions.
    */
   async getUsersLookup(): Promise<
     ServiceResponse<{
       usersById: Record<string, { id: string; email?: string; displayName?: string; image?: string; role?: UserRole }>;
     }>
   > {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").get();
@@ -92,16 +55,14 @@ export const adminUserService = {
         string,
         { id: string; email?: string; displayName?: string; image?: string; role?: UserRole }
       > = {};
+
       for (const doc of snap.docs) {
         const data = doc.data() as UserLookupDoc;
 
         usersById[doc.id] = {
           id: doc.id,
-          // Use the nullish coalescing operator (??) to convert null to undefined
           email: data.email ?? undefined,
-          // Convert the result of the fallback check to undefined if it's null
           displayName: (data.displayName || data.name) ?? undefined,
-          // getUserImage returns 'string | null', so convert null to undefined
           image: getUserImage(data) ?? undefined,
           role: data.role
         };
@@ -119,13 +80,11 @@ export const adminUserService = {
   },
 
   /**
-   * Patch a user document (admin only).
+   * Patch a user document.
    * Intended for small updates like flags, status, role adjustments, etc.
+   * NOTE: Admin gating must happen in actions.
    */
   async patchUser(userId: string, patch: Record<string, unknown>): Promise<ServiceResponse<{ id: string }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
 
     try {
@@ -153,18 +112,16 @@ export const adminUserService = {
 
   /**
    * Back-compat alias for older code paths.
-   * If your actions/pages call updateUser(userId, userData) keep it working via patchUser.
    */
   async updateUser(userId: string, userData: Record<string, unknown>): Promise<ServiceResponse<{ id: string }>> {
     return this.patchUser(userId, userData);
   },
+
   /**
-   * Delete ONLY the Firestore user document (admin only).
+   * Delete ONLY the Firestore user document.
+   * NOTE: Admin gating must happen in actions.
    */
   async deleteUserDoc(userId: string): Promise<ServiceResponse<{ id: string }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
 
     try {
@@ -182,16 +139,14 @@ export const adminUserService = {
   },
 
   /**
-   * Delete user everywhere (ADMIN only)
+   * Delete user everywhere
    * - deletes likes + profile image (best-effort)
-   * - deletes storage folder (best-effort if you use one)
+   * - deletes storage folder (best-effort)
    * - deletes firestore doc (best-effort)
    * - deletes auth user (source of truth)
+   * NOTE: Admin gating must happen in actions.
    */
   async deleteUserFully(userId: string): Promise<ServiceResponse<{ id: string }>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     if (!userId) return { success: false, error: "User ID is required", status: 400 };
 
     try {
@@ -201,7 +156,6 @@ export const adminUserService = {
       } catch {}
 
       // 2) Best-effort: delete known storage folder if your app uses one
-      // (adjust prefix to your actual storage layout)
       try {
         await adminDataPrivacyService.deleteUserStorageFolder(`users/${userId}/`);
       } catch {}
@@ -216,7 +170,7 @@ export const adminUserService = {
         };
       }
 
-      // 4) Best-effort: ensure firestore doc is gone (authRes may already do it)
+      // 4) Best-effort: ensure firestore doc is gone
       try {
         await this.deleteUserDoc(userId);
       } catch {}
@@ -233,18 +187,10 @@ export const adminUserService = {
   },
 
   /**
-   * Minimal stats for admin dashboard (admin only).
-   * Keep this small + cheap: counts only.
+   * Minimal stats for admin dashboard (counts only).
+   * NOTE: Admin gating must happen in actions.
    */
-  async getAdminUserStats(): Promise<
-    ServiceResponse<{
-      totalUsers: number;
-      totalAdmins: number;
-    }>
-  > {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
+  async getAdminUserStats(): Promise<ServiceResponse<{ totalUsers: number; totalAdmins: number }>> {
     try {
       const db = getAdminFirestore();
 

@@ -1,4 +1,6 @@
 // src/lib/services/user-profile-service.ts
+"use server";
+
 import { getAdminFirestore, getAdminAuth } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";
@@ -6,12 +8,10 @@ import { serializeUser } from "@/utils/serializeUser";
 import { getUserImage } from "@/utils/get-user-image";
 
 import type { User } from "@/types/user";
-// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
 import type { SerializedUser } from "@/types/models/user";
-
 import type { ServiceResponse } from "@/lib/services/types/service-response";
 
-// ✅ typed helper (fixes "unknown" problem)
+// ✅ typed helper
 function dateish(value: unknown): string | Timestamp | Date | undefined {
   if (value instanceof Timestamp) return value;
   if (value instanceof Date) return value;
@@ -19,28 +19,18 @@ function dateish(value: unknown): string | Timestamp | Date | undefined {
   return undefined;
 }
 
-async function requireSession(): Promise<ServiceResponse<{ userId: string }>> {
-  const { auth } = await import("@/auth");
-  const session = await auth();
-
-  if (!session?.user?.id) return { success: false, error: "Not authenticated", status: 401 };
-  return { success: true, data: { userId: session.user.id } };
-}
-
 export const userProfileService = {
-  async getMyProfile(): Promise<ServiceResponse<{ user: SerializedUser }>> {
-    const gate = await requireSession();
-    if (!gate.success) return gate;
-
+  async getProfileByUserId(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
     try {
+      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
       const db = getAdminFirestore();
-      const doc = await db.collection("users").doc(gate.data.userId).get();
+      const doc = await db.collection("users").doc(userId).get();
 
       if (!doc.exists) return { success: false, error: "User not found", status: 404 };
 
       const data = doc.data() as Partial<User> | undefined;
 
-      // ✅ force correct field types for User
       const rawUser: User = {
         id: doc.id,
         ...(data ?? {}),
@@ -63,16 +53,17 @@ export const userProfileService = {
     }
   },
 
-  // ✅ fix: avoid ServiceResponse<{}> ({} is banned by eslint rule)
-  async updateMyProfile(updateData: Record<string, unknown>): Promise<ServiceResponse<Record<string, never>>> {
-    const gate = await requireSession();
-    if (!gate.success) return gate;
-
+  async updateProfileByUserId(
+    userId: string,
+    updateData: Record<string, unknown>
+  ): Promise<ServiceResponse<Record<string, never>>> {
     try {
+      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
       const db = getAdminFirestore();
       await db
         .collection("users")
-        .doc(gate.data.userId)
+        .doc(userId)
         .update({ ...updateData, updatedAt: new Date() });
 
       return { success: true, data: {} };
@@ -88,18 +79,18 @@ export const userProfileService = {
   },
 
   /**
-   * Update Firebase Auth profile for the current user
+   * Update Firebase Auth profile for a given userId
    */
-  // ✅ fix: avoid ServiceResponse<{}> ({} is banned by eslint rule)
-  async updateMyAuthProfile(
+  async updateAuthProfileByUserId(
+    userId: string,
     authUpdate: Parameters<ReturnType<typeof getAdminAuth>["updateUser"]>[1]
   ): Promise<ServiceResponse<Record<string, never>>> {
-    const gate = await requireSession();
-    if (!gate.success) return gate;
-
     try {
+      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+
       const adminAuth = getAdminAuth();
-      await adminAuth.updateUser(gate.data.userId, authUpdate);
+      await adminAuth.updateUser(userId, authUpdate);
+
       return { success: true, data: {} };
     } catch (error) {
       const message = isFirebaseError(error)

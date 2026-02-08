@@ -1,7 +1,7 @@
+// src/components/dashboard/admin/products/AddProductForm.tsx
 "use client";
 
 import type React from "react";
-
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
@@ -30,13 +30,17 @@ import {
   tags as validTags,
   sizes
 } from "@/config/categories";
-import { addProductClient as addProduct } from "@/actions/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createProductAction } from "@/actions/products/create-product";
+import { productSchema } from "@/schemas/product";
+import type { z } from "zod";
 
 interface ProductFormProps {
   onSuccess?: () => void;
 }
+
+type ProductCreateInput = z.infer<typeof productSchema>;
 
 // Standard color options for filtering
 const standardColors = [
@@ -59,14 +63,6 @@ const standardColors = [
 // Weight options
 const weightOptions = ["Light", "Medium", "Heavy"];
 
-// Define a type for valid tags
-type ValidTag = (typeof validTags)[number];
-
-// Type guard function to check if a string is a valid tag
-function isValidTag(tag: string): tag is ValidTag {
-  return validTags.includes(tag as ValidTag);
-}
-
 export function AddProductForm({ onSuccess }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -85,7 +81,7 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
   const [material, setMaterial] = useState("");
   const [baseColor, setBaseColor] = useState("");
   const [colorDisplayName, setColorDisplayName] = useState("");
-  const [stickySide, setStickySide] = useState<"Front" | "Back" | "">("");
+  const [stickySide, setStickySide] = useState("");
   const [weight, setWeight] = useState("");
   const [size, setSize] = useState("");
 
@@ -129,7 +125,6 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
   const additionalImagesInputRef = useRef<HTMLInputElement>(null);
 
   function resetForm() {
-    // Reset all form fields
     setProductName("");
     setPrice("");
     setDescription("");
@@ -166,25 +161,19 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
     setAdditionalImagePreviews([]);
     setNameError(null);
     setFormError(null);
-
-    // Reset file inputs
     if (imageInputRef.current) imageInputRef.current.value = "";
     if (additionalImagesInputRef.current) additionalImagesInputRef.current.value = "";
-
-    // Reset to first tab
     setActiveTab("basic");
   }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const error = validateFileSize(file, 2);
     if (error) {
       toast.error(error);
       return;
     }
-
     setImageFile(file);
     const reader = new FileReader();
     reader.onload = e => setPreviewUrl(e.target?.result as string);
@@ -194,38 +183,30 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
   function handleAdditionalImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
     const newFiles: File[] = [];
     const newPreviews: string[] = [];
-
-    // Process each file
     Array.from(files).forEach(file => {
       const error = validateFileSize(file, 2);
       if (error) {
         toast.error(`${file.name}: ${error}`);
         return;
       }
-
       newFiles.push(file);
-
       const reader = new FileReader();
       reader.onload = e => {
         if (e.target?.result) {
           newPreviews.push(e.target.result as string);
-          setAdditionalImagePreviews([...additionalImagePreviews, ...newPreviews]);
+          setAdditionalImagePreviews(prev => [...prev, ...newPreviews]);
         }
       };
       reader.readAsDataURL(file);
     });
-
-    setAdditionalImages([...additionalImages, ...newFiles]);
+    setAdditionalImages(prev => [...prev, ...newFiles]);
   }
 
-  // Update colorDisplayName when baseColor changes if colorDisplayName is empty
   function handleBaseColorChange(value: string) {
     setBaseColor(value);
     if (!colorDisplayName) {
-      // Capitalize first letter of base color for display name
       setColorDisplayName(value.charAt(0).toUpperCase() + value.slice(1));
     }
   }
@@ -234,33 +215,13 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
     e.preventDefault();
     setFormError(null);
 
-    // Validate required fields
+    // Basic Client Validation
     if (productName.trim().length < 2) {
       setNameError("Product name must be at least 2 characters.");
       toast.error("Please enter a valid product name.");
       setActiveTab("basic");
       return;
     }
-
-    if (!price || isNaN(Number(price)) || Number(price) <= 0) {
-      toast.error("Please enter a valid price.");
-      setActiveTab("basic");
-      return;
-    }
-
-    if (!category) {
-      toast.error("Please select a category.");
-      setActiveTab("classification");
-      return;
-    }
-
-    if (onSale && (!salePrice || isNaN(Number(salePrice)) || Number(salePrice) <= 0)) {
-      toast.error("Please enter a valid sale price.");
-      setActiveTab("status");
-      return;
-    }
-
-    // Check if image file is selected
     if (!imageFile) {
       toast.error("Please select a product image.");
       setActiveTab("media");
@@ -270,77 +231,83 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
     startTransition(async () => {
       try {
         setIsUploading(true);
-        let imageUrl = "";
+        // 1. Upload Images
+        const imageUrl = await uploadFile(imageFile, { prefix: "product" });
         let additionalImageUrls: string[] = [];
-
-        // Upload main image first
-        imageUrl = await uploadFile(imageFile, { prefix: "product" });
-
-        // Upload additional images if any
         if (additionalImages.length > 0) {
           const uploadPromises = additionalImages.map(file => uploadFile(file, { prefix: "product" }));
           additionalImageUrls = await Promise.all(uploadPromises);
         }
-
         setIsUploading(false);
 
-        // Prepare tags array from comma-separated string
-        const tagsArray = tags
-          .split(",")
-          .map(tag => tag.trim())
-          .filter(tag => tag && isValidTag(tag));
-
-        // Prepare design themes array from comma-separated string
-        const designThemesArray = designThemesStr
-          .split(",")
-          .map(theme => theme.trim())
-          .filter(theme => theme);
-
-        // Create product data object with the uploaded image URL
-        const productData = {
+        // 2. Prepare Typed Payload
+        const payload: ProductCreateInput = {
           name: productName.trim(),
-          price: Number.parseFloat(price),
           description,
+          price: Number.parseFloat(price),
+          category,
+          subcategory: subcategory || undefined,
+
           badge: badge || undefined,
           details: details || undefined,
           dimensions: dimensions || undefined,
           material: material || undefined,
           baseColor: baseColor || undefined,
           colorDisplayName: colorDisplayName || undefined,
-          color: colorDisplayName || baseColor || undefined, // Keep for backward compatibility
           stickySide: stickySide || undefined,
           weight: weight || undefined,
           size: size || undefined,
+
           barcode: barcode || undefined,
-          tags: tagsArray.length > 0 ? tagsArray : undefined,
-          brand: brand ? brand.trim() : undefined,
+          brand: brand || undefined,
           manufacturer: manufacturer || undefined,
-          category: category || undefined,
-          subcategory: subcategory || undefined,
-          designThemes: designThemesArray.length > 0 ? designThemesArray : undefined,
+          shippingClass: shippingClass || undefined,
+          shippingWeight: shippingWeight || undefined,
+
+          tags: tags
+            ? tags
+                .split(",")
+                .map(t => t.trim())
+                .filter(Boolean)
+            : undefined,
+          designThemes: designThemesStr
+            ? designThemesStr
+                .split(",")
+                .map(t => t.trim())
+                .filter(Boolean)
+            : undefined,
+
           productType: productType || undefined,
+
           inStock,
           isFeatured,
           isHero,
           isNewArrival,
           onSale,
-          salePrice: onSale ? Number.parseFloat(salePrice) : undefined,
-          stockQuantity: Number.parseInt(stockQuantity) || 100,
-          lowStockThreshold: Number.parseInt(lowStockThreshold) || 10,
-          shippingWeight: shippingWeight || undefined,
-          shippingClass: shippingClass || "standard",
-          image: imageUrl, // Use the uploaded image URL
+
+          salePrice: onSale && salePrice ? Number.parseFloat(salePrice) : undefined,
+          stockQuantity: stockQuantity ? Number.parseInt(stockQuantity, 10) : undefined,
+          lowStockThreshold: lowStockThreshold ? Number.parseInt(lowStockThreshold, 10) : undefined,
+
+          image: imageUrl,
           additionalImages: additionalImageUrls.length > 0 ? additionalImageUrls : undefined,
-          images: [imageUrl, ...additionalImageUrls],
-          averageRating: 0,
-          reviewCount: 0
+          images: [imageUrl, ...additionalImageUrls]
         };
 
-        // Add product
-        const result = await addProduct(productData);
+        // 3. Validate with Zod before Action
+        const parsed = productSchema.safeParse(payload);
+        if (!parsed.success) {
+          const msg = parsed.error.issues[0]?.message ?? "Invalid product data";
+          toast.error(msg);
+          setFormError(msg);
+          return;
+        }
+
+        // 4. Call Server Action
+        const result = await createProductAction(parsed.data);
 
         if (result.success) {
-          toast.success(`"${productName}" added successfully! Redirecting...`);
+          toast.success(`"${productName}" added successfully!`);
           resetForm();
           onSuccess?.();
           setTimeout(() => router.push("/admin/products"), 2000);
@@ -349,11 +316,7 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
           toast.error(result.error || "Failed to add product");
         }
       } catch (error: unknown) {
-        const message = isFirebaseError(error)
-          ? firebaseError(error)
-          : error instanceof Error
-            ? error.message
-            : "Unknown error occurred.";
+        const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred.";
         setFormError(message);
         toast.error(message);
         console.error("[AddProductForm]", error);
@@ -368,9 +331,7 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-3xl font-bold">Add a New Product</CardTitle>
-          <CardDescription>
-            Fill out each section to add a new product. Required fields are marked with an asterisk (*).
-          </CardDescription>
+          <CardDescription>Required fields are marked with an asterisk (*).</CardDescription>
         </CardHeader>
         <CardContent>
           {formError && (
@@ -392,7 +353,6 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
             <form onSubmit={handleSubmit} className="space-y-8">
               <TabsContent value="basic" className="space-y-6">
                 <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Basic Information</h3>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <UniversalInput
                     id="productName"
@@ -405,7 +365,6 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
                     required
                     error={nameError}
                   />
-
                   <UniversalInput
                     id="price"
                     label="Price (£)"
@@ -416,10 +375,8 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
                     onChange={setPrice}
                     required
                   />
-
                   <UniversalInput id="barcode" label="Barcode / UPC" value={barcode} onChange={setBarcode} />
                 </div>
-
                 <UniversalTextarea
                   id="description"
                   label="Description"
@@ -428,20 +385,18 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
                   required
                   rows={4}
                 />
-
                 <UniversalTextarea
                   id="details"
                   label="Details (Optional)"
                   value={details}
                   onChange={setDetails}
                   rows={3}
-                  placeholder="Additional product details, features, or care instructions"
+                  placeholder="Additional details..."
                 />
               </TabsContent>
 
               <TabsContent value="classification" className="space-y-6">
                 <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Classification</h3>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <UniversalSelect
                     id="category"
@@ -455,7 +410,6 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
                     required
                     options={categories.map(cat => ({ value: cat, label: cat }))}
                   />
-
                   <UniversalSelect
                     id="subcategory"
                     label="Subcategory"
@@ -470,52 +424,36 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
                       })) || []
                     }
                   />
-
                   <UniversalSelect
                     id="productType"
                     label="Product Type"
                     value={productType}
                     onChange={setProductType}
-                    placeholder="Select Product Type"
                     options={productTypes.map(type => ({ value: type, label: type }))}
                   />
-
                   <UniversalTextarea
                     id="designThemes"
                     label="Design Themes"
                     value={designThemesStr}
                     onChange={setDesignThemesStr}
-                    rows={3}
-                    placeholder="Enter design themes separated by commas (e.g., Vintage, Racing, Minimalist)"
-                    helpText={`Available themes: ${designThemes.join(", ")}`}
+                    placeholder="Vintage, Racing..."
+                    helpText={`Available: ${designThemes.join(", ")}`}
                   />
-
-                  <UniversalInput
-                    id="badge"
-                    label="Badge"
-                    value={badge}
-                    onChange={setBadge}
-                    placeholder="e.g., New, Best Seller, Limited Edition"
-                  />
-
+                  <UniversalInput id="badge" label="Badge" value={badge} onChange={setBadge} />
                   <UniversalInput
                     id="tags"
                     label="Tags"
                     value={tags}
                     onChange={setTags}
-                    placeholder="Enter tags separated by commas"
-                    helpText={`Available tags: ${validTags.join(", ")}`}
+                    helpText={`Available: ${validTags.join(", ")}`}
                   />
-
                   <UniversalSelect
                     id="brand"
                     label="Brand"
                     value={brand}
-                    onChange={value => setBrand(value.trim())}
-                    placeholder="Select a brand"
-                    options={brands.map(brandOption => ({ value: brandOption, label: brandOption }))}
+                    onChange={setBrand}
+                    options={brands.map(b => ({ value: b, label: b }))}
                   />
-
                   <UniversalInput
                     id="manufacturer"
                     label="Manufacturer"
@@ -526,271 +464,148 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
               </TabsContent>
 
               <TabsContent value="specifications" className="space-y-6">
-                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Product Specifications</h3>
-
+                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Specifications</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <UniversalSelect
                     id="material"
                     label="Material"
                     value={material}
                     onChange={setMaterial}
-                    placeholder="Select a material"
-                    options={materials.map(materialOption => ({ value: materialOption, label: materialOption }))}
+                    options={materials.map(m => ({ value: m, label: m }))}
                   />
-
-                  <UniversalInput
-                    id="dimensions"
-                    label="Dimensions"
-                    value={dimensions}
-                    onChange={setDimensions}
-                    placeholder="e.g., 10cm x 15cm"
-                  />
-
+                  <UniversalInput id="dimensions" label="Dimensions" value={dimensions} onChange={setDimensions} />
                   <UniversalSelect
                     id="baseColor"
                     label="Base Color"
                     value={baseColor}
                     onChange={handleBaseColorChange}
-                    placeholder="Select a base color"
-                    options={standardColors.map(color => ({
-                      value: color,
-                      label: color.charAt(0).toUpperCase() + color.slice(1)
-                    }))}
+                    options={standardColors.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
                   />
-
                   <UniversalInput
                     id="colorDisplayName"
-                    label="Color Display Name"
+                    label="Display Name"
                     value={colorDisplayName}
                     onChange={setColorDisplayName}
-                    placeholder="e.g., Electric Blue, Cameo Green"
-                    helpText="Descriptive color name shown to customers"
                   />
-
                   <UniversalSelect
                     id="stickySide"
                     label="Sticky Side"
                     value={stickySide}
-                    onChange={value => setStickySide(value as "Front" | "Back" | "")}
-                    placeholder="Select sticky side"
+                    onChange={setStickySide}
                     options={[
-                      { value: "na", label: "Not applicable" },
                       { value: "Front", label: "Front" },
                       { value: "Back", label: "Back" }
                     ]}
                   />
-
                   <UniversalSelect
                     id="size"
                     label="Size"
                     value={size}
                     onChange={setSize}
-                    placeholder="Select size"
-                    options={[
-                      { value: "na", label: "Not applicable" },
-                      ...sizes.map(sizeOption => ({ value: sizeOption, label: sizeOption }))
-                    ]}
+                    options={sizes.map(s => ({ value: s, label: s }))}
                   />
-
                   <UniversalSelect
                     id="weight"
                     label="Weight"
                     value={weight}
                     onChange={setWeight}
-                    placeholder="Select weight"
-                    options={[
-                      { value: "na", label: "Not applicable" },
-                      ...weightOptions.map(option => ({ value: option, label: option }))
-                    ]}
+                    options={weightOptions.map(w => ({ value: w, label: w }))}
                   />
-
                   <UniversalInput
                     id="shippingWeight"
                     label="Shipping Weight"
                     value={shippingWeight}
                     onChange={setShippingWeight}
-                    placeholder="e.g., 0.5kg"
                   />
                 </div>
               </TabsContent>
 
               <TabsContent value="status" className="space-y-6">
-                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Product Status</h3>
-
+                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Status & Inventory</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <UniversalSwitch id="inStock" label="In Stock" checked={inStock} onChange={setInStock} />
-
-                  <UniversalSwitch
-                    id="isFeatured"
-                    label="Featured Product"
-                    checked={isFeatured}
-                    onChange={setIsFeatured}
-                  />
-
-                  <UniversalSwitch id="isHero" label="Hero Carousel" checked={isHero} onChange={setIsHero} />
-
+                  <UniversalSwitch id="isFeatured" label="Featured" checked={isFeatured} onChange={setIsFeatured} />
+                  <UniversalSwitch id="isHero" label="Hero" checked={isHero} onChange={setIsHero} />
                   <UniversalSwitch
                     id="isNewArrival"
                     label="New Arrival"
                     checked={isNewArrival}
                     onChange={setIsNewArrival}
                   />
-
                   <UniversalSwitch id="onSale" label="On Sale" checked={onSale} onChange={setOnSale} />
-
                   {onSale && (
                     <UniversalInput
                       id="salePrice"
-                      label="Sale Price (£)"
+                      label="Sale Price"
                       type="number"
-                      step="0.01"
-                      min="0"
                       value={salePrice}
                       onChange={setSalePrice}
-                      required={onSale}
+                      required
                     />
                   )}
-                </div>
-
-                <h3 className="text-2xl font-semibold tracking-tight mt-8 mb-6 border-b pb-2">Inventory Management</h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <UniversalInput
                     id="stockQuantity"
-                    label="Stock Quantity"
+                    label="Stock"
                     type="number"
-                    min="0"
                     value={stockQuantity}
                     onChange={setStockQuantity}
                   />
-
                   <UniversalInput
                     id="lowStockThreshold"
-                    label="Low Stock Threshold"
+                    label="Low Stock Alert"
                     type="number"
-                    min="0"
                     value={lowStockThreshold}
                     onChange={setLowStockThreshold}
                   />
-
                   <UniversalSelect
                     id="shippingClass"
                     label="Shipping Class"
                     value={shippingClass}
                     onChange={setShippingClass}
-                    placeholder="Select shipping class"
-                    options={shippingClasses.map(option => ({ value: option, label: option }))}
+                    options={shippingClasses.map(s => ({ value: s, label: s }))}
                   />
                 </div>
               </TabsContent>
 
               <TabsContent value="media" className="space-y-6">
-                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Product Images</h3>
-
-                <div className="space-y-6">
+                <h3 className="text-2xl font-semibold tracking-tight mb-6 border-b pb-2">Media</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="image" className="text-base font-semibold uppercase tracking-wide">
-                      Main Product Image*
-                    </Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Input
-                          id="image"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          ref={imageInputRef}
-                          required
-                          className="border-input dark:border-opacity-50 focus:ring-2 focus:ring-primary focus:border-primary"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Max 2MB recommended.</p>
-                      </div>
-                      <div className="flex items-center justify-center border rounded-md h-[150px] bg-muted/30">
-                        {previewUrl ? (
-                          <div className="relative w-full h-full">
-                            <Image
-                              src={previewUrl || "/placeholder.svg"}
-                              alt="Preview"
-                              fill
-                              className="object-contain p-2"
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-muted-foreground text-sm">Image preview will appear here</div>
-                        )}
-                      </div>
+                    <Label>Main Image*</Label>
+                    <Input type="file" accept="image/*" onChange={handleImageChange} ref={imageInputRef} required />
+                    <div className="h-40 border rounded bg-muted/30 relative">
+                      {previewUrl && <Image src={previewUrl} alt="Preview" fill className="object-contain p-2" />}
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="additionalImages" className="text-base font-semibold uppercase tracking-wide">
-                      Additional Images
-                    </Label>
+                    <Label>Additional Images</Label>
                     <Input
-                      id="additionalImages"
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleAdditionalImagesChange}
                       ref={additionalImagesInputRef}
-                      multiple
-                      className="border-input dark:border-opacity-50 focus:ring-2 focus:ring-primary focus:border-primary"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Select multiple files (max 5 images, 2MB each)</p>
-
-                    {additionalImagePreviews.length > 0 && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
-                        {additionalImagePreviews.map((preview, index) => (
-                          <div key={index} className="relative h-24 border rounded-md overflow-hidden">
-                            <Image
-                              src={preview || "/placeholder.svg"}
-                              alt={`Additional image ${index + 1}`}
-                              fill
-                              className="object-contain p-1"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {additionalImagePreviews.map((p, i) => (
+                        <div key={i} className="h-20 border rounded relative">
+                          <Image src={p} alt="Extra" fill className="object-contain" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </TabsContent>
 
-              <CardFooter className="justify-between p-0 pt-8 flex-wrap gap-4">
+              <CardFooter className="justify-between p-0 pt-8 gap-4">
                 <div className="flex gap-2">
                   {activeTab !== "basic" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        const tabs = ["basic", "classification", "specifications", "status", "media"];
-                        const currentIndex = tabs.indexOf(activeTab);
-                        if (currentIndex > 0) {
-                          setActiveTab(tabs[currentIndex - 1]);
-                        }
-                      }}>
-                      Previous
-                    </Button>
-                  )}
-
-                  {activeTab !== "media" && (
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        const tabs = ["basic", "classification", "specifications", "status", "media"];
-                        const currentIndex = tabs.indexOf(activeTab);
-                        if (currentIndex < tabs.length - 1) {
-                          setActiveTab(tabs[currentIndex + 1]);
-                        }
-                      }}>
-                      Next
+                    <Button type="button" variant="outline" onClick={() => setActiveTab("basic")}>
+                      Back
                     </Button>
                   )}
                 </div>
-
-                <SubmitButton
-                  isLoading={isPending || isUploading}
-                  loadingText={isUploading ? "Uploading..." : "Saving..."}
-                  className="min-w-[140px] h-12 px-6 text-md font-semibold uppercase">
+                <SubmitButton isLoading={isPending || isUploading} loadingText="Saving...">
                   Add Product
                 </SubmitButton>
               </CardFooter>

@@ -1,150 +1,127 @@
-// src/lib/services/admin-activity-service.ts
+// src/lib/services/user-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
-import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { getUserImage } from "@/utils/get-user-image";
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
+import type { User, UserRole } from "@/types/user";
+
+type FirestoreUserDoc = Record<string, unknown>;
 
 /**
- * For metadata, use unknown (not any). This keeps it flexible but type-safe.
+ * Helpers to ensure type safety without using 'any'
  */
-export type ActivityMetadata = Record<string, unknown>;
-
-export interface ActivityLog {
-  id: string;
-  userId: string;
-  type: string;
-  description: string;
-  status: "success" | "error" | "warning" | "info";
-  timestamp: Date | Timestamp;
-  metadata?: ActivityMetadata;
+function asRecord(v: unknown): FirestoreUserDoc {
+  return v && typeof v === "object" ? (v as FirestoreUserDoc) : {};
 }
 
-type ActivityLogDoc = {
-  userId?: unknown;
-  type?: unknown;
-  description?: unknown;
-  status?: unknown;
-  timestamp?: unknown;
-  metadata?: unknown;
-};
-
-function asActivityLogDoc(data: unknown): ActivityLogDoc {
-  return data && typeof data === "object" ? (data as ActivityLogDoc) : {};
+function asString(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
 }
 
-function toStatus(value: unknown): ActivityLog["status"] {
-  return value === "success" || value === "error" || value === "warning" || value === "info" ? value : "info";
+function asBoolean(v: unknown, fallback = false): boolean {
+  return typeof v === "boolean" ? v : fallback;
 }
 
-function toTimestamp(value: unknown): Date | Timestamp {
-  if (value instanceof Timestamp) return value;
-  if (value instanceof Date) return value;
-  return new Date();
+function toIsoIfTimestamp(v: unknown): string | undefined {
+  if (v instanceof Timestamp) return v.toDate().toISOString();
+  if (typeof v === "string") return v;
+  return undefined;
 }
 
-function toMetadata(value: unknown): ActivityMetadata | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  return value as ActivityMetadata;
-}
-
-function mapDocToActivityLog(doc: FirebaseFirestore.QueryDocumentSnapshot): ActivityLog {
-  const raw = doc.data();
-  const data = asActivityLogDoc(raw);
+/**
+ * Maps a Firestore document to a clean User object
+ */
+function mapDocToUser(doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot): User {
+  const data = asRecord(doc.data());
+  const image = getUserImage(data);
 
   return {
     id: doc.id,
-    userId: typeof data.userId === "string" ? data.userId : "",
-    type: typeof data.type === "string" ? data.type : "",
-    description: typeof data.description === "string" ? data.description : "",
-    status: toStatus(data.status),
-    timestamp: toTimestamp(data.timestamp),
-    metadata: toMetadata(data.metadata)
-  };
+    ...(data as unknown as Omit<User, "id">),
+    image,
+    createdAt: toIsoIfTimestamp(data["createdAt"]) ?? "",
+    updatedAt: toIsoIfTimestamp(data["updatedAt"]),
+    lastLoginAt: toIsoIfTimestamp(data["lastLoginAt"]),
+    emailVerified: asBoolean(data["emailVerified"], false)
+  } as User;
 }
 
-export type LogActivityInput = {
-  userId: string;
-  type: string;
-  description: string;
-  status?: ActivityLog["status"];
-  metadata?: ActivityMetadata;
-};
-
-export const adminActivityService = {
-  async logActivity(input: LogActivityInput): Promise<ServiceResponse<{ id: string }>> {
+export const userService = {
+  /**
+   * Get users with pagination (Firestore-only)
+   */
+  async getUsers(limit = 10, startAfter?: string): Promise<ServiceResponse<{ users: User[]; lastVisible?: string }>> {
     try {
       const db = getAdminFirestore();
-      const ref = db.collection("activity").doc();
+      let query = db.collection("users").orderBy("createdAt", "desc").limit(limit);
 
-      await ref.set({
-        userId: input.userId,
-        type: input.type,
-        description: input.description,
-        status: input.status ?? "info",
-        timestamp: new Date(),
-        metadata: input.metadata ?? {}
-      });
+      if (startAfter) {
+        const lastDoc = await db.collection("users").doc(startAfter).get();
+        if (lastDoc.exists) query = query.startAfter(lastDoc);
+      }
 
-      return { success: true, data: { id: ref.id } };
+      const snapshot = await query.get();
+      const users = snapshot.docs.map(mapDocToUser);
+      const lastVisible = snapshot.docs[snapshot.docs.length - 1]?.id;
+
+      return { success: true, data: { users, lastVisible } };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error logging activity";
+          : "Unknown error occurred while fetching users";
+
       return { success: false, error: message, status: 500 };
     }
   },
 
-  async getAllActivityLogs(limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
+  /**
+   * Fetch a single user by their ID
+   */
+  async getUserById(userId: string): Promise<ServiceResponse<{ user: User }>> {
     try {
       const db = getAdminFirestore();
-      const snap = await db.collection("activity").orderBy("timestamp", "desc").limit(limit).get();
+      const snap = await db.collection("users").doc(userId).get();
 
-      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
+
+      const user = mapDocToUser(snap);
+      return { success: true, data: { user } };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching activity logs";
+          : "Unknown error fetching user";
+
       return { success: false, error: message, status: 500 };
     }
   },
 
-  async getUserActivityLogs(userId: string, limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
+  /**
+   * Get user role (Firestore-only)
+   */
+  async getUserRole(userId: string): Promise<ServiceResponse<{ role: UserRole }>> {
     try {
       const db = getAdminFirestore();
-      const snap = await db
-        .collection("activity")
-        .where("userId", "==", userId)
-        .orderBy("timestamp", "desc")
-        .limit(limit)
-        .get();
+      const userDoc = await db.collection("users").doc(userId).get();
 
-      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+      if (!userDoc.exists) return { success: false, error: "User not found", status: 404 };
+
+      const data = asRecord(userDoc.data());
+      const role = asString(data["role"], "user") as UserRole;
+
+      return { success: true, data: { role } };
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
-          : "Unknown error fetching user activity logs";
-      return { success: false, error: message, status: 500 };
-    }
-  },
+          : "Unknown error getting user role";
 
-  async countAll(): Promise<ServiceResponse<{ total: number }>> {
-    try {
-      const db = getAdminFirestore();
-      const snap = await db.collection("activity").count().get();
-      return { success: true, data: { total: snap.data().count } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error counting activity logs";
       return { success: false, error: message, status: 500 };
     }
   }

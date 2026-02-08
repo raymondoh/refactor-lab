@@ -1,6 +1,6 @@
 // ===============================
 // 📂 src/lib/services/admin-order-service.ts
-// Canonical admin order service (Firestore)
+// Canonical order service (Firestore-only)
 // ===============================
 
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
@@ -11,7 +11,6 @@ import type { Order, OrderData } from "@/types/order";
 import { logServerEvent } from "@/lib/services/logging-service";
 
 import type { ServiceResponse } from "@/lib/services/types/service-response";
-import { requireAdmin } from "@/actions/_helpers/require-admin";
 
 // Server timestamp helper
 export const serverTimestamp = () => FieldValue.serverTimestamp();
@@ -91,12 +90,12 @@ function errMessage(error: unknown, fallback: string) {
 }
 
 /* ---------------------------------- */
-/* Service Implementation */
+/* Internal core logic */
 /* ---------------------------------- */
 
 /**
  * INTERNAL CORE LOGIC
- * Callable by webhooks (System) or Admin actions (Session).
+ * Callable by webhooks (System) or admin actions (Session).
  * No requireAdmin gate here; security is handled by the caller.
  */
 async function _createOrderInternal(orderData: OrderData): Promise<ServiceResponse<{ orderId: string }>> {
@@ -137,6 +136,10 @@ async function _createOrderInternal(orderData: OrderData): Promise<ServiceRespon
   }
 }
 
+/* ---------------------------------- */
+/* Service Implementation (Firestore-only) */
+/* ---------------------------------- */
+
 export const adminOrderService = {
   /**
    * SYSTEM: Webhook entry point. No session required.
@@ -147,19 +150,17 @@ export const adminOrderService = {
   },
 
   /**
-   * ADMIN: Dashboard entry point. Requires admin session.
+   * ADMIN: Dashboard entry point (caller must perform admin gate (requireAdmin helper)).
    */
   async createOrder(orderData: OrderData) {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
     return _createOrderInternal(orderData);
   },
 
   /**
-   * USER: Fetch personal orders (Used by UserOrdersClient)
+   * USER: Fetch personal orders (caller must ensure user is authenticated
+   * and is requesting their own orders).
    */
   async getUserOrders(userId: string): Promise<ServiceResponse<Order[]>> {
-    // Only authenticated users can call this (check logic usually in Action)
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").where("userId", "==", userId).orderBy("createdAt", "desc").get();
@@ -171,12 +172,9 @@ export const adminOrderService = {
   },
 
   /**
-   * ADMIN: Fetch all orders for management
+   * ADMIN: Fetch all orders for management (caller must perform admin gate (requireAdmin helper)).
    */
   async getAllOrders(): Promise<ServiceResponse<Order[]>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").orderBy("createdAt", "desc").get();
@@ -186,10 +184,10 @@ export const adminOrderService = {
     }
   },
 
+  /**
+   * ADMIN: Fetch single order (caller must perform admin gate (requireAdmin helper)).
+   */
   async getOrderById(id: string): Promise<ServiceResponse<Order | null>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
     try {
       const db = getAdminFirestore();
       const doc = await db.collection("orders").doc(id).get();
@@ -200,10 +198,15 @@ export const adminOrderService = {
     }
   },
 
-  async updateOrderStatus(orderId: string, status: Order["status"]): Promise<ServiceResponse<EmptyData>> {
-    const gate = await requireAdmin();
-    if (!gate.success) return gate;
-
+  /**
+   * ADMIN: Update order status (caller must perform admin gate (requireAdmin helper)).
+   * Pass adminId from the action so logs still include who did it.
+   */
+  async updateOrderStatus(
+    adminId: string,
+    orderId: string,
+    status: Order["status"]
+  ): Promise<ServiceResponse<EmptyData>> {
     try {
       const db = getAdminFirestore();
       await db.collection("orders").doc(orderId).update({
@@ -215,7 +218,7 @@ export const adminOrderService = {
         type: "order:status",
         message: `Order status updated to ${status}`,
         context: "orders",
-        metadata: { orderId, status, adminId: gate.userId }
+        metadata: { orderId, status, adminId }
       });
 
       return { success: true, data: {} };
@@ -223,6 +226,10 @@ export const adminOrderService = {
       return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
     }
   },
+
+  /**
+   * SYSTEM/ADMIN: Lookup by paymentIntentId (no gate; caller decides).
+   */
   async getOrderByPaymentIntentId(paymentIntentId: string): Promise<ServiceResponse<Order | null>> {
     try {
       const db = getAdminFirestore();
@@ -230,7 +237,7 @@ export const adminOrderService = {
 
       if (snapshot.empty) return { success: true, data: null };
       return { success: true, data: mapDocToOrder(snapshot.docs[0]) };
-    } catch (error) {
+    } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Failed to fetch order"), status: 500 };
     }
   }

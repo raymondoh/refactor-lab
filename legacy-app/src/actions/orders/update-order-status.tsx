@@ -2,15 +2,17 @@
 
 import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 import type { Order } from "@/types/order";
 
 export async function updateOrderStatusAction(orderId: string, status: Order["status"]) {
   try {
-    const result = await adminOrderService.updateOrderStatus(orderId, status);
+    const gate = await requireAdmin();
+    if (!gate.success) return { success: false as const, error: gate.error, status: gate.status };
 
-    if (!result.success) {
-      return { success: false as const, error: result.error };
-    }
+    const result = await adminOrderService.updateOrderStatus(orderId, status);
+    if (!result.success) return { success: false as const, error: result.error, status: result.status };
 
     return { success: true as const };
   } catch (error) {

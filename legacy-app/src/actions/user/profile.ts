@@ -7,12 +7,9 @@ import { profileUpdateSchema } from "@/schemas/user";
 import { logActivity } from "@/firebase/actions";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import { logger } from "@/utils/logger";
-import { serializeUser } from "@/utils/serializeUser";
-import { getUserImage } from "@/utils/get-user-image";
 import { userProfileService } from "@/lib/services/user-profile-service";
 
 import type { GetProfileResponse, UpdateUserProfileResponse } from "@/types/user/profile";
-import type { User } from "@/types/models/user";
 
 // ================= User Profile Actions =================
 
@@ -32,8 +29,8 @@ export async function getProfile(): Promise<GetProfileResponse> {
       return { success: false, error: "Not authenticated" };
     }
 
-    // ✅ Service owns Firestore read
-    const profileResult = await userProfileService.getMyProfile();
+    // ✅ Service is now pure — pass userId in
+    const profileResult = await userProfileService.getProfileByUserId(session.user.id);
 
     if (!profileResult.success) {
       logger({
@@ -46,27 +43,12 @@ export async function getProfile(): Promise<GetProfileResponse> {
       return { success: false, error: profileResult.error };
     }
 
-    // 🔸 Support both shapes: { user } or { data: { user } }
-    const serviceUser =
-      // @ts-expect-error - allow legacy/transition shapes
-      profileResult.data?.user ?? profileResult.user ?? null;
-
-    if (!serviceUser) {
-      return { success: false, error: "User data not found" };
-    }
-
-    // If your service returns a SerializedUser already, you can skip re-serializing here.
-    // But since the action previously serialized, keep it consistent:
-    const rawUser = serviceUser as User;
-
-    // Ensure image is normalized
-    rawUser.image = getUserImage(rawUser);
-
-    console.log("[Action] getProfile: Raw user data before serialization:", rawUser);
+    // ✅ Service returns SerializedUser already
+    const user = profileResult.data.user;
 
     return {
       success: true,
-      user: serializeUser(rawUser)
+      user
     };
   } catch (error) {
     const message = isFirebaseError(error) ? firebaseError(error) : "Failed to get profile";
@@ -131,13 +113,13 @@ export async function updateUserProfile(_: unknown, formData: FormData): Promise
       return { success: false, error: errorMessage };
     }
 
-    // ✅ 1) Update Firebase Auth profile via service (no admin auth usage here)
+    // ✅ 1) Update Firebase Auth profile via service (pure — pass userId in)
     const authUpdate: { displayName?: string; photoURL?: string } = {};
     if (displayName) authUpdate.displayName = displayName;
     if (imageUrl) authUpdate.photoURL = imageUrl;
 
     if (Object.keys(authUpdate).length > 0) {
-      const authResult = await userProfileService.updateMyAuthProfile(authUpdate);
+      const authResult = await userProfileService.updateAuthProfileByUserId(session.user.id, authUpdate);
       if (!authResult.success) {
         logger({
           type: "error",
@@ -149,7 +131,7 @@ export async function updateUserProfile(_: unknown, formData: FormData): Promise
       }
     }
 
-    // ✅ 2) Update Firestore profile via service (no direct collection("users") here)
+    // ✅ 2) Update Firestore profile via service (pure — pass userId in)
     const updateData: Record<string, unknown> = { updatedAt: serverTimestamp() };
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
@@ -159,7 +141,7 @@ export async function updateUserProfile(_: unknown, formData: FormData): Promise
 
     console.log("[Action] updateUserProfile: updateData:", updateData);
 
-    const profileUpdateResult = await userProfileService.updateMyProfile(updateData);
+    const profileUpdateResult = await userProfileService.updateProfileByUserId(session.user.id, updateData);
     if (!profileUpdateResult.success) {
       logger({
         type: "error",

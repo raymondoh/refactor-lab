@@ -1,11 +1,16 @@
+// src/actions/orders/create-order.ts
 "use server";
 
 import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 import type { OrderData } from "@/types/order";
 
 export async function createOrder(orderData: OrderData) {
   try {
+    const gate = await requireAdmin();
+    if (!gate.success) return { success: false as const, error: gate.error, status: gate.status };
+
     const result = await adminOrderService.createOrder(orderData);
 
     if (!result.success) {

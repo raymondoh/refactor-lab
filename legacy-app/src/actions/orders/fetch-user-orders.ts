@@ -3,9 +3,13 @@
 
 import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 
 export async function fetchUserOrders(userId: string) {
   try {
+    const gate = await requireAdmin();
+    if (!gate.success) return { success: false as const, error: gate.error, status: gate.status };
+
     const result = await adminOrderService.getUserOrders(userId);
 
     if (!result.success) {

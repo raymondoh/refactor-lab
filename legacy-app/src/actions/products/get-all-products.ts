@@ -1,3 +1,4 @@
+// src/actions/products/get-all-products.ts
 "use server";
 
 import { adminProductService } from "@/lib/services/admin-product-service";
