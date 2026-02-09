@@ -1,5 +1,4 @@
 // src/lib/services/admin-user-service.ts
-"use server";
 
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { getUserImage } from "@/utils/get-user-image";

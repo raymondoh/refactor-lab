@@ -1,3 +1,4 @@
+// src/components/dashboard/AppSidebar.tsx
 "use client";
 
 import type React from "react";
@@ -20,6 +21,24 @@ import {
 } from "@/components/ui/sidebar";
 import { userNavItems, adminNavItems, type NavItem } from "@/lib/navigation";
 
+function normalizeHref(href: string) {
+  // Ensure all nav links are absolute and never include an invisible route group like /dashboard/...
+  if (!href.startsWith("/")) return `/${href}`;
+  if (href.startsWith("/dashboard/")) return href.replace("/dashboard", "");
+  return href;
+}
+
+function normalizeNavItems(items: NavItem[]): NavItem[] {
+  return items.map(item => ({
+    ...item,
+    href: normalizeHref(item.href),
+    subItems: item.subItems?.map(sub => ({
+      ...sub,
+      href: normalizeHref(sub.href)
+    }))
+  }));
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
@@ -29,7 +48,7 @@ export function AppSidebar() {
   const getNavItems = (): NavItem[] => {
     // If we're on an admin route, default to admin nav items
     if (pathname.startsWith("/admin")) {
-      return adminNavItems;
+      return normalizeNavItems(adminNavItems);
     }
 
     // If session is still loading, return empty array to prevent flashing
@@ -38,7 +57,7 @@ export function AppSidebar() {
     }
 
     // Use session role to determine nav items
-    return session?.user?.role === "admin" ? adminNavItems : userNavItems;
+    return normalizeNavItems(session?.user?.role === "admin" ? adminNavItems : userNavItems);
   };
 
   const navItems = getNavItems();
@@ -81,6 +100,7 @@ export function AppSidebar() {
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
+
                   {item.subItems && (
                     <SidebarMenuSub>
                       {item.subItems.map(subItem => (

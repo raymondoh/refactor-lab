@@ -1,5 +1,4 @@
 // src/lib/services/storage-service.ts
-"use server";
 
 import { getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
@@ -87,7 +86,7 @@ export type DeleteResult =
  *  or a public URL (e.g. "https://storage.googleapis.com/<bucket>/products/product-123.png").
  *  Returns a storage path, or null if it can't parse.
  */
-export function toStoragePath(input: string): string | null {
+function toStoragePath(input: string): string | null {
   const value = input.trim();
   if (!value) return null;
 

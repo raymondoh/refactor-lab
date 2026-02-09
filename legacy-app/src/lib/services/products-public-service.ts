@@ -1,5 +1,3 @@
-"use server";
-
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";

@@ -1,3 +1,4 @@
+// src/lib/firebase/admin/initialize.ts
 // This file provides a safe way to initialize Firebase Admin SDK
 
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";

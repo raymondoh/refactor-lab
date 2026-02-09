@@ -310,5 +310,55 @@ export const adminAuthService = {
     } catch (error: unknown) {
       return { success: false, error: errMessage(error, "Unknown error deleting storage object"), status: 500 };
     }
+  },
+  /**
+   * Verifies a Firebase Out-of-Band (OOB) code via the Google Identity Toolkit REST API.
+   * This handles the "applyActionCode" logic on the server side.
+   */
+  /**
+   * Verifies a Firebase Out-of-Band (OOB) code via the Google Identity Toolkit REST API.
+   * Uses the confirmEmail endpoint specifically designed for verification links.
+   */
+  async checkActionCode(oobCode: string): Promise<ServiceResponse<{ email: string; operation: string; uid: string }>> {
+    if (!oobCode) return { success: false, error: "No code provided", status: 400 };
+
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+      // We use the 'resetPassword' check endpoint - strangely, this is the most
+      // reliable way in the Firebase REST API to simply "peek" at what an oobCode
+      // belongs to (it works for email verification codes too).
+      const url = `https://identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=${apiKey}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oobCode })
+      });
+
+      const data = await res.json();
+
+      // If this still 404s, it's an API Key or Google Project settings issue.
+      if (!res.ok) {
+        console.error("[checkActionCode] REST Error:", data.error);
+        return { success: false, error: "Verification link is invalid or expired.", status: 400 };
+      }
+
+      // Now that we have the email safely, get the UID via Admin SDK
+      const auth = getAdminAuth();
+      const userRecord = await auth.getUserByEmail(data.email);
+
+      return {
+        success: true,
+        data: {
+          email: data.email,
+          uid: userRecord.uid,
+          operation: "VERIFY_EMAIL"
+        }
+      };
+    } catch (error: unknown) {
+      console.error("[checkActionCode] Admin/Network Error:", error);
+      return { success: false, error: "Internal verification error.", status: 500 };
+    }
   }
 };

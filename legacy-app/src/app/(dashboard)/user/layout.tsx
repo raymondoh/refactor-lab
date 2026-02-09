@@ -1,20 +1,17 @@
+// src/app/(dashboard)/user/layout.tsx
 import type React from "react";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
+import { isRedirectError } from "next/dist/client/components/redirect";
 
 export const metadata: Metadata = {
-  // User-specific title template
   title: {
     template: `%s | My Account | ${siteConfig.name}`,
     default: `My Account | ${siteConfig.name}`
   },
-
-  // User dashboard description
   description:
     "Access your personal MotoStix account dashboard. View your orders, manage shipping addresses, track deliveries, and browse your custom sticker design history.",
-
-  // User-specific keywords
   keywords: [
     "my account",
     "user dashboard",
@@ -28,8 +25,6 @@ export const metadata: Metadata = {
     "customer account",
     "motostix account"
   ],
-
-  // Inherit strict privacy from parent dashboard layout
   robots: {
     index: false,
     follow: false,
@@ -45,17 +40,14 @@ export const metadata: Metadata = {
       noimageindex: true
     }
   },
-
-  // User-specific security headers
   other: {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Cache-Control": "no-cache, no-store, must-revalidate, private", // Extra 'private' for user data
+    "Cache-Control": "no-cache, no-store, must-revalidate, private",
     Pragma: "no-cache",
     Expires: "0",
-    // Additional user data protection
     "X-Permitted-Cross-Domain-Policies": "none",
     "Cross-Origin-Embedder-Policy": "require-corp"
   }
@@ -63,17 +55,23 @@ export const metadata: Metadata = {
 
 export default async function UserLayout({ children }: { children: React.ReactNode }) {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
-    // Check if they have the user role
-    if (!session || session.user.role !== "user") {
+    // If not signed in, go login (more accurate than not-authorized)
+    if (!session?.user) {
+      redirect("/login");
+    }
+
+    // If signed in but not a user, deny
+    if (session.user.role !== "user") {
       redirect("/not-authorized");
     }
 
     return <div className="user-container">{children}</div>;
   } catch (error) {
+    if (isRedirectError(error)) throw error;
+
     console.error("Error in UserLayout:", error);
     redirect("/not-authorized");
   }

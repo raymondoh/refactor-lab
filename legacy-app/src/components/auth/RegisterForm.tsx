@@ -1,3 +1,4 @@
+// src/components/auth/RegisterForm.tsx
 "use client";
 
 import type React from "react";
@@ -141,6 +142,9 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
 
           // 3. ask Firebase to send the message
           await sendEmailVerification(cred.user, getVerificationSettings());
+          // ADD THIS: Sign out immediately so they aren't "partially logged in"
+          // while unverified. This forces the clean verification flow.
+          await auth.signOut();
 
           toast.success("Verification e-mail sent! Check your inbox.");
           router.push("/verify-email");

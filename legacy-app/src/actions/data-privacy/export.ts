@@ -2,9 +2,14 @@
 "use server";
 
 import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
-import { adminOrderService } from "@/lib/services/admin-order-service";
+
+function normalizeFormat(raw: unknown): "json" | "csv" {
+  const v = typeof raw === "string" ? raw.toLowerCase().trim() : "";
+  return v === "csv" ? "csv" : "json";
+}
 
 export async function exportUserData(_prevState: unknown, formData: FormData) {
   try {
@@ -16,7 +21,7 @@ export async function exportUserData(_prevState: unknown, formData: FormData) {
     }
 
     const userId = session.user.id;
-    const format = (formData.get("format") as string) || "json";
+    const format = normalizeFormat(formData.get("format"));
 
     // ✅ Get profile/likes/activity via service
     const exportRes = await adminDataPrivacyService.exportUserData(userId);
@@ -30,7 +35,7 @@ export async function exportUserData(_prevState: unknown, formData: FormData) {
       return { success: false as const, error: "User data not found" };
     }
 
-    // ✅ Get orders via service
+    // ✅ Get orders via service (best-effort)
     const ordersResult = await adminOrderService.getUserOrders(userId);
     const orders = ordersResult.success ? ordersResult.data : [];
 
@@ -54,7 +59,7 @@ export async function exportUserData(_prevState: unknown, formData: FormData) {
       contentType = "application/json";
       fileExtension = "json";
     } else {
-      // Simple CSV conversion for profile data
+      // Simple CSV conversion for profile data only (as before)
       const csvData = Object.entries(exportData.profile)
         .map(([key, value]) => `${key},${JSON.stringify(value)}`)
         .join("\n");
@@ -76,16 +81,22 @@ export async function exportUserData(_prevState: unknown, formData: FormData) {
       return { success: false as const, error: fileRes.error };
     }
 
-    await logActivity({
-      userId,
-      type: "data-export",
-      description: "User data exported",
-      status: "success",
-      metadata: {
-        format,
-        includedOrders: orders.length
-      }
-    });
+    // Log activity (best-effort)
+    try {
+      await logActivity({
+        userId,
+        type: "data-export",
+        description: "User data exported",
+        status: "success",
+        metadata: {
+          format,
+          includedOrders: orders.length,
+          ordersFetchFailed: !ordersResult.success ? ordersResult.error : undefined
+        }
+      });
+    } catch (e) {
+      console.warn("exportUserData: logActivity failed:", e);
+    }
 
     return {
       success: true as const,

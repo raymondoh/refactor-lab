@@ -1,5 +1,4 @@
 // src/lib/services/user-profile-service.ts
-"use server";
 
 import { getAdminFirestore, getAdminAuth } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";

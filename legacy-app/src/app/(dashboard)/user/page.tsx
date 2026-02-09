@@ -1,3 +1,4 @@
+// src/app/(dashboard)/user/page.tsx
 import { redirect } from "next/navigation";
 import { parseServerDate } from "@/utils/date-server";
 import type { User, SerializedUser } from "@/types/models/user";
@@ -10,6 +11,7 @@ import { UserActivityPreview } from "@/components";
 import { Clock, UserIcon } from "lucide-react";
 import { userProfileService } from "@/lib/services/user-profile-service";
 import { auth } from "@/auth";
+import { isRedirectError } from "next/dist/client/components/redirect";
 
 type ServiceUser = Partial<User> & {
   passwordHash?: string;
@@ -19,9 +21,9 @@ type ServiceUser = Partial<User> & {
 
 export default async function UserDashboardOverviewPage() {
   try {
-    //const { auth } = await import("@/auth");
     const session = await auth();
 
+    // Layout already guards, but keep this as a hard safety net.
     if (!session?.user) {
       redirect("/login");
     }
@@ -29,11 +31,10 @@ export default async function UserDashboardOverviewPage() {
     const userId = session.user.id;
     const sessionUser = session.user as User;
 
-    // ✅ Activity logs already come back serialized/enriched now
     const activityResult = await fetchUserActivityLogs(userId, 5);
     const logs = activityResult.success ? activityResult.logs : [];
 
-    // Start with session values as a fallback shape
+    // Fallback base from session
     let userData: User = {
       id: userId,
       name: sessionUser.name ?? "",
@@ -48,14 +49,14 @@ export default async function UserDashboardOverviewPage() {
       updatedAt: new Date()
     };
 
-    // ✅ Replace Firestore doc fetch with service call
-    const profileResult = await userProfileService.getProfileByUserId(session.user.id);
+    const profileResult = await userProfileService.getProfileByUserId(userId);
 
+    // If profile fetch failed, don’t redirect to login (that causes loops).
+    // Better: show not-authorized or a generic error page.
     if (!profileResult.success) {
-      redirect("/login");
+      redirect("/not-authorized");
     }
 
-    // Expecting: { success: true, data: { user: ... } }
     const serviceUser = profileResult.data.user as ServiceUser;
 
     userData = {
@@ -104,7 +105,9 @@ export default async function UserDashboardOverviewPage() {
       </>
     );
   } catch (error) {
+    if (isRedirectError(error)) throw error;
+
     console.error("Error in UserDashboardOverviewPage:", error);
-    redirect("/login");
+    redirect("/not-authorized");
   }
 }
