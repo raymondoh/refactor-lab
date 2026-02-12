@@ -1,47 +1,37 @@
 "use server";
 
-import { updateOrderStatus } from "@/firebase/admin/orders";
-import { revalidatePath } from "next/cache";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+
+import { requireAdmin } from "@/actions/_helpers/require-admin";
 import type { Order } from "@/types/order";
 
-// Update order status (admin only)
-export async function updateOrderStatusAction(orderId: string, status: Order["status"]) {
+type ActionResult = { success: true } | { success: false; error: string; status?: number };
+
+export async function updateOrderStatusAction(orderId: string, status: Order["status"]): Promise<ActionResult> {
   try {
-    // Dynamic import to avoid build-time initialization
-    const { auth } = await import("@/auth");
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+    const gate = await requireAdmin();
+    if (!gate.success) {
+      return { success: false, error: gate.error, status: gate.status };
     }
 
-    // Check if user is admin
-    const { UserService } = await import("@/lib/services/user-service");
-    const userRole = await UserService.getUserRole(session.user.id);
-
-    if (userRole !== "admin") {
-      return { success: false, error: "Unauthorized. Admin access required." };
+    // ✅ services are session-agnostic; actions pass adminId explicitly
+    const result = await adminOrderService.updateOrderStatus(orderId, gate.userId, status);
+    if (!result.success) {
+      return { success: false, error: result.error, status: result.status };
     }
 
-    const result = await updateOrderStatus(orderId, status);
-
-    if (result.success) {
-      // Revalidate relevant paths
-      revalidatePath("/admin/orders");
-      revalidatePath(`/admin/orders/${orderId}`);
-    }
-
-    return result;
-  } catch (error) {
+    return { success: true };
+  } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error updating order status";
-    return { success: false, error: message };
+        ? error.message
+        : "Unknown error updating order status";
+
+    return { success: false, error: message, status: 500 };
   }
 }
 
-// Export for backward compatibility
+// Backward compatibility exports
 export { updateOrderStatusAction as updateOrderStatus };

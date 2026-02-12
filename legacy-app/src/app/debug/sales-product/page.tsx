@@ -1,10 +1,12 @@
-import { getOnSaleProducts, getAllProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 
 export default async function SaleProductsDebugPage() {
-  // Test both functions
-  const saleProducts = await getOnSaleProducts(10);
-  const allProducts = await getAllProducts({ limit: 5 });
+  const saleProducts = await adminProductService.getOnSaleProducts(10);
+  const allProducts = await adminProductService.getAllProducts({ limit: 5 });
 
+  // Ensure these are ALWAYS arrays, even on failure
+  const saleItems = saleProducts.success && saleProducts.data ? saleProducts.data : [];
+  const allItems = allProducts.success && allProducts.data ? allProducts.data : [];
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Sale Products Debug</h1>
@@ -18,7 +20,8 @@ export default async function SaleProductsDebugPage() {
               <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
             </p>
             <p>
-              <strong>Count:</strong> {saleProducts.success ? saleProducts.data.length : 0}
+              {/* Replace saleProducts.data.length with saleItems.length */}
+              <strong>Count:</strong> {saleItems.length}
             </p>
             {!saleProducts.success && (
               <p className="text-red-600">
@@ -27,11 +30,13 @@ export default async function SaleProductsDebugPage() {
             )}
           </div>
 
-          {saleProducts.success && saleProducts.data.length > 0 && (
+          {/* Use saleItems.length for the conditional check */}
+          {saleItems.length > 0 && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">Sale Products:</h3>
               <div className="space-y-2 text-sm">
-                {saleProducts.data.map(product => (
+                {/* Use saleItems.map instead of saleProducts.data.map */}
+                {saleItems.map(product => (
                   <div key={product.id} className="p-2 bg-gray-50 rounded">
                     <p>
                       <strong>Name:</strong> {product.name}
@@ -60,15 +65,15 @@ export default async function SaleProductsDebugPage() {
               <strong>Success:</strong> {allProducts.success ? "✅ Yes" : "❌ No"}
             </p>
             <p>
-              <strong>Count:</strong> {allProducts.success ? allProducts.data.length : 0}
+              <strong>Count:</strong> {allItems.length}
             </p>
           </div>
 
-          {allProducts.success && allProducts.data.length > 0 && (
+          {allItems.length > 0 && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">Sample Products:</h3>
               <div className="space-y-2 text-sm">
-                {allProducts.data.slice(0, 3).map(product => (
+                {allItems.slice(0, 3).map(product => (
                   <div key={product.id} className="p-2 bg-gray-50 rounded">
                     <p>
                       <strong>Name:</strong> {product.name}
@@ -96,7 +101,7 @@ export default async function SaleProductsDebugPage() {
           <p>
             1. ✅ Check that your products have <code>onSale: true</code> in the database
           </p>
-          <p>2. ✅ Verify the field name is exactly "onSale" (case-sensitive)</p>
+          <p>2. ✅ Verify the field name is exactly &quot;onSale&quot; (case-sensitive)</p>
           <p>3. ✅ Make sure you have at least 3 products with onSale: true</p>
           <p>4. ✅ Check the server console for any Firebase errors</p>
         </div>

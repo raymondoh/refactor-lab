@@ -4,3 +4,4 @@ export * from "./get-all-products";
 export * from "./get-related-products";
 export * from "./get-product";
 export * from "./update-product";
+export * from "./create-product";

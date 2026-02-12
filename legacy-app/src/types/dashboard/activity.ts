@@ -82,5 +82,5 @@ export interface ActivityLogInput {
   type: "login" | "register" | "error" | "update" | "delete" | string;
   description: string;
   status: "success" | "error" | "info";
-  metadata?: Record<string, any>; // optional additional context
+  metadata?: Record<string, unknown>; // optional additional context
 }

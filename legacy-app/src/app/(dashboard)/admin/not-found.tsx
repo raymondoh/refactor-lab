@@ -10,7 +10,7 @@ export default function AdminNotFound() {
       </div>
       <h1 className="text-3xl font-bold mb-2">Admin Page Not Found</h1>
       <p className="text-muted-foreground mb-6 max-w-md">
-        The admin page you are looking for doesn't exist or may have been moved.
+        The admin page you are looking for doesn&apos;t exist or may have been moved.
       </p>
       <div className="flex flex-col sm:flex-row gap-4">
         <Button asChild variant="outline">

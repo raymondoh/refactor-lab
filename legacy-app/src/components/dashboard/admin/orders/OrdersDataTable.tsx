@@ -26,12 +26,7 @@ interface OrdersDataTableProps {
   isRefreshing: boolean;
 }
 
-export function OrdersDataTable({
-  data,
-  columns,
-  onRefresh,
-  isRefreshing // Pass this to the toolbar if you want to disable refresh while pending
-}: OrdersDataTableProps) {
+export function OrdersDataTable({ data, columns, onRefresh }: OrdersDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");

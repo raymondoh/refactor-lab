@@ -1,3 +1,4 @@
+// src/components/products/subcategory-carousel/SubcategoryCards.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -51,9 +52,8 @@ export function SubcategoryCards({ parentCategory, selectedSubcategory, onSubcat
   /* ── shared styles ─────────────────────────────────────────── */
   const baseBtn =
     "w-full h-[36px] flex items-center justify-center rounded-lg transition-all px-1.5 gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
-  const selectedStyles =
-    "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/50 dark:bg-accent dark:text-accent-foreground dark:ring-accent/50";
-  const defaultStyles = "bg-black text-white hover:opacity-90 dark:bg-white dark:text-black";
+  const selectedStyles = "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/40";
+  const defaultStyles = "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/60";
   const slideWidth = "basis-[104px]"; // narrower than top‑level category cards
 
   return (

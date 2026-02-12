@@ -1,5 +1,3 @@
-"use server";
-
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { Timestamp } from "firebase-admin/firestore";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
@@ -77,8 +75,8 @@ export async function logServerEvent({
     const errorMessage = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error occurred while logging to Firestore";
+        ? error.message
+        : "Unknown error occurred while logging to Firestore";
 
     console.error("[LOGGER_ERROR] Failed to write log to Firestore:", errorMessage);
     console.error("Original log data:", { type, message, context, userId, metadata });

@@ -1,49 +1,42 @@
+// src/app/(dashboard)/admin/products/page.tsx
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { redirect } from "next/navigation";
-import { getAllProducts } from "@/firebase/admin/products";
-import { getCategories, getFeaturedCategories } from "@/firebase/admin/categories";
-import { UserService } from "@/lib/services/user-service";
 import { AdminProductsClient } from "@/components/dashboard/admin/products/AdminProductsClient";
 
+// ✅ Actions own admin gating + call services internally
+import { getAllProductsAction } from "@/actions/products/get-all-products";
+import { getCategoriesAction, getFeaturedCategoriesAction } from "@/actions/categories/admin-categories";
+
 export const metadata: Metadata = {
+
   title: "Product Management",
   description: "Manage products in your catalog"
 };
 
 export default async function AdminProductsPage() {
   try {
-    // Dynamic import for auth to avoid build-time issues
     const { auth } = await import("@/auth");
     const session = await auth();
 
-    // Redirect if not authenticated
-    if (!session?.user) {
-      redirect("/login");
-    }
+    if (!session?.user) redirect("/login");
+    if (session.user.role !== "admin") redirect("/not-authorized");
 
-    // Check admin role using UserService
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
-      redirect("/not-authorized");
-    }
+    // ✅ Fetch initial data via actions (actions gate + services do the work)
+    const [productsResult, categoriesRes, featuredRes] = await Promise.all([
+      getAllProductsAction(),
+      getCategoriesAction(),
+      getFeaturedCategoriesAction()
+    ]);
 
-    // Fetch initial products data
-    const productsResult = await getAllProducts();
     const products = productsResult.success ? productsResult.data : [];
+    const categories = categoriesRes.success ? categoriesRes.data.categories : [];
 
-    // Fetch categories data
-    const categoriesResult = await getCategories();
-    const categories = categoriesResult.success ? categoriesResult.data : [];
-
-    // Fetch featured categories data
-    const featuredCategoriesResult = await getFeaturedCategories();
-
-    // Map the featured categories to include the id property
-    const featuredCategories = featuredCategoriesResult.success
-      ? featuredCategoriesResult.data.map(cat => ({
-          id: cat.slug, // Use slug as id
+    const featuredCategories = featuredRes.success
+      ? featuredRes.data.featuredCategories.map(cat => ({
+          id: cat.slug,
           name: cat.name,
           count: cat.count,
           image: cat.image
@@ -59,7 +52,6 @@ export default async function AdminProductsPage() {
         />
         <Separator className="mb-8" />
 
-        {/* Added a container with overflow handling */}
         <div className="w-full overflow-hidden">
           <AdminProductsClient
             products={products}

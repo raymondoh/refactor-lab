@@ -1,3 +1,4 @@
+// src/components/dashboard/user/data-privacy/AccountDeletion.tsx
 "use client";
 
 import React, { useState, useEffect, useActionState } from "react";
@@ -23,6 +24,7 @@ import { requestAccountDeletion } from "@/actions/data-privacy/deletion";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+import type { DeleteAccountState } from "@/types/user/admin";
 
 export function AccountDeletion() {
   const router = useRouter();
@@ -30,8 +32,12 @@ export function AccountDeletion() {
   const [confirmText, setConfirmText] = useState("");
   const [immediateDelete, setImmediateDelete] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [state, formAction, isPending] = useActionState(requestAccountDeletion, null);
+
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [state, formAction, isPending] = useActionState<DeleteAccountState | null, FormData>(
+    requestAccountDeletion,
+    null
+  );
 
   useEffect(() => {
     if (state?.success && !isRedirecting) {
@@ -83,13 +89,13 @@ export function AccountDeletion() {
       const message = isFirebaseError(state.error)
         ? firebaseError(state.error)
         : typeof state.error === "string"
-        ? state.error
-        : "An unexpected error occurred";
+          ? state.error
+          : "An unexpected error occurred";
       toast.error(message);
     }
   }, [state, router, update, isRedirecting]);
 
-  const handleDeleteRequest = (event: React.FormEvent) => {
+  const handleDeleteRequest = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (confirmText !== "DELETE") {
@@ -97,12 +103,11 @@ export function AccountDeletion() {
       return;
     }
 
-    // Use the form action directly without arguments
-    const form = event.target as HTMLFormElement;
+    const form = event.currentTarget;
     const formData = new FormData(form);
 
     React.startTransition(() => {
-      formAction(); // Call without arguments as expected by useActionState
+      formAction(formData);
     });
   };
 

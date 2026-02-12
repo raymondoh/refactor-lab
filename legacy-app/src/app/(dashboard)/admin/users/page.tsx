@@ -3,8 +3,10 @@ import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { UsersClient } from "@/components/dashboard/admin/users/UsersClient";
 import { redirect } from "next/navigation";
-import { UserService } from "@/lib/services/user-service";
 import type { SerializedUser } from "@/types/models/user";
+
+// ✅ Use the admin service (admin-gated, already returns serialized users)
+import { adminUserService } from "@/lib/services/admin-user-service";
 
 export const metadata: Metadata = {
   title: "Manage Users - Admin",
@@ -13,7 +15,6 @@ export const metadata: Metadata = {
 
 export default async function AdminUsersPage() {
   try {
-    // Dynamic import for auth to avoid build-time issues
     const { auth } = await import("@/auth");
     const session = await auth();
 
@@ -21,16 +22,13 @@ export default async function AdminUsersPage() {
       redirect("/login");
     }
 
-    // Check admin role using UserService
-    const userId = session.user.id;
-    const userRole = await UserService.getUserRole(userId);
-
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (consistent with other admin pages)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 
-    // Fetch users using UserService directly - this is the best method
-    const usersResult = await UserService.getUsers(10);
+    // ✅ Fetch users via admin service (avoids UserService.getUserRole issues)
+    const usersResult = await adminUserService.listUsers(10, 0);
 
     if (!usersResult.success) {
       console.error("Error fetching users:", usersResult.error);
@@ -47,7 +45,7 @@ export default async function AdminUsersPage() {
       );
     }
 
-    const users = usersResult.data.users as SerializedUser[];
+    const users: SerializedUser[] = usersResult.data.users;
     console.log("🚀 Fetched users:", users.length);
 
     return (

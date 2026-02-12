@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { AdminOrdersClient } from "@/components/dashboard/admin/orders/AdminOrdersClient";
 import { redirect } from "next/navigation";
 import { fetchAllOrders } from "@/actions/orders";
-import { UserService } from "@/lib/services/user-service";
 
 export const metadata: Metadata = {
   title: "Order Management",
@@ -21,9 +21,8 @@ export default async function AdminOrdersPage() {
       redirect("/login");
     }
 
-    // Check admin role using UserService
-    const userRole = await UserService.getUserRole(session.user.id);
-    if (userRole !== "admin") {
+    // ✅ simplest + cheapest admin gate (avoid UserService.getUserRole)
+    if (session.user.role !== "admin") {
       redirect("/not-authorized");
     }
 

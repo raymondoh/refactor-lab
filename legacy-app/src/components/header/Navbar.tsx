@@ -78,9 +78,9 @@ const NavLinks = ({ setOpen, isMobile }: { setOpen?: (open: boolean) => void; is
           ? // Active state for both mobile and desktop is now just the text color
             "text-accent"
           : // Inactive state
-          isMobile
-          ? "text-muted-foreground" // Inactive on Mobile
-          : "text-muted-foreground hover:text-accent" // Inactive on Desktop (with hover effect)
+            isMobile
+            ? "text-muted-foreground" // Inactive on Mobile
+            : "text-muted-foreground hover:text-accent" // Inactive on Desktop (with hover effect)
       )}
       onClick={() => setOpen?.(false)}>
       {isMobile && (
@@ -309,7 +309,7 @@ const UserMenu = () => {
           )}
         </HeaderIconButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="bg-popover text-popover-foreground border border-border shadow-md">
         {status === "loading" ? (
           <DropdownMenuItem disabled className="flex justify-center items-center py-3">
             <Skeleton className="h-4 w-3/4" />

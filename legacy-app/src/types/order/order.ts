@@ -1,3 +1,4 @@
+// legacy-app/src/types/order/order.ts
 import { z } from "zod";
 import { orderSchema } from "@/schemas/order";
 

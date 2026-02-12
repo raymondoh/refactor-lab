@@ -1,11 +1,5 @@
 // // src/app/(root)/products/[id]/page.tsx
-//                 question: "What materials are used for your stickers?",
-//                 answer:
-//                   "Our stickers are made from high-quality vinyl that is durable, waterproof, and UV-resistant, ensuring they last for years without fading or peeling."
-//               },
 
-//                 answer:
-//                   "Yes, we offer custom sticker designs. You can provide your artwork or ideas, and our design team will help bring your vision to life."
 import { notFound } from "next/navigation";
 import { getProductById, getRelatedProducts } from "@/actions/products";
 import { Button } from "@/components/ui/button";
@@ -125,7 +119,7 @@ interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function ProductDetailPage({ params, searchParams }: PageProps) {
+export default async function ProductDetailPage({ params }: PageProps) {
   // Await the params object before accessing its properties
   const resolvedParams = await params;
   const id = resolvedParams.id;

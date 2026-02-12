@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Facebook, Instagram, Twitter, Youtube, Mail, MapPin, Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
@@ -11,7 +9,9 @@ import { footerShopLinks, footerPolicyLinks, socialLinks } from "@/config/footer
 
 export function Footer() {
   return (
-    <footer className="main-footer py-8 md:py-12 lg:py-16 w-full bg-secondary/10 border-t border-border/40">
+    <footer
+      className="main-footer py-8 md:py-12 lg:py-16 w-full border-t border-border/60 bg-gradient-to-b from-secondary/8 to-secondary/18
+">
       {/* Main Footer Content */}
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-4">
@@ -82,51 +82,44 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Newsletter</h3>
             <p className="text-muted-foreground">
-              !!Subscribe to our newsletter for the latest designs, promotions, and exclusive offers.
+              Subscribe to our newsletter for the latest designs, promotions, and exclusive offers.
             </p>
-            {/* <div className="flex flex-col sm:flex-row gap-2">
-              <Input
-                type="email"
-                placeholder="Your email"
-                className="bg-background border-border focus:border-primary"
-              />
-              <Button className="bg-black text-white dark:bg-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90">
-                Subscribe <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div> */}
+
             <NewsletterForm />
           </div>
         </div>
 
         {/* Payment Methods & Security */}
         <div className="border-t border-border/40 mt-12 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-muted-foreground text-sm font-medium">We Accept:</div>
-            <div className="flex items-center gap-4">
-              <Image src="/images/visa-logo.svg" alt="Visa" width={38} height={24} />
-              <Image src="/images/mastercard-logo.svg" alt="Mastercard" width={38} height={24} />
+          <div className="flex flex-col items-center gap-4 text-center">
+            <span className="text-muted-foreground text-sm font-medium tracking-wide">We Accept</span>
+
+            <div className="flex items-center justify-center gap-6 opacity-80">
+              <Image src="/images/visa-logo.svg" alt="Visa" width={42} height={26} />
+              <Image src="/images/mastercard-logo.svg" alt="Mastercard" width={42} height={26} />
             </div>
-          </div>
-          <div className="flex justify-center mt-6">
+
+            {/* Stripe caption */}
             <a
               href="https://stripe.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-              <span className="text-xs">Secure payments powered by</span>
+              className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground/80 hover:text-foreground transition-colors">
+              <span>Secure payments powered by</span>
+
               <Image
                 src="/images/stripe-logo-light-mode.svg"
                 alt="Stripe"
-                width={50}
+                width={52}
                 height={20}
-                className="block dark:hidden"
+                className="block dark:hidden opacity-80"
               />
               <Image
                 src="/images/stripe-logo-dark.svg"
                 alt="Stripe"
-                width={50}
+                width={52}
                 height={20}
-                className="hidden dark:block"
+                className="hidden dark:block opacity-80"
               />
             </a>
           </div>

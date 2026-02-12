@@ -1,12 +1,16 @@
 import { ProductCarousel } from "@/components/shared/ProductCarousel";
-import { getOnSaleProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
+import { serializeProductArray } from "@/utils/serializeProduct";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function TestSaleCarouselPage() {
-  const saleProducts = await getOnSaleProducts(10); // Get more to be sure
+  const saleProducts = await adminProductService.getOnSaleProducts(10);
   const fetchTime = new Date().toISOString();
+
+  // Step A: Create a safe array and serialize it to fix the type mismatch (SerializedProduct[] vs Product[])
+  const saleItems = saleProducts.success && saleProducts.data ? serializeProductArray(saleProducts.data) : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -18,21 +22,23 @@ export default async function TestSaleCarouselPage() {
             <strong>Data fetched at:</strong> {fetchTime}
           </p>
           <p>
-            <strong>Sale products found:</strong> {saleProducts.success ? saleProducts.data.length : 0}
+            {/* Replace saleProducts.data.length with saleItems.length */}
+            <strong>Sale products found:</strong> {saleItems.length}
           </p>
           <p>
             <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
           </p>
           {!saleProducts.success && (
-            <p>
+            <p className="text-red-600">
               <strong>Error:</strong> {saleProducts.error}
             </p>
           )}
         </div>
 
-        {saleProducts.success && saleProducts.data.length > 0 ? (
+        {/* Use saleItems.length for the conditional check */}
+        {saleItems.length > 0 ? (
           <ProductCarousel
-            products={saleProducts.data}
+            products={saleItems}
             title="Special Offers"
             description="Limited-time deals on premium stickers - grab them while they last!"
             viewAllUrl="/products?onSale=true"
@@ -47,11 +53,12 @@ export default async function TestSaleCarouselPage() {
           </div>
         )}
 
-        {saleProducts.success && saleProducts.data.length > 0 && (
+        {saleItems.length > 0 && (
           <div className="mt-8 bg-white p-6 rounded-lg shadow">
             <h3 className="text-xl font-semibold mb-4">Sale Products Details</h3>
             <div className="space-y-4">
-              {saleProducts.data.map(product => (
+              {/* Use saleItems.map instead of saleProducts.data.map */}
+              {saleItems.map(product => (
                 <div key={product.id} className="p-4 border rounded">
                   <h4 className="font-semibold">{product.name}</h4>
                   <p>Price: £{product.price}</p>

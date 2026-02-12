@@ -4,16 +4,22 @@ import { DashboardShell, DashboardHeader } from "@/components";
 import { UserActivityPageClient } from "@/components";
 import { fetchUserActivityLogs } from "@/actions/dashboard";
 import type { Firebase } from "@/types";
+import { ActivityLogWithId } from "@/types/firebase/activity";
 
 // Helper function to convert ActivityLog to SerializedActivity
-function convertToSerializedActivity(log: any): Firebase.SerializedActivity {
+function convertToSerializedActivity(log: ActivityLogWithId): Firebase.SerializedActivity {
   return {
     id: log.id,
     userId: log.userId,
     type: log.type,
     description: log.description,
     status: log.status,
-    timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : log.timestamp,
+    timestamp:
+      log.timestamp instanceof Date
+        ? log.timestamp.toISOString()
+        : typeof log.timestamp === "string"
+          ? log.timestamp
+          : new Date().toISOString(),
     metadata: log.metadata || {},
     name: log.description || log.type // Use description as name fallback
   };

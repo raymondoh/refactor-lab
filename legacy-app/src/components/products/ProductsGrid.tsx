@@ -1,3 +1,4 @@
+// src/components/products/ProductsGrid.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -80,7 +81,7 @@ export function ProductsGrid() {
           <ActiveFilterBadges />
 
           {/* Product count and sorting options */}
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 rounded-xl border border-border/60 bg-muted p-3">
             <p className="text-sm text-muted-foreground">
               {isFiltering ? (
                 <span className="inline-flex items-center">

@@ -1,46 +1,19 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import {
-  getAllProducts,
-  getOnSaleProducts,
-  getNewArrivals
-} from "@/firebase/admin/products";
-import { getDesignThemes } from "@/firebase/admin/categories";
-
-// Helper function to get themed products
-async function getThemedProducts(limit = 6) {
-  try {
-    const themesResult = await getDesignThemes();
-    if (!themesResult.success || !themesResult.data || themesResult.data.length === 0) {
-      return { success: false, data: [] };
-    }
-
-    const popularThemes = themesResult.data.slice(0, 5);
-    const result = await getAllProducts({
-      designThemes: popularThemes,
-      limit: limit
-    });
-
-    return result;
-  } catch (error) {
-    console.error("Error fetching themed products:", error);
-    return { success: false, data: [] };
-  }
-}
+import { getAllProductsPublic } from "@/lib/services/products-public-service";
 
 export default async function HomepageDataDebugPage() {
   const fetchTime = new Date().toISOString();
 
   // Fetch the same data as the homepage
-  const [featuredProducts, trendingProducts, saleProducts, newArrivals, themedProducts] =
-    await Promise.all([
-      getAllProducts({ isFeatured: true, limit: 8 }),
-      getAllProducts({ limit: 8 }),
-      getOnSaleProducts(6),
-      getNewArrivals(6),
-      getThemedProducts(6)
-    ]);
+  const [featuredProducts, trendingProducts, saleProducts, newArrivals, themedProducts] = await Promise.all([
+    getAllProductsPublic({ isFeatured: true, limit: 8 }),
+    getAllProductsPublic({ limit: 8 }),
+    getAllProductsPublic({ onSale: true, limit: 6 }),
+    getAllProductsPublic({ isNewArrival: true, limit: 6 }),
+    getAllProductsPublic({ themedOnly: true, limit: 6 })
+  ]);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -90,7 +63,7 @@ export default async function HomepageDataDebugPage() {
               <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
             </p>
             <p>
-              <strong>Count:</strong> {saleProducts.success ? saleProducts.data.length : 0}
+              <strong>Count:</strong> {saleProducts.success && saleProducts.data ? saleProducts.data.length : 0}
             </p>
             {!saleProducts.success && (
               <p className="text-red-600">
@@ -103,22 +76,26 @@ export default async function HomepageDataDebugPage() {
             <div className="mt-4">
               <h3 className="font-semibold mb-2">Sale Products:</h3>
               <div className="space-y-2 text-sm">
-                {saleProducts.data.map(product => (
-                  <div key={product.id} className="p-2 bg-gray-50 rounded">
-                    <p>
-                      <strong>Name:</strong> {product.name}
-                    </p>
-                    <p>
-                      <strong>Price:</strong> £{product.price}
-                    </p>
-                    <p>
-                      <strong>Sale Price:</strong> {product.salePrice ? `£${product.salePrice}` : "None"}
-                    </p>
-                    <p>
-                      <strong>On Sale:</strong> {product.onSale ? "✅ Yes" : "❌ No"}
-                    </p>
-                  </div>
-                ))}
+                {saleProducts.data.map(untypedProduct => {
+                  const product = untypedProduct as any; // debug quick fix
+
+                  return (
+                    <div key={product.id} className="p-2 bg-gray-50 rounded">
+                      <p>
+                        <strong>Name:</strong> {product.name}
+                      </p>
+                      <p>
+                        <strong>Price:</strong> £{product.price}
+                      </p>
+                      <p>
+                        <strong>Sale Price:</strong> {product.salePrice ? `£${product.salePrice}` : "None"}
+                      </p>
+                      <p>
+                        <strong>On Sale:</strong> {product.onSale ? "✅ Yes" : "❌ No"}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

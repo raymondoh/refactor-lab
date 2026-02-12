@@ -1,5 +1,6 @@
+// legacy-app/src/app/api/likes/products/route.ts
 import { NextResponse } from "next/server";
-import { getUserLikedProducts } from "@/firebase/admin/products";
+import { getUserLikedProducts } from "@/lib/services/like-service";
 
 export async function GET() {
   try {

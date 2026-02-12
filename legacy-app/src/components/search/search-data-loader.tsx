@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
 import { db } from "@/firebase/client/firebase-client-init";
 import { useSearch } from "@/contexts/SearchContext";
+import { SearchResult } from "@/contexts/SearchContext";
 
 interface SearchDataLoaderProps {
   collections?: string[];
@@ -23,7 +24,7 @@ export function SearchDataLoader({
     async function fetchData() {
       try {
         console.log("Fetching product data for search...");
-        const allData: any[] = [];
+        const allData: unknown[] = [];
 
         // Fetch data from each collection (should only be products)
         for (const collectionName of collections) {
@@ -52,7 +53,7 @@ export function SearchDataLoader({
         }
 
         // Initialize search with the data
-        setSearchableData(allData, {
+        setSearchableData(allData as SearchResult[], {
           keys: searchFields,
           threshold: 0.3,
           includeMatches: true,

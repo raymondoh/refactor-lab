@@ -5,7 +5,6 @@ import { useEffect, useState, useMemo } from "react";
 import { fetchUserLikesClient } from "@/actions/client"; // Fetches full product details of liked items
 import type { Product } from "@/types/models/product";
 import { ProductCard } from "@/components/products/ProductCard";
-import { Loader } from "lucide-react";
 
 import { useLikes } from "@/contexts/LikesContext"; // Key for immediate UI updates
 import Link from "next/link";
@@ -14,7 +13,7 @@ export function UserLikesClient() {
   // Stores the full product details of items initially fetched as liked
   const [allFetchedLikedProducts, setAllFetchedLikedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   // This is the CRITICAL piece: likedProductIds comes from the context,
   // which is optimistically updated when toggleLike is called.
@@ -53,7 +52,7 @@ export function UserLikesClient() {
   if (!loading && !likesContextLoading && productsToDisplay.length === 0) {
     return (
       <div className="text-center py-10">
-        <p className="text-muted-foreground mb-4">You haven't liked any products yet.</p>
+        <p className="text-muted-foreground mb-4">You haven&apos;t liked any products yet.</p>
         <Link href="/products" className="text-primary hover:underline">
           Browse products
         </Link>

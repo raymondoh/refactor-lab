@@ -1,3 +1,4 @@
+// src/lib/firebase/admin/initialize.ts
 // This file provides a safe way to initialize Firebase Admin SDK
 
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
@@ -29,6 +30,7 @@ export function getAdminApp() {
   }
 
   // Initialize the app
+
   try {
     adminApp = initializeApp({
       credential: cert({
@@ -41,6 +43,8 @@ export function getAdminApp() {
       databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET
     });
+    console.log("[admin] projectId env:", process.env.FIREBASE_PROJECT_ID);
+    console.log("[admin] client email:", process.env.FIREBASE_CLIENT_EMAIL);
 
     return adminApp;
   } catch (error) {

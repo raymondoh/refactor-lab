@@ -16,7 +16,7 @@ interface UsersClientProps {
 
 export function UsersClient({ users: initialUsers }: UsersClientProps) {
   const [users, setUsers] = useState<SerializedUser[]>(initialUsers);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const handleRefresh = () => {
     startTransition(async () => {

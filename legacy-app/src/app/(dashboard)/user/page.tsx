@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
-import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
+// src/app/(dashboard)/user/page.tsx
+import { redirect, unstable_rethrow } from "next/navigation";
 import { parseServerDate } from "@/utils/date-server";
 import type { User, SerializedUser } from "@/types/models/user";
 import { serializeUser } from "@/utils/serializeUser";
@@ -9,28 +9,20 @@ import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { UserAccountPreview } from "@/components/dashboard/user/overview/UserAccountPreview";
 import { UserActivityPreview } from "@/components";
 import { Clock, UserIcon } from "lucide-react";
-import type { Firebase } from "@/types";
+import { userProfileService } from "@/lib/services/user-profile-service";
+import { auth } from "@/auth";
 
-// Helper function to convert ActivityLog to SerializedActivity
-function convertToSerializedActivity(log: any): Firebase.SerializedActivity {
-  return {
-    id: log.id,
-    userId: log.userId,
-    type: log.type,
-    description: log.description,
-    status: log.status,
-    timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : log.timestamp,
-    metadata: log.metadata || {},
-    name: log.description || log.type // Use description as name fallback
-  };
-}
+type ServiceUser = Partial<User> & {
+  passwordHash?: string;
+  provider?: string;
+  has2FA?: boolean;
+};
 
 export default async function UserDashboardOverviewPage() {
   try {
-    // Dynamic import for auth to avoid build-time issues
-    const { auth } = await import("@/auth");
     const session = await auth();
 
+    // Layout already guards, but keep this as a hard safety net.
     if (!session?.user) {
       redirect("/login");
     }
@@ -38,11 +30,10 @@ export default async function UserDashboardOverviewPage() {
     const userId = session.user.id;
     const sessionUser = session.user as User;
 
-    // Fetch activity logs using the corrected function
-    const result = await fetchUserActivityLogs(userId, 5);
-    const logs: Firebase.SerializedActivity[] = result.success ? result.logs.map(convertToSerializedActivity) : [];
+    const activityResult = await fetchUserActivityLogs(userId, 5);
+    const logs = activityResult.success ? activityResult.logs : [];
 
-    // Start with session values and fallback structure
+    // Fallback base from session
     let userData: User = {
       id: userId,
       name: sessionUser.name ?? "",
@@ -57,28 +48,25 @@ export default async function UserDashboardOverviewPage() {
       updatedAt: new Date()
     };
 
-    try {
-      // Use the new Firebase admin initialization
-      const db = getAdminFirestore();
-      const doc = await db.collection("users").doc(userId).get();
+    const profileResult = await userProfileService.getProfileByUserId(userId);
 
-      if (doc.exists) {
-        const firestoreData = doc.data() as Partial<User>;
-
-        userData = {
-          ...userData,
-          ...firestoreData,
-          createdAt: parseServerDate(firestoreData.createdAt) ?? new Date(),
-          lastLoginAt: parseServerDate(firestoreData.lastLoginAt) ?? new Date(),
-          updatedAt: parseServerDate(firestoreData.updatedAt) ?? new Date(),
-          hasPassword: !!firestoreData.passwordHash || firestoreData.provider !== "google",
-          has2FA: firestoreData.has2FA ?? false
-        };
-      }
-    } catch (error) {
-      console.error("Error fetching Firestore user:", error);
-      // Continue with fallback session data
+    // If profile fetch failed, don’t redirect to login (that causes loops).
+    // Better: show not-authorized or a generic error page.
+    if (!profileResult.success) {
+      redirect("/not-authorized");
     }
+
+    const serviceUser = profileResult.data.user as ServiceUser;
+
+    userData = {
+      ...userData,
+      ...serviceUser,
+      createdAt: parseServerDate(serviceUser.createdAt) ?? userData.createdAt,
+      lastLoginAt: parseServerDate(serviceUser.lastLoginAt) ?? userData.lastLoginAt,
+      updatedAt: parseServerDate(serviceUser.updatedAt) ?? userData.updatedAt,
+      hasPassword: !!serviceUser.passwordHash || serviceUser.provider !== "google",
+      has2FA: serviceUser.has2FA ?? false
+    };
 
     const serializedUserData: SerializedUser = serializeUser(userData);
     const userName = serializedUserData.name || serializedUserData.email?.split("@")[0] || "User";
@@ -91,9 +79,7 @@ export default async function UserDashboardOverviewPage() {
           breadcrumbs={[{ label: "Home", href: "/" }, { label: "Dashboard" }]}
         />
 
-        {/* Updated layout with consistent width */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Account summary in a card */}
           <DashboardCard
             title="Account Summary"
             description="Your account information and status"
@@ -101,7 +87,6 @@ export default async function UserDashboardOverviewPage() {
             <UserAccountPreview serializedUserData={serializedUserData} isLoading={!serializedUserData} />
           </DashboardCard>
 
-          {/* Activity preview in a card */}
           <DashboardCard
             title="Recent Activity"
             description="Your latest account activities"
@@ -110,7 +95,7 @@ export default async function UserDashboardOverviewPage() {
               activities={logs}
               limit={5}
               showFilters={false}
-              showHeader={false} // We're using the card header instead
+              showHeader={false}
               showViewAll={true}
               viewAllUrl="/user/activity"
             />
@@ -118,8 +103,11 @@ export default async function UserDashboardOverviewPage() {
         </div>
       </>
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    // ✅ rethrow redirect()/notFound() control-flow errors
+    unstable_rethrow(error);
+
     console.error("Error in UserDashboardOverviewPage:", error);
-    redirect("/login");
+    redirect("/not-authorized");
   }
 }

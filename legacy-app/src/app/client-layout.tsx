@@ -1,8 +1,6 @@
-// src/app/client-layout.tsx - New Client Component
 "use client";
 
 import { Suspense } from "react";
-import { Header, FooterWrapper } from "@/components";
 import { Providers } from "@/providers/SessionProvider";
 import { CartSidebar } from "@/components/cart/cart-sidebar";
 import { CartProvider } from "@/contexts/CartContext";
@@ -20,16 +18,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             {/* Search components */}
             <SearchDataLoader collections={["products"]} />
             <Suspense fallback={<div className="hidden">Loading search...</div>}>
-              {" "}
-              <SearchModal />{" "}
+              <SearchModal />
             </Suspense>
 
-            {/* Main layout structure */}
-            <Header />
-            <div className="flex flex-col min-h-screen">
-              <div className="flex-1">{children}</div>
-              <FooterWrapper />
-            </div>
+            {/* IMPORTANT: No Header/Footer here */}
+            {children}
 
             {/* Cart sidebar */}
             <CartSidebar />

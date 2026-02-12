@@ -1,3 +1,4 @@
+// src/app/(auth)/login/page.tsx
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -19,7 +20,6 @@ export const metadata: Metadata = {
     "secure login",
     "member access"
   ],
-
   openGraph: {
     title: `Sign In to Your Account | ${siteConfig.name}`,
     description: "Access your MotoStix account to manage orders, track shipments, and enjoy personalized shopping.",
@@ -28,28 +28,25 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: `${siteConfig.url}/og-auth.jpg`, // Same auth image as forgot password
+        url: `${siteConfig.url}/og-auth.jpg`,
         width: 1200,
         height: 630,
         alt: "Sign in to your MotoStix account"
       }
     ]
   },
-
   twitter: {
     card: "summary_large_image",
     title: `Sign In to Your Account | ${siteConfig.name}`,
     description: "Access your MotoStix account to manage orders, track shipments, and enjoy personalized shopping.",
     images: [`${siteConfig.url}/og-auth.jpg`],
-    creator: "@motostix" // Replace with your actual Twitter handle
+    creator: "@motostix"
   },
-
   alternates: {
     canonical: `${siteConfig.url}/login`
   },
-
   robots: {
-    index: true, // Allow indexing - login pages are commonly searched
+    index: true,
     follow: true,
     googleBot: {
       index: true,
@@ -59,20 +56,20 @@ export const metadata: Metadata = {
       "max-snippet": -1
     }
   },
-
-  // Security headers for auth pages
   other: {
     referrer: "strict-origin-when-cross-origin",
-    "X-Frame-Options": "DENY", // Prevent clickjacking attacks
+    "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()" // Restrict permissions
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
   }
 };
 
 export default function LoginPage() {
   return (
     <>
+      {/* IMPORTANT: LoginRedirect should respect ?redirect=/user or ?redirect=/admin if present */}
       <LoginRedirect />
+
       <div className="space-y-8">
         <AuthHeader
           title="Welcome Back"

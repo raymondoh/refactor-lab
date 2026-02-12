@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, CheckCircle } from "lucide-react";
-import { resendEmailVerification } from "@/actions/auth/resend-verification";
+import { resendVerification } from "@/actions/auth/resend-verification";
 import { toast } from "sonner";
 
 export function ResendVerificationForm() {
@@ -26,7 +26,7 @@ export function ResendVerificationForm() {
     formData.append("email", email);
 
     try {
-      const result = await resendEmailVerification(formData);
+      const result = await resendVerification(formData);
 
       if (result.success) {
         setMessage({
@@ -42,12 +42,14 @@ export function ResendVerificationForm() {
         });
         toast.error(result.error || "Failed to send verification email");
       }
-    } catch (error) {
-      const errorMessage = "An unexpected error occurred";
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+
       setMessage({
         type: "error",
         text: errorMessage
       });
+
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -65,7 +67,7 @@ export function ResendVerificationForm() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Resend Verification Email</h1>
           <p className="text-sm text-muted-foreground">
-            Enter your email address and we'll send you a new verification link
+            Enter your email address and we&apos;ll send you a new verification link
           </p>
         </div>
 

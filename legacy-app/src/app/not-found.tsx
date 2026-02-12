@@ -13,7 +13,9 @@ export default function NotFound() {
 
         {/* Heading and Description */}
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">404 – Page Not Found</h1>
-        <p className="text-muted-foreground text-base mb-8">Sorry, we couldn't find the page you're looking for.</p>
+        <p className="text-muted-foreground text-base mb-8">
+          Sorry, we couldn&quot;t find the page you&quot;re looking for.
+        </p>
 
         {/* Error Code */}
         <div className="text-8xl font-bold text-muted-foreground/20 mb-10">404</div>

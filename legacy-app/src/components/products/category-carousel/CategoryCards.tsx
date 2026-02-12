@@ -1,3 +1,4 @@
+// src/components/products/category-carousel/CategoryCards.tsx
 "use client";
 
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -15,12 +16,15 @@ interface CategoryCardsProps {
 export function CategoryCards({ categories, selectedCategory, onCategorySelect }: CategoryCardsProps) {
   const AllIcon = categoryIcons["all"] ?? DefaultIcon;
 
-  // Shared button styles
+  // Shared button styles - Simplified to use theme variables
   const baseBtn =
-    "w-full h-[50px] flex items-center justify-center rounded-lg transition-all px-2 py-2 gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
-  const selectedStyles =
-    "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/50 dark:bg-accent dark:text-accent-foreground dark:ring-accent/50";
-  const defaultStyles = "bg-black text-white hover:opacity-90 dark:bg-white dark:text-black";
+    "w-full h-[50px] flex items-center justify-center rounded-lg transition-all px-2 py-2 gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+
+  // Uses Racing Blue (Light) / MotoStix Yellow (Dark)
+  const selectedStyles = "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20";
+
+  // Uses Softer Slate (Light) / Deep Slate (Dark)
+  const defaultStyles = "bg-secondary text-secondary-foreground hover:bg-muted border border-border";
 
   // Uniform slide width for every card.
   const slideWidth = "basis-[128px]"; // ≈128 px keeps four‑ish cards visible on most phones.
@@ -31,7 +35,7 @@ export function CategoryCards({ categories, selectedCategory, onCategorySelect }
         {/* consistent 8 px gutter via -ml-2 + pl-2 */}
         <CarouselContent className="-ml-2">
           {/* "All" card (same width as others) */}
-          <CarouselItem key="all" className={`pl-2 ${slideWidth}`}>
+          <CarouselItem key="all" className={`pl-2 basis-[128px]`}>
             <button
               type="button"
               aria-label="Show all categories"
@@ -67,8 +71,24 @@ export function CategoryCards({ categories, selectedCategory, onCategorySelect }
         </CarouselContent>
 
         {/* Navigation */}
-        <CarouselPrevious className="absolute left-0 -translate-x-1/2 bg-background/80 backdrop-blur-sm shadow-md border-neutral-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none" />
-        <CarouselNext className="absolute right-0 translate-x-1/2 bg-background/80 backdrop-blur-sm shadow-md border-neutral-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none" />
+        <CarouselPrevious
+          className="absolute left-0 -translate-x-1/2 
+             bg-card/80 backdrop-blur-sm 
+             shadow-md 
+             border border-border/60 
+             opacity-0 group-hover:opacity-100 
+             transition-opacity 
+             disabled:opacity-0 disabled:pointer-events-none"
+        />
+        <CarouselNext
+          className="absolute right-0 translate-x-1/2 
+             bg-card/80 backdrop-blur-sm 
+             shadow-md 
+             border border-border/60 
+             opacity-0 group-hover:opacity-100 
+             transition-opacity 
+             disabled:opacity-0 disabled:pointer-events-none"
+        />
       </Carousel>
     </div>
   );

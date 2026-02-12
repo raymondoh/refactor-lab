@@ -36,7 +36,7 @@ export function CategoryCardsWrapper({
       newCategory
     );
     setSelectedCategory(newCategory);
-  }, [searchParams]);
+  }, [searchParams, selectedCategory]);
 
   const handleCategorySelect = (categoryId: string | null) => {
     const nextCategory = categoryId ?? "all";

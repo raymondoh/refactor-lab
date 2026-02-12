@@ -1,8 +1,6 @@
 // __tests__/LoginForm.test.tsx
 import { render, screen, fireEvent } from "@testing-library/react";
 import { LoginForm } from "../auth/LoginForm";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 // Polyfill global Request for next/cache
 global.Request = class {} as unknown as typeof Request;

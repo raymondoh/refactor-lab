@@ -1,3 +1,4 @@
+// src/contexts/SearchContext.tsx
 "use client";
 
 import { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from "react";
@@ -5,9 +6,14 @@ import { useRouter } from "next/navigation";
 import { useDebounce } from "@/hooks/use-debounce";
 import Fuse, { type IFuseOptions } from "fuse.js"; // Keep this import as is
 
+type SearchCollection = "users" | "products" | "posts";
+
 export interface SearchResult {
   id: string;
-  [key: string]: any;
+  _collection?: SearchCollection;
+  url?: string;
+  // allow arbitrary extra fields without using `any`
+  [key: string]: unknown;
 }
 
 interface SearchContextType {
@@ -32,11 +38,10 @@ interface SearchContextType {
   navigateToResult: (r: SearchResult) => void;
 
   // Data management
-  // Corrected line:
   setSearchableData: (data: SearchResult[], options?: IFuseOptions<SearchResult>) => void;
 }
 
-const SearchContext = createContext<SearchContextType>({} as any);
+const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
 export function SearchProvider({ children }: { children: React.ReactNode }) {
   const [query, setQueryState] = useState("");
@@ -49,7 +54,6 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
   const debouncedQuery = useDebounce(query, 300);
   const router = useRouter();
 
-  // Corrected line:
   const setSearchableData = useCallback((data: SearchResult[], options?: IFuseOptions<SearchResult>) => {
     fuseRef.current = new Fuse<SearchResult>(data, options);
   }, []);
@@ -89,9 +93,11 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
   const selectNextResult = useCallback(() => {
     if (results.length) setSelectedIndex(i => (i + 1) % results.length);
   }, [results]);
+
   const selectPrevResult = useCallback(() => {
     if (results.length) setSelectedIndex(i => (i - 1 + results.length) % results.length);
   }, [results]);
+
   const selectResult = useCallback(
     (i: number) => {
       if (i >= 0 && i < results.length) setSelectedIndex(i);
@@ -102,11 +108,14 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
   const navigateToResult = useCallback(
     (result: SearchResult) => {
       setIsOpen(false);
+
       let url = "/";
+
       if (result._collection === "users") url = `/user/${result.id}`;
       else if (result._collection === "products") url = `/products/${result.id}`;
       else if (result._collection === "posts") url = `/posts/${result.id}`;
-      else if ((result as any).url) url = (result as any).url;
+      else if (typeof result.url === "string" && result.url) url = result.url;
+
       router.push(url);
     },
     [router]
@@ -157,5 +166,7 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useSearch() {
-  return useContext(SearchContext);
+  const ctx = useContext(SearchContext);
+  if (!ctx) throw new Error("useSearch must be used within a SearchProvider");
+  return ctx;
 }

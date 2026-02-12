@@ -7,6 +7,7 @@ import { formatDate } from "@/utils/date";
 import type { SerializedUser } from "@/types/models/user";
 import { UserRowActions } from "./UserRowActions";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import type { Column } from "@tanstack/react-table";
 
 type UserColumnActions = {
   onView?: (id: string) => void;
@@ -26,7 +27,7 @@ function getRoleIcon(role: string | undefined) {
   }
 }
 
-function RegisteredHeader({ column }: { column: any }) {
+function RegisteredHeader({ column }: { column: Column<SerializedUser, unknown> }) {
   return (
     <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
       Registered

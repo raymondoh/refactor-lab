@@ -1,3 +1,4 @@
+// src/components/dashboard/DashboardHeader.tsx
 import React from "react";
 import { ChevronRight } from "lucide-react";
 

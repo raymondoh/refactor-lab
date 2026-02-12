@@ -1,7 +1,7 @@
-//src/components/dashboard/admin/users/AdminUserEditDialog.tsx
+// src/components/dashboard/admin/users/AdminUserEditDialog.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateUser } from "@/actions/user/admin";
 import { toast } from "sonner";
+
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import type { UserRole, SerializedUser } from "@/types/models/user";
-import { SubmitButton } from "@/components/shared/SubmitButton"; // make sure this is imported
+import { SubmitButton } from "@/components/shared/SubmitButton";
 
 interface AdminUserEditDialogProps {
   user: SerializedUser;
@@ -29,27 +30,57 @@ interface AdminUserEditDialogProps {
 export function AdminUserEditDialog({ user, open, onOpenChange, onSuccess }: AdminUserEditDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: user.name || "",
-    role: user.role || "user"
-  });
+  const initial = useMemo(
+    () => ({
+      name: user.name || "",
+      role: (user.role || "user") as UserRole
+    }),
+    [user.name, user.role]
+  );
+
+  const [formData, setFormData] = useState(initial);
+
+  useEffect(() => {
+    setFormData(initial);
+  }, [initial]);
+
+  const hasChanges = formData.role !== initial.role || formData.name.trim() !== (initial.name || "").trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const payload = {
+      name: formData.name.trim(),
+      role: formData.role
+    };
+
+    if (!hasChanges) {
+      toast.message("No changes to save.");
+      onOpenChange(false);
+      return;
+    }
+
+    if (payload.name.length === 0) {
+      toast.error("Name cannot be empty.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const result = await updateUser(user.id, formData);
-      if (result.success) {
-        toast.success("User updated successfully");
-        onOpenChange(false);
-        onSuccess?.();
-      } else {
+      const result = await updateUser(user.id, payload);
+
+      if (!result.success) {
         toast.error(result.error || "Failed to update user.");
+        return;
       }
+
+      toast.success("User updated successfully");
+      onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
-      const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred";
       console.error("Error updating user:", error);
+      const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -63,6 +94,7 @@ export function AdminUserEditDialog({ user, open, onOpenChange, onSuccess }: Adm
           <DialogTitle>Edit User</DialogTitle>
           <DialogDescription>Update the user&apos;s name or role.</DialogDescription>
         </DialogHeader>
+
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -97,7 +129,7 @@ export function AdminUserEditDialog({ user, open, onOpenChange, onSuccess }: Adm
           </div>
 
           <DialogFooter>
-            <SubmitButton isLoading={isLoading} loadingText="Saving...">
+            <SubmitButton isLoading={isLoading} loadingText="Saving..." disabled={!hasChanges}>
               Save Changes
             </SubmitButton>
           </DialogFooter>

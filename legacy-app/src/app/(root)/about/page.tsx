@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
 import { PageHeader } from "@/components/shared/PageHeader";
-import Image from "next/image"; // Keep if used in other parts of the page not shown
-import { Mail } from "lucide-react"; // Keep if used
-import Link from "next/link"; // Keep if used
-
-import { ProductCarousel } from "@/components/shared/ProductCarousel"; // Your import for the carousel
-import type { Product } from "@/types/models/product";
+import { Mail } from "lucide-react";
+import Link from "next/link";
+import type { SerializedProduct } from "@/types/product";
+import { ProductCarousel } from "@/components/shared/ProductCarousel";
 
 export const metadata: Metadata = {
   title: `About Us - My Story & Our Craft | ${siteConfig.name}`,
@@ -52,19 +50,18 @@ export const metadata: Metadata = {
   }
 };
 
-const placeholderProducts: Product[] = [
+const placeholderProducts: SerializedProduct[] = [
   {
     id: "feat-1",
     name: "Bestselling Moto Sticker",
-    image: "/images/hero-bg.jpg", // Ensure this image path is correct
+    image: "/images/hero-bg.jpg",
     price: 7.99,
     onSale: false,
     category: "Motorbikes",
-    //slug: "bestselling-moto-sticker", // Added slug, often useful
     inStock: true,
-    averageRating: 4.8, // Assuming you want to include average rating
-    reviewCount: 150, // Assuming you want to include review count
-    createdAt: new Date().toISOString()
+    averageRating: 4.8,
+    reviewCount: 150,
+    createdAt: new Date().toISOString() // This is now explicitly a string
   },
   {
     id: "feat-2",
@@ -116,7 +113,7 @@ export default function AboutPage() {
   return (
     <main className="min-h-screen ">
       {/* Hero Section with PageHeader (remains centered) */}
-      <section className="py-16 w-full bg-background">
+      <section className="py-16 w-full">
         {" "}
         {/* Removed page-glow-container for now */}
         <div className="container mx-auto px-4">
@@ -131,15 +128,15 @@ export default function AboutPage() {
               <h2 className="text-3xl font-bold mb-6">Our Story</h2>
               <div className="w-12 h-0.5 bg-primary mb-6"></div>
               <p>
-                Hi, I'm [Your Name/Nickname], the founder and creative force behind MotoStix. What started in [Year] as
-                a personal quest for the perfect [motorcycle/car] decal has grown into a passion for helping fellow
-                enthusiasts express their individuality.
+                Hi, I&apos;m [Your Name/Nickname], the founder and creative force behind MotoStix. What started in
+                [Year] as a personal quest for the perfect [motorcycle/car] decal has grown into a passion for helping
+                fellow enthusiasts express their individuality.
               </p>
               <p>
-                As a rider myself, I understand the connection we have with our machines. They're more than just
-                transport; they're an extension of our personality. That's why I pour my energy into creating
+                As a rider myself, I understand the connection we have with our machines. They&apos;re more than just
+                transport; they&apos;re an extension of our personality. That&apos;s why I pour my energy into creating
                 high-quality, durable, and unique designs that resonate with the spirit of the ride. Every sticker is
-                crafted with the same care and attention to detail I'd want for my own bike.
+                crafted with the same care and attention to detail I&apos;d want for my own bike.
               </p>
             </article>
           </div>
@@ -158,7 +155,7 @@ export default function AboutPage() {
                 premium-grade vinyl and laminates, ensuring your stickers can withstand the elements – sun, rain, mud,
                 and whatever else the road throws your way. My process focuses on precision cutting and vibrant,
                 long-lasting colors, so your chosen design looks sharp for years to come. From initial concept to the
-                final product, my goal is to deliver a sticker you'll be proud to display.
+                final product, my goal is to deliver a sticker you&apos;ll be proud to display.
               </p>
             </article>
           </div>
@@ -225,7 +222,7 @@ export default function AboutPage() {
             <h2 className="text-3xl font-bold mb-6">Get In Touch</h2>
             <div className="w-12 h-0.5 bg-primary mb-6"></div>
             <p className="text-muted-foreground mb-8 max-w-2xl">
-              Have questions, a custom request, or just want to talk stickers? I'd love to hear from you.
+              Have questions, a custom request, or just want to talk stickers? I&apos;d love to hear from you.
             </p>
             <div className="space-y-4">
               <div className="flex items-center gap-3">

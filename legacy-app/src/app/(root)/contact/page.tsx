@@ -13,7 +13,7 @@ export default function ContactPage() {
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
-      <section className="py-16 w-full bg-background">
+      <section className="py-16 w-full">
         <div className="container mx-auto px-4">
           {/* 2. Replace the old header div with the new component */}
           <PageHeader
@@ -66,7 +66,7 @@ export default function ContactPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 w-full bg-background">
+      <section className="py-16 w-full">
         <div className="container mx-auto px-4">
           <div className="flex flex-col items-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">Frequently Asked Questions</h2>

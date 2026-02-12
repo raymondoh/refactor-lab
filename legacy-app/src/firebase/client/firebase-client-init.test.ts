@@ -1,5 +1,9 @@
 // src/firebase/client/firebase-client-init.test.ts
 
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
 jest.mock("firebase/app", () => ({
   initializeApp: jest.fn(() => "mockApp"),
   getApps: jest.fn(() => []),
@@ -35,20 +39,26 @@ describe("firebase-client-init", () => {
     process.env = OLD_ENV;
   });
 
-  it("should initialize Firebase if no apps exist", () => {
-    const { initializeApp } = require("firebase/app");
-    const { auth, db } = require("./firebase-client-init");
+  it("should initialize Firebase if no apps exist", async () => {
+    await jest.isolateModulesAsync(async () => {
+      const mod = await import("./firebase-client-init");
 
-    expect(initializeApp).toHaveBeenCalled();
-    expect(auth).toBe("mockAuth");
-    expect(db).toBe("mockFirestore");
+      expect(initializeApp).toHaveBeenCalled();
+      expect(getAuth).toHaveBeenCalled();
+      expect(getFirestore).toHaveBeenCalled();
+
+      expect(mod.auth).toBe("mockAuth");
+      expect(mod.db).toBe("mockFirestore");
+    });
   });
 
-  it("should throw if required env vars are missing", () => {
+  it("should throw if required env vars are missing", async () => {
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY = "";
 
-    expect(() => {
-      require("./firebase-client-init");
-    }).toThrow(/Missing Firebase environment variables/);
+    await expect(
+      jest.isolateModulesAsync(async () => {
+        await import("./firebase-client-init");
+      })
+    ).rejects.toThrow(/Missing Firebase environment variables/);
   });
 });

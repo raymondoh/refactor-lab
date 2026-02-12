@@ -1,6 +1,5 @@
 "use client";
 
-import type { ShippingFormValues } from "@/schemas/ecommerce/stripe";
 import { Separator } from "@/components/ui/separator";
 // 1. Import the new 'formatPrice' function
 import { formatPrice } from "@/lib/utils";
@@ -11,10 +10,9 @@ export interface CheckoutSummaryProps {
   tax: number;
   shipping: number;
   total: number;
-  shippingDetails?: ShippingFormValues;
 }
 
-export function CheckoutSummary({ subtotal, tax, shipping, total, shippingDetails }: CheckoutSummaryProps) {
+export function CheckoutSummary({ subtotal, tax, shipping, total }: CheckoutSummaryProps) {
   // We can now directly use DEFAULT_CURRENCY from your config file
   const currency = DEFAULT_CURRENCY;
 

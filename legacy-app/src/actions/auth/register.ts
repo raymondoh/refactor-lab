@@ -1,6 +1,7 @@
+// legacy-app/src/actions/auth/register.ts
 "use server";
 
-import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { serverTimestamp } from "@/utils/date-server";
 import { logActivity } from "@/firebase/actions";
 import { registerSchema } from "@/schemas";
@@ -10,7 +11,7 @@ import { logServerEvent, logger } from "@/utils/logger";
 import type { Auth } from "@/types";
 
 export async function registerUser(
-  prevState: Auth.RegisterState | null,
+  _prevState: Auth.RegisterState | null,
   formData: FormData
 ): Promise<Auth.RegisterState> {
   //const name = formData.get("name") as string;
@@ -32,46 +33,49 @@ export async function registerUser(
   try {
     const passwordHash = await hashPassword(password);
 
-    let userRecord;
-    try {
-      userRecord = await getAdminAuth().createUser({
-        email,
-        password,
-        //displayName: name || email.split("@")[0],
-        emailVerified: false
-      });
+    // 1) Create Auth user (service-driven)
+    const createRes = await adminAuthService.createAuthUser({
+      email,
+      password,
+      //displayName: name || email.split("@")[0],
+      emailVerified: false
+    });
 
-      logger({ type: "info", message: `User created in Auth: ${email}`, context: "auth" });
-    } catch (error: unknown) {
-      logger({ type: "error", message: `Auth user creation failed: ${email}`, metadata: { error }, context: "auth" });
-
-      if (isFirebaseError(error) && error.code === "auth/email-already-exists") {
+    if (!createRes.success) {
+      // Preserve your special case
+      if (createRes.error.includes("email-already-exists")) {
         const msg = "Email already in use. Please try logging in instead.";
-        return {
-          success: false,
-          message: msg,
-          error: msg
-        };
+        return { success: false, message: msg, error: msg };
       }
 
-      const message = isFirebaseError(error) ? firebaseError(error) : "Failed to create user";
-      return {
-        success: false,
-        message,
-        error: message
-      };
+      return { success: false, message: createRes.error, error: createRes.error };
     }
 
-    const usersSnapshot = await getAdminFirestore().collection("users").count().get();
-    const isFirstUser = usersSnapshot.data().count === 0;
+    const userId = createRes.data.uid;
+
+    logger({ type: "info", message: `User created in Auth: ${email}`, context: "auth" });
+
+    // 2) Determine role (service-driven count)
+    const countRes = await adminAuthService.countUsers();
+    if (!countRes.success) {
+      return { success: false, message: countRes.error, error: countRes.error };
+    }
+
+    const isFirstUser = countRes.data.count === 0;
     const role = isFirstUser ? "admin" : "user";
 
+    // 3) Promote first user (service-driven)
     if (isFirstUser) {
-      await getAdminAuth().setCustomUserClaims(userRecord.uid, { role: "admin" });
+      const claimRes = await adminAuthService.setUserRoleClaim(userId, "admin");
+      if (!claimRes.success) {
+        return { success: false, message: claimRes.error, error: claimRes.error };
+      }
+
       logger({ type: "info", message: `First user promoted to admin: ${email}`, context: "auth" });
     }
 
-    await getAdminFirestore().collection("users").doc(userRecord.uid).set({
+    // 4) Create Firestore user doc (service-driven)
+    const docRes = await adminAuthService.createUserDoc(userId, {
       //name: name || email.split("@")[0],
       email,
       role,
@@ -80,9 +84,14 @@ export async function registerUser(
       createdAt: serverTimestamp()
     });
 
+    if (!docRes.success) {
+      return { success: false, message: docRes.error, error: docRes.error };
+    }
+
+    // 5) Log activity (best-effort)
     try {
       await logActivity({
-        userId: userRecord.uid,
+        userId,
         type: "register",
         description: "Account created, email verification required",
         status: "success"
@@ -99,12 +108,8 @@ export async function registerUser(
     await logServerEvent({
       type: "auth:register",
       message: `User registered: ${email}`,
-      userId: userRecord.uid,
-      metadata: {
-        uid: userRecord.uid,
-        email,
-        role
-      },
+      userId,
+      metadata: { uid: userId, email, role },
       context: "auth"
     });
 
@@ -112,7 +117,7 @@ export async function registerUser(
       success: true,
       message: "Registration successful! Please verify your email.",
       data: {
-        userId: userRecord.uid,
+        userId,
         email,
         role,
         requiresVerification: true,

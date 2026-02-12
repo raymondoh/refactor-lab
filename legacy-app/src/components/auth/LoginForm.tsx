@@ -1,14 +1,14 @@
+// src/components/auth/LoginForm.tsx
 "use client";
 
 import type React from "react";
 
 import { useState, useEffect, useRef, startTransition, useActionState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle } from "lucide-react"; // Removed ShieldCheck as it was only for 2FA UI
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button"; // Kept, but ensure it's used if 2FA cancel button was its only use. It is used for "Cancel" in the original, but that part of UI is gone. Assuming it might be used by other components or future states, otherwise can be removed if no other Button component is used. Re-checking the final JSX, there is no regular <Button /> left, only <SubmitButton /> and <GoogleAuthButton />. So if this 'Button' specifically refers to the generic one, it might be removable. However, 'SubmitButton' likely uses 'Button' as a base or has its own styling. For safety, let's assume `Button` from `components/ui/button` might be used by `SubmitButton` or `GoogleAuthButton` as a primitive or is generally available. If SubmitButton and GoogleAuthButton are self-contained or use a different Button primitive, then this specific import might be unneeded. *User should verify this based on their `SubmitButton` and `GoogleAuthButton` implementations.* For now, I will keep it as it's a common UI component.
 import { toast } from "sonner";
 import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "@/firebase/client/firebase-client-init";
@@ -23,8 +23,34 @@ import { UniversalPasswordInput } from "@/components/forms/UniversalPasswordInpu
 
 type LoginState = LoginResponse | null;
 
+function sanitizeRedirectPath(input: string | null): string | null {
+  if (!input) return null;
+
+  // decode once (in case it’s encoded)
+  const value = (() => {
+    try {
+      return decodeURIComponent(input);
+    } catch {
+      return input;
+    }
+  })();
+
+  // Prevent open redirects: must be a relative path starting with "/"
+  if (!value.startsWith("/")) return null;
+
+  // Prevent protocol-relative or weird cases
+  if (value.startsWith("//")) return null;
+
+  // Optional: block auth pages to avoid loops
+  const blocked = ["/login", "/register", "/verify-email", "/forgot-password"];
+  if (blocked.some(p => value === p || value.startsWith(`${p}/`))) return null;
+
+  return value;
+}
+
 export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { update } = useSession();
 
   const [email, setEmail] = useState("");
@@ -36,14 +62,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
   const loginErrorToastShown = useRef(false);
   const isRedirecting = useRef(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
-
-  function resetForm() {
-    setEmail("");
-    setPassword("");
-    loginErrorToastShown.current = false;
-    isRedirecting.current = false;
-    emailInputRef.current?.focus();
-  }
+  const isUnverifiedError = !state?.success && state?.message?.toLowerCase().includes("verify");
 
   const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (value: string) => {
     setter(value);
@@ -60,6 +79,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
     formData.append("email", email);
     formData.append("password", password);
     formData.append("isRegistration", "false");
+
     startTransition(() => {
       action(formData);
     });
@@ -73,44 +93,59 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       loginErrorToastShown.current = true;
       isRedirecting.current = true;
 
+      const redirectParam = searchParams.get("redirect");
+      const safeRedirect = sanitizeRedirectPath(redirectParam);
+
       const handleRedirect = async () => {
         try {
           if (!auth || !state.data?.customToken) throw new Error("Missing auth or customToken");
 
-          try {
-            const userCredential = await signInWithCustomToken(auth, state.data.customToken);
-            const idToken = await userCredential.user.getIdToken();
-            const signInResult = await signInWithNextAuth({ idToken });
+          const userCredential = await signInWithCustomToken(auth, state.data.customToken);
+          const idToken = await userCredential.user.getIdToken();
+          const signInResult = await signInWithNextAuth({ idToken });
 
-            if (!signInResult.success) throw new Error("NextAuth sign-in failed");
+          if (!signInResult.success) throw new Error("NextAuth sign-in failed");
 
-            await update();
-            router.push("/");
-          } catch (error) {
-            // Any error during the Firebase custom token sign-in or NextAuth update
-            // will be caught here and re-thrown to the outer catch block.
-            throw error;
+          // Ensure next-auth session cookie is refreshed
+          const updated = await update();
+
+          // Prefer redirect param (e.g. /user after verify)
+          if (safeRedirect) {
+            router.replace(safeRedirect);
+            return;
           }
+
+          // Otherwise choose a sensible role-based default if possible
+          const role = (updated?.user as any)?.role;
+          if (role === "admin") {
+            router.replace("/admin");
+            return;
+          }
+          if (role === "user") {
+            router.replace("/user");
+            return;
+          }
+
+          // Fallback
+          router.replace("/");
         } catch (error) {
           console.error("[LOGIN] Error during redirect:", error);
           toast.error(isFirebaseError(error) ? firebaseError(error) : "An error occurred during login");
           isRedirecting.current = false;
-          // Resetting this flag allows a new error toast from a subsequent server action to be shown if needed.
           loginErrorToastShown.current = false;
         }
       };
 
-      handleRedirect();
+      void handleRedirect();
     } else if (state.message && !state.success && !loginErrorToastShown.current) {
       loginErrorToastShown.current = true;
       toast.error(state.message || "Login failed.");
     }
-  }, [state, router, update]); // `auth` is implicitly a dependency if used directly from module scope, or should be passed if it can change and is from context/props. Assuming `auth` from import is stable.
+  }, [state, router, update, searchParams]);
 
   return (
     <div className={`w-full ${className}`} {...props}>
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Display error messages from the server action (e.g., invalid credentials) */}
         {state?.message && !state.success && (
           <Alert variant="destructive">
             <AlertCircle className="h-6 w-6" />
@@ -118,7 +153,6 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
           </Alert>
         )}
 
-        {/* Regular Login UI */}
         <>
           <UniversalInput
             id="email"
@@ -128,7 +162,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
             type="email"
             placeholder="Enter your email"
             required
-            ref={emailInputRef} // Assign ref here if you want to focus it
+            ref={emailInputRef}
           />
 
           <div className="space-y-2">
@@ -171,11 +205,25 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
           </div>
         </>
 
-        {/* Removed id="recaptcha-container" div as it was likely for 2FA phone verification's reCAPTCHA */}
+        {state?.message && !state.success && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-6 w-6" />
+            <AlertDescription className="text-base flex flex-col gap-2">
+              <span>{state.message}</span>
+              {isUnverifiedError && (
+                <Link
+                  href={`/verify-email?email=${encodeURIComponent(email)}`}
+                  className="text-sm font-bold underline hover:opacity-80">
+                  Resend verification link
+                </Link>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="pt-6 text-center">
           <p className="text-base text-muted-foreground">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="font-semibold text-primary hover:underline">
               Sign up
             </Link>

@@ -1,6 +1,6 @@
 "use server";
 
-import { getRelatedProducts } from "@/firebase/admin/products";
+import { adminProductService } from "@/lib/services/admin-product-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 // Get related products
@@ -15,15 +15,21 @@ export async function getRelatedProductsAction(params: {
   limit?: number;
 }) {
   try {
-    const result = await getRelatedProducts(params);
-    return result;
+    const result = await adminProductService.getRelatedProducts(params);
+
+    if (!result.success) {
+      return { success: false as const, error: result.error };
+    }
+
+    // Maintain legacy return shape: { success, products }
+    return { success: true as const, products: result.data };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error fetching related products";
-    return { success: false, error: message };
+        ? error.message
+        : "Unknown error fetching related products";
+    return { success: false as const, error: message };
   }
 }
 

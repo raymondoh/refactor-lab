@@ -1,57 +1,47 @@
+// src/actions/data-privacy/export.ts
 "use server";
 
-import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
+import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
+import { adminOrderService } from "@/lib/services/admin-order-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/log/logActivity";
+import { logActivity } from "@/firebase/actions";
 
-// Export user data
-export async function exportUserData(prevState: any, formData: FormData) {
+function normalizeFormat(raw: unknown): "json" | "csv" {
+  const v = typeof raw === "string" ? raw.toLowerCase().trim() : "";
+  return v === "csv" ? "csv" : "json";
+}
+
+export async function exportUserData(_prevState: unknown, formData: FormData) {
   try {
-    // Dynamic import to avoid build-time initialization
     const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+      return { success: false as const, error: "Not authenticated" };
     }
 
     const userId = session.user.id;
-    const format = (formData.get("format") as string) || "json";
-    const db = getAdminFirestore();
+    const format = normalizeFormat(formData.get("format"));
 
-    // Get user profile
-    const userDoc = await db.collection("users").doc(userId).get();
-    const userData = userDoc.data();
-
-    if (!userData) {
-      return { success: false, error: "User data not found" };
+    // ✅ Get profile/likes/activity via service
+    const exportRes = await adminDataPrivacyService.exportUserData(userId);
+    if (!exportRes.success) {
+      return { success: false as const, error: exportRes.error };
     }
 
-    // Get user orders
-    const ordersSnapshot = await db.collection("orders").where("userId", "==", userId).get();
-    const orders = ordersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const { user, likes, activity } = exportRes.data;
 
-    // Get user likes
-    const likesSnapshot = await db.collection("users").doc(userId).collection("likes").get();
-    const likes = likesSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (!user) {
+      return { success: false as const, error: "User data not found" };
+    }
 
-    // Get user activity
-    const activitySnapshot = await db.collection("activity").where("userId", "==", userId).get();
-    const activity = activitySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // ✅ Get orders via service (best-effort)
+    const ordersResult = await adminOrderService.getUserOrders(userId);
+    const orders = ordersResult.success ? ordersResult.data : [];
 
-    // Compile all data
     const exportData = {
       profile: {
-        ...userData,
+        ...user,
         id: userId
       },
       orders,
@@ -69,49 +59,58 @@ export async function exportUserData(prevState: any, formData: FormData) {
       contentType = "application/json";
       fileExtension = "json";
     } else {
-      // Simple CSV conversion for profile data
+      // Simple CSV conversion for profile data only (as before)
       const csvData = Object.entries(exportData.profile)
         .map(([key, value]) => `${key},${JSON.stringify(value)}`)
         .join("\n");
+
       fileContent = `key,value\n${csvData}`;
       contentType = "text/csv";
       fileExtension = "csv";
     }
 
-    // Store file in Firebase Storage
-    const storage = getAdminStorage();
-    const fileName = `data-exports/${userId}/user-data-${Date.now()}.${fileExtension}`;
-    const file = storage.bucket().file(fileName);
-
-    await file.save(fileContent, {
-      metadata: { contentType }
-    });
-
-    // Get signed URL for download
-    const [signedUrl] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + 60 * 60 * 1000 // 1 hour
-    });
-
-    await logActivity({
+    // ✅ Store file in Firebase Storage + signed URL via service
+    const fileRes = await adminDataPrivacyService.createSignedExportFile({
       userId,
-      type: "data-export",
-      description: "User data exported",
-      status: "success"
+      fileContent,
+      contentType,
+      fileExtension
     });
+
+    if (!fileRes.success) {
+      return { success: false as const, error: fileRes.error };
+    }
+
+    // Log activity (best-effort)
+    try {
+      await logActivity({
+        userId,
+        type: "data-export",
+        description: "User data exported",
+        status: "success",
+        metadata: {
+          format,
+          includedOrders: orders.length,
+          ordersFetchFailed: !ordersResult.success ? ordersResult.error : undefined
+        }
+      });
+    } catch (e) {
+      console.warn("exportUserData: logActivity failed:", e);
+    }
 
     return {
-      success: true,
-      downloadUrl: signedUrl,
+      success: true as const,
+      downloadUrl: fileRes.data.downloadUrl,
       message: `Your data has been exported in ${format.toUpperCase()} format`
     };
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
-      ? error.message
-      : "Unknown error exporting user data";
+        ? error.message
+        : "Unknown error exporting user data";
+
     console.error("Error exporting user data:", message);
-    return { success: false, error: message };
+    return { success: false as const, error: message };
   }
 }

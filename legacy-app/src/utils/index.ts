@@ -19,3 +19,4 @@ export * from "./serializeUser";
 export * from "./uploadFile";
 export * from "./validateFileSize";
 export * from "./logger";
+export * from "./product-images";

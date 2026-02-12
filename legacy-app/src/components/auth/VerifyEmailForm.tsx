@@ -1,127 +1,130 @@
+// src/components/auth/VerifyEmailForm.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Mail, ArrowRight, LoaderCircle, XCircle } from "lucide-react";
+import { Mail, LoaderCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/firebase/client/firebase-client-init";
-import { applyActionCode } from "firebase/auth";
-import { updateEmailVerificationStatus } from "@/actions/auth/email-verification";
-import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+
+type VerifyStatus = "instructions" | "loading" | "success" | "error";
+
+type VerifyOk = {
+  success: true;
+  message: string;
+  role?: string;
+  redirectPath?: string;
+};
+
+type VerifyErr = { error: string; reason?: string | null } | { error: string };
 
 export function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [status, setStatus] = useState<"instructions" | "loading" | "success" | "error">("instructions");
+  const [status, setStatus] = useState<VerifyStatus>("instructions");
   const [errorMessage, setErrorMessage] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const verificationAttempted = useRef(false);
-  const processedCode = useRef<string | null>(null);
+  const attempted = useRef(false);
+  const lastKey = useRef<string | null>(null);
 
   useEffect(() => {
+    const token = searchParams.get("token");
     const mode = searchParams.get("mode");
     const oobCode = searchParams.get("oobCode");
-    const continueUrl = searchParams.get("continueUrl") || "";
 
-    if (verificationAttempted.current && processedCode.current === oobCode) return;
+    const isFirebaseVerify = mode === "verifyEmail" && !!oobCode;
+    const isCustomVerify = !!token;
 
-    if (mode === "verifyEmail" && oobCode) {
-      verificationAttempted.current = true;
-      processedCode.current = oobCode;
-      setStatus("loading");
-
-      let userIdFromContinueUrl = "";
-      try {
-        const url = new URL(continueUrl);
-        userIdFromContinueUrl = url.searchParams.get("uid") || "";
-      } catch (e) {
-        console.error("Invalid continueUrl format:", e);
-      }
-
-      const verifyEmail = async () => {
-        try {
-          await applyActionCode(auth, oobCode);
-          const user = auth.currentUser;
-
-          if (user) {
-            await user.reload();
-            if (user.emailVerified) {
-              await updateEmailVerificationStatus({ userId: user.uid, verified: true });
-              setIsRedirecting(true);
-              router.push("/verify-success");
-            } else {
-              setStatus("error");
-              setErrorMessage("Email verification failed. Please try again.");
-            }
-          }
-        } catch (error: unknown) {
-          if (isFirebaseError(error)) {
-            console.error("FirebaseError:", error.code, error.message);
-
-            if (error.code === "auth/invalid-action-code") {
-              const user = auth.currentUser;
-
-              try {
-                await user?.reload();
-              } catch (reloadError) {
-                console.error("Reload error:", reloadError);
-              }
-
-              if (user?.emailVerified) {
-                await updateEmailVerificationStatus({ userId: user.uid, verified: true });
-                setIsRedirecting(true);
-                router.push("/verify-success");
-                return;
-              }
-
-              if (userIdFromContinueUrl) {
-                try {
-                  await updateEmailVerificationStatus({ userId: userIdFromContinueUrl, verified: true });
-                  setIsRedirecting(true);
-                  router.push("/verify-success");
-                  return;
-                } catch (firestoreError) {
-                  console.error("Firestore update fallback failed:", firestoreError);
-                }
-              }
-
-              setStatus("error");
-              setErrorMessage(
-                "This verification link has already been used. If you've already verified your email, you can log in."
-              );
-            } else {
-              setStatus("error");
-              setErrorMessage(firebaseError(error));
-            }
-          } else {
-            console.error("Unexpected error:", error);
-            setStatus("error");
-            setErrorMessage("An unexpected error occurred. Please try again.");
-          }
-        }
-      };
-
-      verifyEmail();
+    if (!isCustomVerify && !isFirebaseVerify) {
+      setStatus("instructions");
+      return;
     }
+
+    const currentKey = token || oobCode || "";
+    if (attempted.current && lastKey.current === currentKey) return;
+
+    attempted.current = true;
+    lastKey.current = currentKey;
+
+    setStatus("loading");
+    setErrorMessage("");
+
+    const run = async () => {
+      try {
+        const payload = token ? { token } : { oobCode, mode };
+
+        const res = await fetch("/api/auth/verify-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          cache: "no-store"
+        });
+
+        const data = (await res.json()) as VerifyOk | VerifyErr;
+
+        if (!res.ok) {
+          const msg =
+            "error" in data && typeof data.error === "string" ? data.error : "Invalid or expired verification link.";
+          setStatus("error");
+          setErrorMessage(msg);
+          return;
+        }
+
+        if ("success" in data && data.success) {
+          const nextPath = data.redirectPath?.startsWith("/") ? data.redirectPath : "/user";
+          setIsRedirecting(true);
+          router.replace(`/login?redirect=${encodeURIComponent(nextPath)}`);
+
+          return;
+        }
+
+        setStatus("success");
+      } catch (error: unknown) {
+        console.error("Verification error:", error);
+        setStatus("error");
+        setErrorMessage("An unexpected error occurred. Please try again.");
+      }
+    };
+
+    void run();
   }, [searchParams, router]);
 
-  if (isRedirecting) {
+  // State: Redirecting OR Instructions (The "Clean" View)
+  if (isRedirecting || status === "instructions") {
     return (
-      <div className="w-full">
-        <div className="relative py-8 sm:py-10 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <LoaderCircle className="h-10 w-10 text-primary animate-spin" />
+      <div className="w-full text-center">
+        <div className="py-6 space-y-6">
+          <div className="flex justify-center">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+              {isRedirecting ? (
+                <LoaderCircle className="h-8 w-8 text-primary animate-spin" />
+              ) : (
+                <Mail className="h-8 w-8 text-primary" />
+              )}
             </div>
           </div>
 
-          <div className="space-y-2 mb-6">
-            <h1 className="text-3xl font-semibold tracking-tight">Redirecting...</h1>
-            <p className="text-muted-foreground">Please wait while we redirect you.</p>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">{isRedirecting ? "Email Verified!" : "Check your email"}</h2>
+            <p className="text-muted-foreground text-base max-w-[320px] mx-auto">
+              {isRedirecting
+                ? "Verification successful. Redirecting you now..."
+                : "We sent a link to your inbox. Please click it to activate your account."}
+            </p>
           </div>
+
+          {!isRedirecting && (
+            <div className="pt-6 border-t">
+              <p className="text-sm text-muted-foreground">
+                Didn&apos;t receive it? Check spam or{" "}
+                <Link href="/verify-email" className="font-bold text-primary hover:underline">
+                  Resend link
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -129,89 +132,34 @@ export function VerifyEmailForm() {
 
   if (status === "loading") {
     return (
-      <div className="w-full">
-        <div className="relative py-8 sm:py-10 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <LoaderCircle className="h-10 w-10 text-primary animate-spin" />
-            </div>
-          </div>
-
-          <div className="space-y-2 mb-6">
-            <h1 className="text-3xl font-semibold tracking-tight">Verifying Email...</h1>
-            <p className="text-muted-foreground">Please wait while we verify your email address.</p>
-          </div>
-        </div>
+      <div className="w-full py-10 text-center">
+        <LoaderCircle className="h-10 w-10 text-primary animate-spin mx-auto mb-4" />
+        <h1 className="text-2xl font-semibold">Verifying...</h1>
       </div>
     );
   }
 
   if (status === "error") {
     return (
-      <div className="w-full">
-        <div className="relative py-8 sm:py-10 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center">
-              <XCircle className="h-10 w-10 text-destructive" />
-            </div>
+      <div className="w-full text-center py-8">
+        <div className="flex justify-center mb-6">
+          <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+            <XCircle className="h-8 w-8 text-destructive" />
           </div>
-
-          <div className="space-y-2 mb-6">
-            <h1 className="text-3xl font-semibold tracking-tight">Verification Failed</h1>
-            <p className="text-muted-foreground">{errorMessage}</p>
-          </div>
-
-          <div className="mt-8">
-            <Button asChild className="w-full h-14 text-lg font-semibold">
-              <Link href="/verify-email">Resend Verification Email</Link>
-            </Button>
-          </div>
+        </div>
+        <h1 className="text-2xl font-bold mb-2">Verification Failed</h1>
+        <p className="text-muted-foreground mb-8">{errorMessage}</p>
+        <div className="space-y-3">
+          <Button asChild className="w-full h-12">
+            <Link href="/verify-email">Try Resending Email</Link>
+          </Button>
+          <Button asChild variant="outline" className="w-full h-12">
+            <Link href="/login">Back to Login</Link>
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Instructions state - show email sent message
-  return (
-    <div className="w-full">
-      <div className="relative py-8 sm:py-10">
-        <div className="flex justify-center mb-6">
-          <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-            <Mail className="h-10 w-10 text-primary" />
-          </div>
-        </div>
-
-        <div className="text-center space-y-2 mb-6">
-          <h1 className="text-3xl font-semibold tracking-tight">Check your email</h1>
-          <p className="text-muted-foreground">
-            We've sent you a verification email. Please check your inbox and spam folder.
-          </p>
-        </div>
-
-        <div className="text-center space-y-4 text-base">
-          <p>
-            Click the verification link in the email to activate your account. If you don&apos;t see the email, check
-            your spam folder.
-          </p>
-          <p className="text-sm text-muted-foreground">The verification link will expire in 24 hours.</p>
-        </div>
-
-        <div className="mt-10 space-y-4 text-center">
-          <Button asChild className="w-full h-14 text-lg font-semibold">
-            <Link href="/login">
-              Continue to login
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-
-          <p className="text-sm text-muted-foreground">
-            Didn&apos;t receive an email?{" "}
-            <Link href="/verify-email" className="font-semibold text-primary hover:underline">
-              Try resending it
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 }

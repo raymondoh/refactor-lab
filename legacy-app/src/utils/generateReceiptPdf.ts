@@ -4,10 +4,10 @@ import type { Order } from "@/types/order";
 export async function generateReceiptPdf(order: Order) {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([500, 700]);
-  const { width, height } = page.getSize();
+  const { height } = page.getSize();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  let y = height - 50;
+  const y = height - 50;
 
   const drawText = (text: string, offsetY: number, size = 12) => {
     page.drawText(text, {
@@ -28,7 +28,7 @@ export async function generateReceiptPdf(order: Order) {
   let itemOffset = 120;
   drawText("Items:", itemOffset);
 
-  order.items.forEach((item, index) => {
+  order.items.forEach(item => {
     itemOffset += 20;
     drawText(`${item.quantity} × ${item.name} @ £${item.price.toFixed(2)}`, itemOffset);
   });
@@ -43,10 +43,18 @@ export async function generateReceiptPdf(order: Order) {
   drawText(`Total Paid: £${total.toFixed(2)}`, itemOffset + 100);
 
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+  // ✅ Create a real ArrayBuffer and copy bytes into it (type-safe)
+  const pdfArrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
+  new Uint8Array(pdfArrayBuffer).set(pdfBytes);
+
+  const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
+
   const link = document.createElement("a");
   link.href = url;
   link.download = `Receipt-${order.id.slice(0, 8).toUpperCase()}.pdf`;
   link.click();
+
+  URL.revokeObjectURL(url);
 }

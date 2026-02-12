@@ -137,20 +137,20 @@ export function SearchModal() {
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-primary font-medium">
-                        {result.name?.charAt(0) || result.title?.charAt(0) || "#"}
+                        {(result as any).name?.charAt(0) || (result as any).title?.charAt(0) || "#"}
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-medium">{result.name || result.title}</h3>
-                      {result.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-1">{result.description}</p>
+                      <h3 className="font-medium">{(result as any).name || (result as any).title}</h3>
+                      {(result as any).description && (
+                        <p className="text-xs text-muted-foreground line-clamp-1">{(result as any).description}</p>
                       )}
-                      {result.email && !result.description && (
-                        <p className="text-xs text-muted-foreground">{result.email}</p>
+                      {(result as any).email && !(result as any).description && (
+                        <p className="text-xs text-muted-foreground">{(result as any).email}</p>
                       )}
-                      {result.type && (
+                      {(result as any).type && (
                         <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground mt-1">
-                          {result.type}
+                          {(result as any).type}
                         </span>
                       )}
                     </div>
@@ -169,7 +169,7 @@ export function SearchModal() {
                   closeSearch();
                   router.push(`/products?q=${encodeURIComponent(query.trim())}`);
                 }}>
-                Search all products for "{query}"
+                Search all products for &quot;{query}&quot;
               </Button>
             </div>
           ) : (

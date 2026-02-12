@@ -50,14 +50,8 @@ export const generalNavItems: NavItem[] = [
   }
 ];
 
-interface NavItemOld {
-  title: string;
-  href: string;
-  icon: any;
-}
-
 // User-specific navigation items (for regular users)
-export const userNavItems: NavItemOld[] = [
+export const userNavItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/user",
@@ -88,7 +82,6 @@ export const userNavItems: NavItemOld[] = [
     href: "/user/activity",
     icon: Activity
   },
-
   {
     title: "Data & Privacy",
     href: "/user/data-privacy",
@@ -97,7 +90,7 @@ export const userNavItems: NavItemOld[] = [
 ];
 
 // Admin-specific navigation items
-export const adminNavItems: NavItemOld[] = [
+export const adminNavItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/admin",

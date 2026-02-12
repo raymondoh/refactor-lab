@@ -1,14 +1,12 @@
+// src/actions/auth/login.ts
 "use server";
 
-// ================= Imports =================
-import bcryptjs from "bcryptjs";
-import { getAdminAuth, getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { loginSchema } from "@/schemas/auth";
 import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
 import { logServerEvent, logger } from "@/utils/logger";
-//import type { LoginResponse } from "@/types/auth/login";
 import type { Auth } from "@/types";
-// ================= Login User =================
+
+import { adminAuthService } from "@/lib/services/admin-auth-service";
 
 /**
  * Handles user login by validating credentials and returning a Firebase custom token.
@@ -19,12 +17,11 @@ import type { Auth } from "@/types";
  * 4. Returns a custom token if successful.
  */
 export async function loginUser(_prevState: Auth.LoginState | null, formData: FormData): Promise<Auth.LoginState> {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const email = (formData.get("email") as string) ?? "";
+  const password = (formData.get("password") as string) ?? "";
   const isRegistration = formData.get("isRegistration") === "true";
   const skipSession = formData.get("skipSession") === "true";
 
-  // Step 1: Validate input
   const validation = loginSchema.safeParse({ email, password });
   if (!validation.success) {
     const message = validation.error.issues[0]?.message || "Invalid form data";
@@ -33,43 +30,52 @@ export async function loginUser(_prevState: Auth.LoginState | null, formData: Fo
   }
 
   try {
-    // Step 2: Fetch user record from Firebase Auth
-    const userRecord = await getAdminAuth().getUserByEmail(email);
-    const isEmailVerified = userRecord.emailVerified;
+    // 1) Auth lookup by email
+    const authUserRes = await adminAuthService.getAuthUserByEmail(email);
+    if (!authUserRes.success) {
+      // Preserve old behavior: hide enumeration where possible
+      if (authUserRes.error.includes("auth/user-not-found")) {
+        return { success: false, message: "Invalid email or password" };
+      }
+      return { success: false, message: authUserRes.error };
+    }
 
-    // Step 3: Block login for unverified emails unless registering or skipping session
-    if (!isEmailVerified && !isRegistration && !skipSession) {
+    const { uid, emailVerified } = authUserRes.data;
+
+    // 2) Block unverified emails unless registering or skipping session
+    if (!emailVerified && !isRegistration && !skipSession) {
       const message = "Please verify your email before logging in. Check your inbox for a verification link.";
       logger({ type: "info", message: `Blocked unverified login: ${email}`, context: "auth" });
       return { success: false, message };
     }
 
-    // Step 4: Verify password
-    const userDoc = await getAdminFirestore().collection("users").doc(userRecord.uid).get();
-    const userData = userDoc.data();
+    // 3) Verify password hash in Firestore (service)
+    const pwRes = await adminAuthService.verifyPasswordHash(uid, password);
 
-    if (!userData?.passwordHash) {
-      logger({ type: "warn", message: `No passwordHash for ${email}`, context: "auth" });
-      return { success: false, message: "Invalid email or password" };
+    if (!pwRes.success) {
+      logger({ type: "error", message: `Password verify error for ${email}`, context: "auth" });
+      return { success: false, message: pwRes.error };
     }
 
-    const isPasswordValid = await bcryptjs.compare(password, userData.passwordHash);
-    if (!isPasswordValid) {
+    if (!pwRes.data.ok) {
       logger({ type: "warn", message: `Invalid password for ${email}`, context: "auth" });
       return { success: false, message: "Invalid email or password" };
     }
 
-    // Step 5: Create a custom Firebase token
-    const customToken = await getAdminAuth().createCustomToken(userRecord.uid);
+    // 4) Create custom token (service)
+    const tokenRes = await adminAuthService.createCustomToken(uid);
+    if (!tokenRes.success) {
+      return { success: false, message: tokenRes.error };
+    }
 
     logger({ type: "info", message: `Login success for ${email}`, context: "auth" });
 
     await logServerEvent({
       type: "auth:login",
       message: `User logged in: ${email}`,
-      userId: userRecord.uid,
+      userId: uid,
       metadata: {
-        uid: userRecord.uid,
+        uid,
         email,
         time: new Date().toISOString()
       }
@@ -79,15 +85,15 @@ export async function loginUser(_prevState: Auth.LoginState | null, formData: Fo
       success: true,
       message: "Login successful!",
       data: {
-        userId: userRecord.uid,
+        userId: uid,
         email,
-        role: userData.role || "user",
-        customToken,
-        emailVerified: isEmailVerified
+        role: pwRes.data.role === "admin" ? "admin" : "user",
+
+        customToken: tokenRes.data.token,
+        emailVerified
       }
     };
   } catch (error: unknown) {
-    // Step 6: Handle login errors
     logger({
       type: "error",
       message: `Login error for ${email}`,
@@ -105,9 +111,7 @@ export async function loginUser(_prevState: Auth.LoginState | null, formData: Fo
     await logServerEvent({
       type: "auth:login_error",
       message: `Failed login attempt for ${email}`,
-      metadata: {
-        error: error instanceof Error ? error.message : String(error)
-      }
+      metadata: { error: error instanceof Error ? error.message : String(error) }
     });
 
     return {

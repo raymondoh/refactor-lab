@@ -20,7 +20,6 @@ interface DataTableProps<TData, TValue> {
 
 export function DataTable<TData, TValue>({
   table,
-  columns, // Keep for potential direct use, though table instance has columns too
   pageSizeOptions = [10, 20, 30, 40, 50],
   className = ""
 }: DataTableProps<TData, TValue>) {
