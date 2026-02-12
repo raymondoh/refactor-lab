@@ -52,7 +52,7 @@ export function AppSidebar() {
   // Show loading state while session is loading
   if (status === "loading") {
     return (
-      <Sidebar className="pt-6" collapsible="icon">
+      <Sidebar className="pt-6" collapsible="offcanvas">
         <SidebarContent className="pt-5">
           <SidebarGroup>
             <SidebarGroupContent>
@@ -67,7 +67,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>

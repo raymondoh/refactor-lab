@@ -17,7 +17,9 @@ export function Header() {
     "/verify-success"
   ]);
 
-  if (hiddenHeaderPaths.has(pathname)) {
+  const isDashboardRoute = pathname.startsWith("/admin") || pathname.startsWith("/user");
+
+  if (hiddenHeaderPaths.has(pathname) || isDashboardRoute) {
     return null;
   }
 

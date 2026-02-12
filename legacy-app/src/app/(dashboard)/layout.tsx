@@ -125,15 +125,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     return (
       <DashboardThemeProvider>
         <SidebarProvider defaultOpen={sidebarState}>
-          {/* The w-full class here is crucial for proper layout */}
-          <div className="flex h-screen overflow-hidden w-full">
+          <div className="flex min-h-svh w-full">
             {/* Sidebar component */}
             <AppSidebar />
 
             {/* Main content area */}
-            <SidebarInset className="flex-1 flex flex-col w-full">
+            <SidebarInset className="flex min-h-svh flex-1 flex-col">
               {/* Enhanced header with darker border and shadow */}
-              <header className="flex h-16 items-center justify-between px-6 sticky top-0 bg-muted backdrop-blur-sm z-10 shadow-lg">
+              <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/95 px-6 backdrop-blur">
                 <div className="flex items-center gap-4">
                   <SidebarTrigger className="rounded-full hover:bg-muted p-2 transition-colors" />
                   <h1 className="font-semibold text-lg hidden sm:block">

@@ -20,7 +20,9 @@ export function FooterWrapper() {
   ]);
 
   // Don't render any footer on auth pages
-  if (hiddenFooterPaths.has(pathname)) {
+  const isDashboardRoute = pathname.startsWith("/admin") || pathname.startsWith("/user");
+
+  if (hiddenFooterPaths.has(pathname) || isDashboardRoute) {
     return null;
   }
 
