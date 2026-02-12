@@ -19,17 +19,18 @@ export const metadata: Metadata = {
   }
 };
 
-type SearchParams = Promise<{
-  [key: string]: string | string[] | undefined;
-}>;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type SearchParams = Record<string, string | string[] | undefined>;
 
 interface ProductsPageProps {
-  searchParams: SearchParams;
+  searchParams?: Promise<SearchParams>;
 }
 
 const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
   try {
-    const resolvedSearchParams = await searchParams;
+    const resolvedSearchParams = (await searchParams) ?? {};
 
     const currentCategory =
       typeof resolvedSearchParams?.category === "string" ? resolvedSearchParams.category : undefined;
@@ -87,14 +88,18 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
             </div>
           </section>
 
-          <section className="py-6 w-full bg-secondary/5 ">
+          <section className="py-6 w-full">
             <div className="container mx-auto px-4">
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
                 <aside className="hidden lg:block h-fit">
-                  <div className="bg-background rounded-xl p-6 sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto shadow-sm border border-border/40">
+                  <div
+                    className="bg-muted rounded-xl p-6 sticky top-24 
+                        max-h-[calc(100vh-120px)] overflow-y-auto 
+                        shadow-sm border border-border/60">
                     <ProductFilters />
                   </div>
                 </aside>
+
                 <div>
                   <ProductsGrid />
                 </div>

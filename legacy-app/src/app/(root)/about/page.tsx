@@ -113,7 +113,7 @@ export default function AboutPage() {
   return (
     <main className="min-h-screen ">
       {/* Hero Section with PageHeader (remains centered) */}
-      <section className="py-16 w-full bg-background">
+      <section className="py-16 w-full">
         {" "}
         {/* Removed page-glow-container for now */}
         <div className="container mx-auto px-4">

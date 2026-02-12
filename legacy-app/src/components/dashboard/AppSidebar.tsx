@@ -71,8 +71,8 @@ export function AppSidebar() {
   // Show loading state while session is loading
   if (status === "loading") {
     return (
-      <Sidebar className="pt-6" collapsible="icon">
-        <SidebarContent className="pt-5">
+      <Sidebar collapsible="icon" className="z-[60] bg-muted border-r border-border/60 shadow-sm">
+        <SidebarContent className="pt-56 md:pt-56">
           <SidebarGroup>
             <SidebarGroupContent>
               <div className="flex items-center justify-center p-4">
@@ -86,7 +86,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="z-50 bg-muted border-r border-border/60">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>

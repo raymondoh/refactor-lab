@@ -1,5 +1,5 @@
 // src/app/(dashboard)/user/page.tsx
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { parseServerDate } from "@/utils/date-server";
 import type { User, SerializedUser } from "@/types/models/user";
 import { serializeUser } from "@/utils/serializeUser";
@@ -11,7 +11,6 @@ import { UserActivityPreview } from "@/components";
 import { Clock, UserIcon } from "lucide-react";
 import { userProfileService } from "@/lib/services/user-profile-service";
 import { auth } from "@/auth";
-import { isRedirectError } from "next/dist/client/components/redirect";
 
 type ServiceUser = Partial<User> & {
   passwordHash?: string;
@@ -104,8 +103,9 @@ export default async function UserDashboardOverviewPage() {
         </div>
       </>
     );
-  } catch (error) {
-    if (isRedirectError(error)) throw error;
+  } catch (error: unknown) {
+    // ✅ rethrow redirect()/notFound() control-flow errors
+    unstable_rethrow(error);
 
     console.error("Error in UserDashboardOverviewPage:", error);
     redirect("/not-authorized");

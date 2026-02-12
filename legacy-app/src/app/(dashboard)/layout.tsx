@@ -2,7 +2,8 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
+
 import { cookies } from "next/headers";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { DashboardThemeProvider } from "@/providers/DashboardThemeProvider";
@@ -10,7 +11,6 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { headers } from "next/headers";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
-import { isRedirectError } from "next/dist/client/components/redirect";
 
 export const metadata: Metadata = {
   title: {
@@ -64,65 +64,51 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     const { auth } = await import("@/auth");
     const session = await auth();
 
-    // IMPORTANT: redirects throw NEXT_REDIRECT; do not log them as errors
-    if (!session?.user) {
-      redirect("/login");
-    }
+    if (!session?.user) redirect("/login");
 
     const role = session.user.role;
 
-    // Optional: infer which area the user is trying to access.
-    // x-invoke-path is not guaranteed; keep it best-effort only.
-    const headersList = headers();
+    const headersList = await headers();
     const pathname = headersList.get("x-invoke-path") || "";
 
     const isAdminRoute = pathname.includes("/admin");
     const isUserRoute = pathname.includes("/user");
 
-    // Role-based access control
-    if (role === "admin" && isUserRoute) {
-      redirect("/admin");
-    }
-    if (role === "user" && isAdminRoute) {
-      redirect("/not-authorized");
-    }
+    if (role === "admin" && isUserRoute) redirect("/admin");
+    if (role === "user" && isAdminRoute) redirect("/not-authorized");
+    if (role !== "admin" && role !== "user") redirect("/not-authorized");
 
-    if (role !== "admin" && role !== "user") {
-      redirect("/not-authorized");
-    }
-
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sidebarCookie = cookieStore.get("sidebar:state");
     const sidebarState = sidebarCookie ? sidebarCookie.value === "true" : false;
 
     return (
       <DashboardThemeProvider>
         <SidebarProvider defaultOpen={sidebarState}>
-          <div className="flex h-screen overflow-hidden w-full">
+          <div className="flex min-h-svh w-full bg-background">
             <AppSidebar />
 
-            <SidebarInset className="flex-1 flex flex-col w-full">
-              <header className="flex h-16 items-center justify-between px-6 sticky top-0 bg-muted backdrop-blur-sm z-10 shadow-lg">
-                <div className="flex items-center gap-4">
-                  <SidebarTrigger className="rounded-full hover:bg-muted p-2 transition-colors" />
-                  <h1 className="font-semibold text-lg hidden sm:block">
+            <SidebarInset className="min-w-0 flex-1">
+              <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-border/60 bg-muted/80 px-4 backdrop-blur-sm sm:px-6">
+                <div className="flex items-center gap-2">
+                  {/* ✅ matches shadcn positioning so it doesn’t feel “pushed in” */}
+                  <SidebarTrigger className="-ml-1" />
+                  <h1 className="hidden text-lg font-semibold sm:block">
                     {role === "admin" ? "Admin Dashboard" : "My Account"}
                   </h1>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/"
-                    className="text-sm font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
-                    <ChevronLeft className="h-4 w-4" />
-                    <span>Back to Store</span>
-                  </Link>
-                </div>
+                <Link
+                  href="/"
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Back to Store</span>
+                </Link>
               </header>
 
-              <main className="flex-1 overflow-auto bg-muted/30">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-                  <div className="bg-background rounded-xl shadow-sm border p-6">{children}</div>
+              <main className="flex-1 overflow-auto">
+                <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+                  <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">{children}</div>
                 </div>
               </main>
             </SidebarInset>
@@ -130,10 +116,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </SidebarProvider>
       </DashboardThemeProvider>
     );
-  } catch (error) {
-    // ✅ Let redirects bubble (NEXT_REDIRECT)
-    if (isRedirectError(error)) throw error;
-
+  } catch (error: unknown) {
+    unstable_rethrow(error);
     console.error("Error in DashboardLayout:", error);
     redirect("/not-authorized");
   }

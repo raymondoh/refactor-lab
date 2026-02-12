@@ -6,7 +6,7 @@ import { homepageFeaturedCategories } from "@/config/homepage-categories";
 
 export function CategoriesStatic() {
   return (
-    <section className="py-16 w-full bg-background">
+    <section className="py-16 w-full bg-secondary/5">
       <div className="container mx-auto px-4">
         <SectionHeader
           title="Shop By Category"
@@ -19,19 +19,19 @@ export function CategoriesStatic() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {homepageFeaturedCategories.map(category => (
             <Link href={`/products?category=${category.id}`} key={category.id}>
-              <Card className="border-none overflow-hidden transition-all duration-300 hover:shadow-sm hover:border-primary/20 group h-full">
+              <Card className="group h-full overflow-hidden border border-border/60 bg-card transition-all duration-300 hover:shadow-sm hover:border-primary/20">
                 <div className="relative h-48 w-full overflow-hidden">
                   <CategoryImage
                     src={category.image || `/placeholder.svg?height=400&width=600&query=${category.name}+sticker`}
                     alt={category.name}
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent"></div>
                 </div>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
                     <h3 className="font-bold text-lg">{category.name}</h3>
-                    <span className="text-sm px-2 py-1 rounded-full bg-secondary/10 text-primary font-medium">
+                    <span className="text-sm px-2 py-1 rounded-full bg-secondary/60 text-secondary-foreground font-medium">
                       {category.count}+
                     </span>
                   </div>

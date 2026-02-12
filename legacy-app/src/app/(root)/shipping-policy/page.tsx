@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default function ShippingPolicyPage() {
   return (
     <main className="min-h-screen">
-      <section className="py-16 w-full bg-background">
+      <section className="py-16 w-full">
         <div className="container mx-auto px-4">
           <PageHeader
             title="Shipping Policy"

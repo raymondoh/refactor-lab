@@ -21,8 +21,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const isOnSale = product.onSale && product.salePrice && product.salePrice < product.price;
 
   return (
-    <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary/20 h-full flex flex-col">
-      <div className="relative aspect-square overflow-hidden bg-gray-50">
+    <Card
+      className="group overflow-hidden transition-all duration-300 
+                 hover:shadow-lg hover:border-primary/20 
+                 h-full flex flex-col 
+                 bg-card border border-border/60">
+      <div className="relative aspect-square overflow-hidden bg-muted">
         {/* Optimized product image */}
         <Image
           src={product.image || `/placeholder.svg?height=400&width=400&query=${product.name}+sticker`}

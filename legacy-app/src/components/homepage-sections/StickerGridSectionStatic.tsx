@@ -7,7 +7,7 @@ export default function StickerGridSectionsStatic() {
   const { carSection, bikeSection, customSection, vintageSection } = stickerGridSections;
 
   return (
-    <section className="py-16 w-full bg-secondary/5">
+    <section className="py-16 w-full">
       <div className="container mx-auto px-4 space-y-24">
         {/* First Grid Section - Style Your Ride */}
         <div>
@@ -21,7 +21,7 @@ export default function StickerGridSectionsStatic() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Car with sticker image */}
-            <div className="rounded-xl overflow-hidden bg-background relative group h-64 md:h-72 shadow-sm">
+            <div className="rounded-xl overflow-hidden bg-card relative group h-64 md:h-72 shadow-sm border border-border/60">
               <div className="relative w-full h-full">
                 <CategoryImage
                   src={carSection.image}
@@ -29,7 +29,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-5">
                 <h3 className="text-white text-xl font-bold">Car Stickers</h3>
                 <Link
                   href={carSection.url}
@@ -40,12 +40,12 @@ export default function StickerGridSectionsStatic() {
             </div>
 
             {/* Sticker-like div */}
-            <div className="rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center p-6 transform rotate-1 hover:rotate-0 transition-all duration-300 h-64 md:h-72 shadow-sm">
+            <div className="rounded-xl bg-gradient-to-br from-red-500/80 to-orange-500/80 flex items-center justify-center p-6 transform rotate-1 hover:rotate-0 transition-all duration-300 h-64 md:h-72 shadow-sm border border-border/40">
               <p className="text-white text-3xl md:text-4xl font-bold text-center leading-tight">I ❤️ My Car</p>
             </div>
 
             {/* Bike with sticker image */}
-            <div className="rounded-xl overflow-hidden bg-background relative group h-64 md:h-72 shadow-sm">
+            <div className="rounded-xl overflow-hidden bg-card relative group h-64 md:h-72 shadow-sm border border-border/60">
               <div className="relative w-full h-full">
                 <CategoryImage
                   src={bikeSection.image}
@@ -53,7 +53,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-5">
                 <h3 className="text-white text-xl font-bold">Bike Stickers</h3>
                 <Link
                   href={bikeSection.url}
@@ -77,12 +77,12 @@ export default function StickerGridSectionsStatic() {
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* Sticker-like div */}
-            <div className="md:col-span-4 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center p-8 transform -rotate-1 hover:rotate-0 transition-all duration-300 h-80 shadow-sm">
+            <div className="md:col-span-4 rounded-xl bg-gradient-to-br from-blue-500/80 to-purple-500/80 flex items-center justify-center p-8 transform -rotate-1 hover:rotate-0 transition-all duration-300 h-80 shadow-sm border border-border/40">
               <p className="text-white text-3xl md:text-4xl font-bold text-center leading-tight">Born to Ride 🏍️</p>
             </div>
 
             {/* Large bike image */}
-            <div className="md:col-span-8 rounded-xl overflow-hidden bg-background relative h-80 group shadow-sm">
+            <div className="md:col-span-8 rounded-xl overflow-hidden bg-card relative h-80 group shadow-sm border border-border/60">
               <div className="relative w-full h-full">
                 <CategoryImage
                   src={customSection.image}
@@ -90,7 +90,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-6">
                 <h3 className="text-white text-xl font-bold">Custom Designs</h3>
                 <Link
                   href={customSection.url}
@@ -101,7 +101,7 @@ export default function StickerGridSectionsStatic() {
             </div>
 
             {/* Small car image */}
-            <div className="md:col-span-6 rounded-xl overflow-hidden bg-background relative h-80 group shadow-sm">
+            <div className="md:col-span-6 rounded-xl overflow-hidden bg-card relative h-80 group shadow-sm border border-border/60">
               <div className="relative w-full h-full">
                 <CategoryImage
                   src={vintageSection.image}
@@ -109,7 +109,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-6">
                 <h3 className="text-white text-xl font-bold">Vintage Collection</h3>
                 <Link
                   href={vintageSection.url}
@@ -120,7 +120,7 @@ export default function StickerGridSectionsStatic() {
             </div>
 
             {/* Sticker-like div */}
-            <div className="md:col-span-6 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center p-8 transform rotate-1 hover:rotate-0 transition-all duration-300 h-80 shadow-sm">
+            <div className="md:col-span-6 rounded-xl bg-gradient-to-br from-green-500/80 to-teal-500/80 flex items-center justify-center p-8 transform rotate-1 hover:rotate-0 transition-all duration-300 h-80 shadow-sm border border-border/40">
               <p className="text-white text-3xl md:text-4xl font-bold text-center leading-tight">Drive Different 🚗</p>
             </div>
           </div>

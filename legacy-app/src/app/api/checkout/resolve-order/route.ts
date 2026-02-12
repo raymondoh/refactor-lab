@@ -2,18 +2,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminOrderService } from "@/lib/services/admin-order-service";
+import { requireEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required environment variable: ${name}`);
-  return v;
-}
-
-const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
-  apiVersion: "2025-05-28.basil"
-});
+const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"));
 
 export async function GET(req: Request) {
   try {

@@ -6,29 +6,18 @@ import { adminOrderService } from "@/lib/services/admin-order-service";
 import type { OrderData } from "@/types/order";
 import { formatPrice } from "@/lib/utils";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
-
-/**
- * Strongly-typed env helper.
- */
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing required environment variable: ${name}`);
-  return value;
-}
+import { requireEnv } from "@/lib/env";
 
 function errMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
 // Required secrets
-const STRIPE_SECRET_KEY = requireEnv("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = requireEnv("STRIPE_WEBHOOK_SECRET");
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 // SDK clients
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2025-05-28.basil"
-});
+const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"));
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

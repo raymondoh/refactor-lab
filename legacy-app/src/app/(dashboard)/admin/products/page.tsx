@@ -1,5 +1,6 @@
 // src/app/(dashboard)/admin/products/page.tsx
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { redirect } from "next/navigation";
@@ -10,6 +11,7 @@ import { getAllProductsAction } from "@/actions/products/get-all-products";
 import { getCategoriesAction, getFeaturedCategoriesAction } from "@/actions/categories/admin-categories";
 
 export const metadata: Metadata = {
+
   title: "Product Management",
   description: "Manage products in your catalog"
 };

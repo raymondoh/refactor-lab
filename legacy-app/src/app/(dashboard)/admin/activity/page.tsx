@@ -1,5 +1,6 @@
 // src/app/(dashboard)/admin/activity/page.tsx
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { AdminActivityPageClient } from "@/components";

@@ -1,9 +1,8 @@
 // src/app/(dashboard)/user/layout.tsx
 import type React from "react";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { siteConfig } from "@/config/siteConfig";
-import { isRedirectError } from "next/dist/client/components/redirect";
 
 export const metadata: Metadata = {
   title: {
@@ -58,20 +57,13 @@ export default async function UserLayout({ children }: { children: React.ReactNo
     const { auth } = await import("@/auth");
     const session = await auth();
 
-    // If not signed in, go login (more accurate than not-authorized)
-    if (!session?.user) {
-      redirect("/login");
-    }
+    if (!session?.user) redirect("/login");
+    if (session.user.role !== "user") redirect("/not-authorized");
 
-    // If signed in but not a user, deny
-    if (session.user.role !== "user") {
-      redirect("/not-authorized");
-    }
-
-    return <div className="user-container">{children}</div>;
-  } catch (error) {
-    if (isRedirectError(error)) throw error;
-
+    // ✅ Let the parent (dashboard) layout provide the shell (sidebar/header/background)
+    return <>{children}</>;
+  } catch (error: unknown) {
+    unstable_rethrow(error);
     console.error("Error in UserLayout:", error);
     redirect("/not-authorized");
   }

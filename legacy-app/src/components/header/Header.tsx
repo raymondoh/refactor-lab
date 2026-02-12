@@ -22,7 +22,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-background text-foreground shadow-md">
+    <header className="sticky top-0 z-50 border-b border-border/60 bg-secondary/20 backdrop-blur">
       <div className="container px-4 mx-auto">
         <Navbar />
       </div>

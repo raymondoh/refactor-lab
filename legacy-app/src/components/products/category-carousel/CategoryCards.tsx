@@ -1,3 +1,4 @@
+// src/components/products/category-carousel/CategoryCards.tsx
 "use client";
 
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
@@ -70,8 +71,24 @@ export function CategoryCards({ categories, selectedCategory, onCategorySelect }
         </CarouselContent>
 
         {/* Navigation */}
-        <CarouselPrevious className="absolute left-0 -translate-x-1/2 bg-background/80 backdrop-blur-sm shadow-md border-neutral-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none" />
-        <CarouselNext className="absolute right-0 translate-x-1/2 bg-background/80 backdrop-blur-sm shadow-md border-neutral-200 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0 disabled:pointer-events-none" />
+        <CarouselPrevious
+          className="absolute left-0 -translate-x-1/2 
+             bg-card/80 backdrop-blur-sm 
+             shadow-md 
+             border border-border/60 
+             opacity-0 group-hover:opacity-100 
+             transition-opacity 
+             disabled:opacity-0 disabled:pointer-events-none"
+        />
+        <CarouselNext
+          className="absolute right-0 translate-x-1/2 
+             bg-card/80 backdrop-blur-sm 
+             shadow-md 
+             border border-border/60 
+             opacity-0 group-hover:opacity-100 
+             transition-opacity 
+             disabled:opacity-0 disabled:pointer-events-none"
+        />
       </Carousel>
     </div>
   );

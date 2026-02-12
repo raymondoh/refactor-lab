@@ -43,10 +43,18 @@ export async function generateReceiptPdf(order: Order) {
   drawText(`Total Paid: £${total.toFixed(2)}`, itemOffset + 100);
 
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+
+  // ✅ Create a real ArrayBuffer and copy bytes into it (type-safe)
+  const pdfArrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
+  new Uint8Array(pdfArrayBuffer).set(pdfBytes);
+
+  const blob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
+
   const link = document.createElement("a");
   link.href = url;
   link.download = `Receipt-${order.id.slice(0, 8).toUpperCase()}.pdf`;
   link.click();
+
+  URL.revokeObjectURL(url);
 }

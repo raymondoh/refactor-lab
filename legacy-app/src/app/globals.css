@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   /* --- Fonts --- */
   --font-sans: "Inter", sans-serif;
@@ -113,29 +115,39 @@
   }
 
   .dark {
-    /* Dark Mode - Deep Slate */
-    --background: 222.2 84% 4.9%;
+    --background: 215 35% 8%;
+
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 7%;
+
+    /* ✅ your blue tint base for layering */
+    --secondary: 215 35% 16%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* surfaces */
+    --card: 215 35% 12%;
+    --card-foreground: 210 40% 98%;
+    --secondary: 215 30% 18%; /* Interactive / category buttons */
+
+    /* panel surface (slightly closer to background, but still visible) */
+    --muted: 215 28% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --popover: 215 35% 14%;
     --card-foreground: 210 40% 98%;
 
-    /* MotoStix Yellow */
+    --popover-foreground: 210 40% 98%;
+
+    /* borders a touch brighter so edges show */
+    --border: 215 20% 28%;
+
+    --input: 215 20% 28%;
+
+    /* keep your yellow */
     --primary: 48 100% 50%;
     --primary-foreground: 0 0% 0%;
-    --accent: 48 100% 50%;
-    --accent-foreground: 0 0% 0%;
     --ring: 48 100% 50%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --border: 0 0% 30%;
-    --input: 0 0% 30%;
-
-    /* Sidebar Dark */
-    --sidebar-background: 0 0% 12%;
-    --sidebar-foreground: 0 0% 95.9%;
-    --sidebar-border: 0 0% 18%;
   }
+
   @layer utilities {
     .dashboard-card {
       @apply bg-card text-card-foreground rounded-xl border border-border/60 shadow-sm;
@@ -160,7 +172,7 @@
 
   /* Target secondary text to be even softer */
   .text-muted-foreground {
-    color: hsl(215.4 16.3% 46.9%);
+    color: hsl(var(--muted-foreground));
   }
 }
 
@@ -175,4 +187,46 @@
   /* This ensures that even with a blur behind it, the dropdown itself is opaque */
   background-color: hsl(var(--popover)) !important;
   border: 1px solid hsl(var(--border)) !important;
+}
+
+:root {
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

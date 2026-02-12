@@ -117,26 +117,6 @@ export default async function HomePage() {
           />
         )}
 
-        {/* 5. STAFF PICKS CAROUSEL - Fallback if nothing else shows */}
-        {/* Uncomment this if you want a guaranteed fallback carousel */}
-        {/*
-        {(!saleProducts.success || saleProducts.data.length === 0) &&
-         (!newArrivals.success || newArrivals.data.length === 0) &&
-         (!themedProducts.success || themedProducts.data.length === 0) &&
-         featuredProducts.success && featuredProducts.data.length > 4 && (
-          <>
-            {console.log("🏠 Rendering Fallback Staff Picks Carousel")}
-            <ProductCarousel
-              products={featuredProducts.data.slice(4, 8)}
-              title="Staff Picks"
-              description="Hand-selected favorites from our design team"
-              viewAllUrl="/products?featured=true"
-              centered={false}
-            />
-          </>
-        )}
-        */}
-
         {/* Testimonials */}
         <TestimonialSection />
 

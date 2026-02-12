@@ -88,11 +88,14 @@ export async function POST(request: NextRequest) {
     else if (oobCode) {
       const checkRes = await adminAuthService.checkActionCode(oobCode);
 
-      if (!checkRes.success || !checkRes.data) {
-        return NextResponse.json({ error: checkRes.error }, { status: 400, headers: NO_STORE_HEADERS });
+      if (!checkRes.success) {
+        return NextResponse.json(
+          { error: checkRes.error },
+          { status: checkRes.status ?? 400, headers: NO_STORE_HEADERS }
+        );
       }
 
-      // checkActionCode returns both uid (as localId) and email
+      // checkActionCode returns both uid and email
       userId = checkRes.data.uid;
       userEmail = checkRes.data.email;
 

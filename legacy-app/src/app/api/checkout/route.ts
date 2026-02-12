@@ -4,12 +4,11 @@ import Stripe from "stripe";
 import { auth } from "@/auth";
 import { DEFAULT_CURRENCY, TAX_RATE, SHIPPING_CONFIG } from "@/config/checkout";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
+import { requireEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-05-28.basil"
-});
+const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"));
 
 type CheckoutItem = { id: string; quantity: number };
 

@@ -9,7 +9,9 @@ import { footerShopLinks, footerPolicyLinks, socialLinks } from "@/config/footer
 
 export function Footer() {
   return (
-    <footer className="main-footer py-8 md:py-12 lg:py-16 w-full bg-secondary/10 border-t border-border/40">
+    <footer
+      className="main-footer py-8 md:py-12 lg:py-16 w-full border-t border-border/60 bg-gradient-to-b from-secondary/8 to-secondary/18
+">
       {/* Main Footer Content */}
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-4">
@@ -80,18 +82,9 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="text-lg font-bold">Newsletter</h3>
             <p className="text-muted-foreground">
-              !!Subscribe to our newsletter for the latest designs, promotions, and exclusive offers.
+              Subscribe to our newsletter for the latest designs, promotions, and exclusive offers.
             </p>
-            {/* <div className="flex flex-col sm:flex-row gap-2">
-              <Input
-                type="email"
-                placeholder="Your email"
-                className="bg-background border-border focus:border-primary"
-              />
-              <Button className="bg-black text-white dark:bg-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90">
-                Subscribe <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div> */}
+
             <NewsletterForm />
           </div>
         </div>

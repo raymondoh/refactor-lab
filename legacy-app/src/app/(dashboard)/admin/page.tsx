@@ -1,5 +1,6 @@
 // legacy-app/src/app/(dashboard)/admin/page.tsx
 import type { Metadata } from "next";
+import { siteConfig } from "@/config/siteConfig";
 import { redirect } from "next/navigation";
 
 import { fetchAllActivityLogs } from "@/actions/dashboard";

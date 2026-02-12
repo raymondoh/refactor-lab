@@ -30,11 +30,11 @@ const testimonials = [
 
 export function TestimonialSection() {
   return (
-    <section className="py-16 w-full bg-secondary/5">
+    <section className="py-16 w-full">
       <div className="container mx-auto px-4">
         <div className="flex flex-col items-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">What Our Customers Say</h2>
-          <div className="w-12 h-0.5 bg-primary mb-6"></div>
+          <div className="w-12 h-0.5 bg-primary mb-6" />
           <p className="text-muted-foreground text-center max-w-2xl">
             Don&apos;t just take our word for it - hear from riders who&apos;ve transformed their bikes with our
             products.
@@ -45,7 +45,7 @@ export function TestimonialSection() {
           {testimonials.map(testimonial => (
             <Card
               key={testimonial.id}
-              className="border border-border hover:border-primary/20 transition-colors hover:shadow-sm h-full">
+              className="h-full bg-card border border-border/60 transition-colors hover:border-primary/20 hover:shadow-sm">
               <CardContent className="pt-6">
                 <div className="flex mb-4">
                   {Array(5)
@@ -53,14 +53,16 @@ export function TestimonialSection() {
                     .map((_, i) => (
                       <Star
                         key={i}
-                        className={`h-5 w-5 ${i < testimonial.rating ? "text-primary" : "text-muted/20"}`}
+                        className={`h-5 w-5 ${i < testimonial.rating ? "text-primary" : "text-muted-foreground/30"}`}
                         fill={i < testimonial.rating ? "currentColor" : "none"}
                       />
                     ))}
                 </div>
+
                 <p className="mb-6 text-muted-foreground">{testimonial.content}</p>
+
                 <div className="flex items-center">
-                  <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-foreground font-bold">
+                  <div className="w-10 h-10 rounded-full bg-secondary/60 flex items-center justify-center text-secondary-foreground font-bold">
                     {testimonial.name.charAt(0)}
                   </div>
                   <div className="ml-3">
