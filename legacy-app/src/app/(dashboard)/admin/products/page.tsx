@@ -1,6 +1,5 @@
 // src/app/(dashboard)/admin/products/page.tsx
 import type { Metadata } from "next";
-import { siteConfig } from "@/config/siteConfig";
 import { Separator } from "@/components/ui/separator";
 import { DashboardShell, DashboardHeader } from "@/components";
 import { redirect } from "next/navigation";
@@ -11,7 +10,6 @@ import { getAllProductsAction } from "@/actions/products/get-all-products";
 import { getCategoriesAction, getFeaturedCategoriesAction } from "@/actions/categories/admin-categories";
 
 export const metadata: Metadata = {
-
   title: "Product Management",
   description: "Manage products in your catalog"
 };
@@ -26,12 +24,13 @@ export default async function AdminProductsPage() {
 
     // ✅ Fetch initial data via actions (actions gate + services do the work)
     const [productsResult, categoriesRes, featuredRes] = await Promise.all([
-      getAllProductsAction(),
+      getAllProductsAction(undefined),
       getCategoriesAction(),
       getFeaturedCategoriesAction()
     ]);
 
-    const products = productsResult.success ? productsResult.data : [];
+    // New: We must reach into .data.products to get the actual array
+    const products = productsResult.ok ? productsResult.data.products : [];
     const categories = categoriesRes.success ? categoriesRes.data.categories : [];
 
     const featuredCategories = featuredRes.success

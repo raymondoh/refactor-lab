@@ -88,7 +88,7 @@ export function AdminProductsClient({
     setIsDeleting(true);
     try {
       const result = await deleteProduct(productToDelete.id);
-      if (result.success) {
+      if (result.ok) {
         toast.success(`Product "${productToDelete.name}" deleted successfully`);
         // Update the local state to reflect the deletion
         setProducts(prev => prev.filter(p => p.id !== productToDelete.id));

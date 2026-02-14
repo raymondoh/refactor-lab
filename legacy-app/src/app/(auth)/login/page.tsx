@@ -1,8 +1,10 @@
 // src/app/(auth)/login/page.tsx
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
-import { LoginForm } from "@/components/auth/LoginForm";
+import LoginForm from "@/components/auth/LoginForm";
 import { LoginRedirect } from "@/components/auth/LoginRedirect";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 
 export const metadata: Metadata = {
@@ -64,7 +66,14 @@ export const metadata: Metadata = {
   }
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await auth();
+
+  // If already signed in, don't render /login at all
+  if (session?.user) {
+    const role = (session.user as any)?.role;
+    redirect(role === "admin" ? "/admin" : "/user");
+  }
   return (
     <>
       {/* IMPORTANT: LoginRedirect should respect ?redirect=/user or ?redirect=/admin if present */}

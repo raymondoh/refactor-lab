@@ -1,4 +1,3 @@
-// src/components/auth/VerifyEmailForm.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -6,6 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, LoaderCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+import { auth } from "@/firebase/client/firebase-client-init";
+//import { getVerificationSettings } from "@/firebase/client/auth";
+//import { signInWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+
+import { UniversalInput } from "@/components/forms/UniversalInput";
+import { UniversalPasswordInput } from "@/components/forms/UniversalPasswordInput";
+import { resendVerification } from "@/actions/auth/resend-verification";
 
 type VerifyStatus = "instructions" | "loading" | "success" | "error";
 
@@ -25,6 +33,11 @@ export function VerifyEmailForm() {
   const [status, setStatus] = useState<VerifyStatus>("instructions");
   const [errorMessage, setErrorMessage] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Resend state
+  const [resendEmail, setResendEmail] = useState("");
+  const [resendPassword, setResendPassword] = useState("");
+  const [isResending, setIsResending] = useState(false);
 
   const attempted = useRef(false);
   const lastKey = useRef<string | null>(null);
@@ -76,7 +89,6 @@ export function VerifyEmailForm() {
           const nextPath = data.redirectPath?.startsWith("/") ? data.redirectPath : "/user";
           setIsRedirecting(true);
           router.replace(`/login?redirect=${encodeURIComponent(nextPath)}`);
-
           return;
         }
 
@@ -91,8 +103,34 @@ export function VerifyEmailForm() {
     void run();
   }, [searchParams, router]);
 
-  // State: Redirecting OR Instructions (The "Clean" View)
+  async function handleResendVerification() {
+    if (!resendEmail) {
+      toast.error("Please enter your email address.");
+      return;
+    }
+
+    setIsResending(true);
+
+    try {
+      const result = await resendVerification(resendEmail);
+
+      if (!result.ok) {
+        throw new Error(result.error || "Failed to resend verification email.");
+      }
+
+      toast.success(result.data?.message || "Verification email sent.");
+    } catch (err: any) {
+      console.error("[RESEND_VERIFICATION]", err);
+      toast.error(err.message || "Failed to resend verification email.");
+    } finally {
+      setIsResending(false);
+    }
+  }
+
+  // Redirecting OR Instructions
   if (isRedirecting || status === "instructions") {
+    const isSignedIntoFirebase = !!auth.currentUser;
+
     return (
       <div className="w-full text-center">
         <div className="py-6 space-y-6">
@@ -108,7 +146,7 @@ export function VerifyEmailForm() {
 
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">{isRedirecting ? "Email Verified!" : "Check your email"}</h2>
-            <p className="text-muted-foreground text-base max-w-[320px] mx-auto">
+            <p className="text-muted-foreground text-base max-w-[360px] mx-auto">
               {isRedirecting
                 ? "Verification successful. Redirecting you now..."
                 : "We sent a link to your inbox. Please click it to activate your account."}
@@ -116,13 +154,52 @@ export function VerifyEmailForm() {
           </div>
 
           {!isRedirecting && (
-            <div className="pt-6 border-t">
-              <p className="text-sm text-muted-foreground">
-                Didn&apos;t receive it? Check spam or{" "}
-                <Link href="/verify-email" className="font-bold text-primary hover:underline">
-                  Resend link
-                </Link>
+            <div className="pt-6 border-t space-y-4 text-left">
+              <p className="text-sm text-muted-foreground text-center">
+                Didn&apos;t receive it? Resend the verification email below.
               </p>
+
+              {!isSignedIntoFirebase && (
+                <div className="space-y-3">
+                  <UniversalInput
+                    id="resendEmail"
+                    name="resendEmail"
+                    label="Email"
+                    value={resendEmail}
+                    onChange={setResendEmail}
+                    type="email"
+                    placeholder="Enter your email"
+                    required={false}
+                    disabled={isResending}
+                  />
+                  <UniversalPasswordInput
+                    id="resendPassword"
+                    name="resendPassword"
+                    label="Password"
+                    value={resendPassword}
+                    onChange={setResendPassword}
+                    placeholder="Enter your password"
+                    required={false}
+                    disabled={isResending}
+                  />
+                </div>
+              )}
+
+              <Button
+                className="w-full h-12"
+                onClick={handleResendVerification}
+                disabled={isResending || (!isSignedIntoFirebase && (!resendEmail || !resendPassword))}>
+                {isResending ? "Sending..." : "Resend verification email"}
+              </Button>
+
+              <div className="flex gap-3">
+                <Button
+                  className="w-full h-12"
+                  onClick={handleResendVerification}
+                  disabled={isResending || !resendEmail}>
+                  {isResending ? "Sending..." : "Resend verification email"}
+                </Button>
+              </div>
             </div>
           )}
         </div>

@@ -1,8 +1,7 @@
-// src/components/auth/UserProfileForm.tsx
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef, startTransition, useActionState } from "react";
+import { useState, useEffect, useRef, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Upload, AlertCircle } from "lucide-react";
@@ -20,10 +19,12 @@ import { SubmitButton } from "@/components/shared/SubmitButton";
 import { UserProfileSkeleton } from "./UserProfileSkeleton";
 import { UserAvatar } from "../shared/UserAvatar";
 import { updateUserProfile } from "@/actions/user";
-import type { ProfileUpdateState } from "@/types/user/profile";
 import type { User } from "@/types/models/user";
 import { UniversalInput } from "@/components/forms/UniversalInput";
 import { UniversalTextarea } from "@/components/forms/UniversalTextarea";
+
+// Standardized State Type from the refactored action
+type ProfileState = Awaited<ReturnType<typeof updateUserProfile>> | null;
 
 interface UnifiedProfileFormProps {
   id?: string;
@@ -38,132 +39,101 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
   const { data: session, status, update: updateSessionFn } = useSession();
   const router = useRouter();
 
+  // Input states
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  // Logic states
   const [formReady, setFormReady] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTransitionPending, startTransition] = useTransition();
 
-  const [initialFirstName, setInitialFirstName] = useState("");
-  const [initialLastName, setInitialLastName] = useState("");
-  const [initialDisplayName, setInitialDisplayName] = useState("");
-  const [initialBio, setInitialBio] = useState("");
-  const [initialPhotoURL, setInitialPhotoURL] = useState<string | null>(null);
-
+  // Initial values for cancel logic
+  const initialValues = useRef({
+    firstName: "",
+    lastName: "",
+    displayName: "",
+    bio: "",
+    photoURL: null as string | null
+  });
   const updateProcessedRef = useRef(false);
 
-  const [state, formAction, isPending] = useActionState<ProfileUpdateState, FormData>(updateUserProfile, {
-    success: false
-  });
+  // 1. Define the Bridge Action for useActionState
+  const profileActionBridge = async (prevState: ProfileState, formData: FormData): Promise<ProfileState> => {
+    // Extract values from FormData
+    const data = {
+      firstName: formData.get("firstName") as string,
+      lastName: formData.get("lastName") as string,
+      displayName: formData.get("displayName") as string,
+      bio: formData.get("bio") as string,
+      image: (formData.get("imageUrl") as string) || undefined
+    };
+
+    // Call the refactored server action (which returns ServiceResult)
+    return await updateUserProfile(data);
+  };
+
+  // 2. Initialize useActionState
+  const [state, formAction, isPending] = useActionState(profileActionBridge, null);
 
   useEffect(() => {
-    // Highlight: Log what session data the form receives
-    console.log("[UserProfileForm] useEffect: session status =", status);
-    console.log("[UserProfileForm] useEffect: session.user =", session?.user);
-
     if (status === "authenticated" && session?.user && !formReady) {
-      setFirstName(session.user.firstName || "");
-      setLastName(session.user.lastName || "");
-      setDisplayName(session.user.displayName || session.user.name || "");
-      setBio(session.user.bio || "");
-      setPhotoURL(session.user.image || null);
+      const u = session.user;
+      const initialData = {
+        firstName: u.firstName || "",
+        lastName: u.lastName || "",
+        displayName: u.displayName || u.name || "",
+        bio: u.bio || "",
+        photoURL: u.image || null
+      };
 
-      setInitialFirstName(session.user.firstName || "");
-      setInitialLastName(session.user.lastName || "");
-      setInitialDisplayName(session.user.displayName || session.user.name || "");
-      setInitialBio(session.user.bio || "");
-      setInitialPhotoURL(session.user.image || null);
+      setFirstName(initialData.firstName);
+      setLastName(initialData.lastName);
+      setDisplayName(initialData.displayName);
+      setBio(initialData.bio);
+      setPhotoURL(initialData.photoURL);
 
+      initialValues.current = initialData;
       setFormReady(true);
-      // Highlight: Log form state after initialization
-      console.log("[UserProfileForm] useEffect: Form initialized with:");
-      console.log("  firstName:", session.user.firstName || "");
-      console.log("  lastName:", session.user.lastName || "");
-      console.log("  displayName:", session.user.displayName || session.user.name || "");
-      console.log("  bio:", session.user.bio || "");
-      console.log("  photoURL:", session.user.image || null);
     }
   }, [session, status, formReady]);
 
   useEffect(() => {
     if (state && !updateProcessedRef.current) {
-      if (state.success) {
+      if (state.ok) {
         updateProcessedRef.current = true;
         setIsSuccess(true);
         toast.success("Profile updated successfully");
 
         updateSessionFn()
           .then(() => {
-            console.log("[UserProfileForm] Session update triggered and completed."); // Highlight
             if (redirectAfterSuccess) {
               setTimeout(() => router.push(redirectAfterSuccess), 1500);
             }
           })
-          .catch(error => {
-            const message = isFirebaseError(error) ? firebaseError(error) : "Failed to update session";
-            toast.error(message);
-            console.error("[UserProfileForm] Session update error:", error); // Highlight
-          });
-      } else if (state.error) {
-        const message = typeof state.error === "string" ? state.error : firebaseError(state.error);
-        toast.error(message);
-        console.error("[UserProfileForm] Form action error:", state.error); // Highlight
+          .catch(err => toast.error("Profile saved, but session refresh failed."));
+      } else {
+        toast.error(state.error || "Failed to update profile");
       }
     }
   }, [state, router, updateSessionFn, redirectAfterSuccess]);
-
-  const resetForm = () => {
-    setFirstName(initialFirstName);
-    setLastName(initialLastName);
-    setDisplayName(initialDisplayName);
-    setBio(initialBio);
-    setPhotoURL(initialPhotoURL);
-    setPhotoFile(null);
-    setIsSuccess(false);
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const error = validateFileSize(file, 2);
-    if (error) {
-      toast.error(error);
-      return;
-    }
+    if (error) return toast.error(error);
 
     const reader = new FileReader();
     reader.onload = e => setPhotoURL(e.target?.result as string);
     reader.readAsDataURL(file);
     setPhotoFile(file);
-  };
-
-  const handleCancel = () => {
-    if (!isPending && !isUploading) {
-      const formChanged =
-        firstName !== initialFirstName ||
-        lastName !== initialLastName ||
-        displayName !== initialDisplayName ||
-        bio !== initialBio ||
-        (photoURL !== initialPhotoURL && photoURL !== null);
-
-      if (formChanged && !window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
-        return;
-      }
-
-      resetForm();
-      toast.info("Changes discarded");
-
-      if (onCancel) {
-        onCancel();
-      } else {
-        router.push(isAdmin ? "/admin" : "/user");
-      }
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -181,38 +151,19 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
         const imageUrl = await uploadFile(photoFile, { prefix: "profile" });
         formData.append("imageUrl", imageUrl);
       }
-      console.log("[UserProfileForm] handleSubmit: Submitting formData with:", {
-        // Highlight
-        firstName,
-        lastName,
-        displayName,
-        bio,
-        photoFile: photoFile?.name
-      });
+
       startTransition(() => {
         updateProcessedRef.current = false;
         formAction(formData);
       });
     } catch (error: unknown) {
-      console.error("Profile update error:", error);
-      const message =
-        error instanceof Error && error.message.includes("File too large")
-          ? "Image too large. Please upload a file under 2MB."
-          : isFirebaseError(error)
-            ? firebaseError(error)
-            : error instanceof Error
-              ? error.message
-              : "Failed to update profile";
-
-      toast.error(message);
+      toast.error(isFirebaseError(error) ? firebaseError(error) : "Upload failed");
     } finally {
       setIsUploading(false);
     }
   };
 
-  if (status === "loading" || !formReady) {
-    return <UserProfileSkeleton />;
-  }
+  if (status === "loading" || !formReady) return <UserProfileSkeleton />;
 
   return (
     <Card className="border-border/40 shadow-sm">
@@ -220,9 +171,10 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
         <CardTitle>Personal Information</CardTitle>
         <CardDescription>Update your personal details and profile picture.</CardDescription>
       </CardHeader>
+
       <form id={id} onSubmit={handleSubmit} className="w-full">
         <CardContent className="grid gap-6">
-          {state?.error && (
+          {state && !state.ok && (
             <Alert variant="destructive">
               <AlertCircle className="h-6 w-6" />
               <AlertDescription className="text-base">{state.error}</AlertDescription>
@@ -230,18 +182,7 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
           )}
 
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-20 w-20 p-1 rounded-full ring-0 ring-offset-0 hover:ring-2 hover:ring-primary/50 focus:ring-2 focus:ring-primary/50 transition duration-200">
-              <UserAvatar
-                src={photoURL}
-                name={session?.user?.name}
-                email={session?.user?.email}
-                className="h-full w-full"
-              />
-            </Button>
+            <UserAvatar src={photoURL} name={session?.user?.name} email={session?.user?.email} className="h-20 w-20" />
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
@@ -249,24 +190,21 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
                 <Badge variant={isAdmin ? "destructive" : "secondary"}>{isAdmin ? "Admin" : "User"}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">Upload a new profile picture</p>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="profile-image"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
-                  disabled={isPending || isUploading}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById("profile-image")?.click()}
-                  disabled={isPending || isUploading}>
-                  <Upload className="mr-2 h-4 w-4" /> Upload
-                </Button>
-              </div>
-              {photoFile && <p className="text-sm text-muted-foreground">{photoFile.name}</p>}
+              <Input
+                id="profile-image"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={isPending || isUploading}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => document.getElementById("profile-image")?.click()}
+                disabled={isPending || isUploading}>
+                <Upload className="mr-2 h-4 w-4" /> Upload
+              </Button>
             </div>
           </div>
 
@@ -278,7 +216,6 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
               onChange={setFirstName}
               required
               variant="compact"
-              className="h-12 border-input dark:border-opacity-50 focus:ring-2 focus:ring-primary focus:border-primary"
             />
             <UniversalInput
               id="lastName"
@@ -287,7 +224,6 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
               onChange={setLastName}
               required
               variant="compact"
-              className="h-12 border-input dark:border-opacity-50 focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
@@ -297,7 +233,6 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
             value={displayName}
             onChange={setDisplayName}
             variant="compact"
-            className="h-12 border-input dark:border-opacity-50 focus:ring-2 focus:ring-primary focus:border-primary"
             placeholder="e.g., MotoStix Fan"
           />
 
@@ -307,7 +242,7 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
             value={session?.user?.email || ""}
             onChange={() => {}}
             variant="compact"
-            className="h-12 bg-muted border border-gray-300 dark:border-gray-500 cursor-not-allowed opacity-50"
+            className="bg-muted opacity-50 cursor-not-allowed"
             disabled
           />
 
@@ -318,13 +253,13 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
             onChange={setBio}
             placeholder="Tell us a bit about yourself"
             variant="compact"
-            className="resize-none min-h-[100px] border-input focus:ring-2 focus:ring-primary focus:border-primary"
+            className="resize-none min-h-[100px]"
           />
         </CardContent>
+
         <CardFooter className="flex flex-wrap items-center justify-start gap-4">
           <SubmitButton
-            isLoading={isPending || isUploading}
-            variant="default"
+            isLoading={isPending || isTransitionPending || isUploading}
             loadingText={isUploading ? "Uploading..." : "Saving..."}
             className="h-12 px-6">
             Save changes
@@ -333,7 +268,7 @@ export function UserProfileForm({ id, onCancel, redirectAfterSuccess, isAdmin = 
           <Button
             type="button"
             variant="outline"
-            onClick={handleCancel}
+            onClick={onCancel || (() => router.back())}
             disabled={isPending || isUploading}
             className="h-12 px-6">
             Cancel

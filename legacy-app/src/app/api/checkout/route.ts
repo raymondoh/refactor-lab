@@ -5,6 +5,8 @@ import { auth } from "@/auth";
 import { DEFAULT_CURRENCY, TAX_RATE, SHIPPING_CONFIG } from "@/config/checkout";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { requireEnv } from "@/lib/env";
+import { logServerEvent } from "@/lib/services/logging-service";
+import { fail } from "@/lib/services/service-result";
 
 export const runtime = "nodejs";
 
@@ -13,51 +15,39 @@ const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"));
 type CheckoutItem = { id: string; quantity: number };
 
 export async function POST(req: Request) {
+  // Optional session for metadata and logging
+  const session = await auth();
+  const userId = session?.user?.id ? String(session.user.id) : null;
+  const loggedInEmail = session?.user?.email ? String(session.user.email) : null;
+
   try {
-    // Parse once, strongly typed
     const body = (await req.json()) as { items?: CheckoutItem[] };
     const items = body.items ?? [];
 
     if (items.length === 0) {
-      return NextResponse.json({ error: "Your cart is empty." }, { status: 400 });
+      return NextResponse.json(fail("VALIDATION", "Your cart is empty."), { status: 400 }); //
     }
 
-    // Validate quantities early
+    // Validate quantities
     for (const item of items) {
       if (!item?.id || !Number.isFinite(item.quantity) || item.quantity < 1) {
-        return NextResponse.json({ error: "Invalid cart items." }, { status: 400 });
+        return NextResponse.json(fail("VALIDATION", "Invalid cart items."), { status: 400 }); //
       }
     }
 
-    // Optional session (do NOT require it)
-    const session = await auth();
-    const userId = session?.user?.id ? String(session.user.id) : null;
-    const loggedInEmail = session?.user?.email ? String(session.user.email) : null;
-
     const db = getAdminFirestore();
-
-    // Debug logs (temporary)
-    console.log("[checkout] firestore project (env):", process.env.FIREBASE_PROJECT_ID);
-
-    // Build server-verified line items
     let subtotal = 0;
     const simplifiedItems: { id: string; quantity: number }[] = [];
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
     for (const item of items) {
-      // Debug: confirm Firestore doc exists in THIS env/project
-      const directDoc = await db.collection("products").doc(item.id).get();
-      console.log("[checkout] direct doc exists?", item.id, directDoc.exists);
-
       const doc = await db.collection("products").doc(item.id).get();
 
       if (!doc.exists) {
-        return NextResponse.json({ error: `Product with ID ${item.id} not found.` }, { status: 404 });
+        return NextResponse.json(fail("NOT_FOUND", `Product ${item.id} not found.`), { status: 404 }); //
       }
 
       const data = doc.data() as Record<string, unknown>;
-
-      // Minimal fields checkout needs (fallbacks protect you from legacy docs)
       const product = {
         id: doc.id,
         name: String(data?.name ?? "Product"),
@@ -90,7 +80,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Manual tax as a separate line item (okay for now)
+    // Tax and Shipping
     const taxAmount = Number.parseFloat((subtotal * TAX_RATE).toFixed(2));
     if (taxAmount > 0) {
       line_items.push({
@@ -104,22 +94,15 @@ export async function POST(req: Request) {
     }
 
     const shippingCost = subtotal > SHIPPING_CONFIG.freeShippingThreshold ? 0 : SHIPPING_CONFIG.flatRate;
-
     const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
     const stripeSession = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items,
-
       ...(loggedInEmail ? { customer_email: loggedInEmail } : {}),
-
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/products`,
-
-      shipping_address_collection: {
-        allowed_countries: ["GB", "US", "CA"]
-      },
-
+      shipping_address_collection: { allowed_countries: ["GB", "US", "CA"] },
       shipping_options: [
         {
           shipping_rate_data: {
@@ -132,17 +115,34 @@ export async function POST(req: Request) {
           }
         }
       ],
-
       metadata: {
         ...(userId ? { userId } : {}),
         items: JSON.stringify(simplifiedItems)
       }
     });
 
-    return NextResponse.json({ url: stripeSession.url }, { status: 200 });
+    // Log successful session creation
+    await logServerEvent({
+      type: "stripe:checkout_created",
+      message: `Checkout session created for user ${userId || "guest"}`,
+      userId: userId || undefined,
+      context: "stripe",
+      metadata: { sessionId: stripeSession.id, subtotal }
+    });
+
+    return NextResponse.json({ ok: true, url: stripeSession.url }, { status: 200 }); //
   } catch (err: unknown) {
-    console.error("[STRIPE_CHECKOUT_ERROR]", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Unexpected checkout error";
+
+    // Standardized error logging
+    await logServerEvent({
+      type: "error",
+      message,
+      userId: userId || undefined,
+      context: "stripe",
+      metadata: { error: err }
+    });
+
+    return NextResponse.json(fail("UNKNOWN", message), { status: 500 }); //
   }
 }

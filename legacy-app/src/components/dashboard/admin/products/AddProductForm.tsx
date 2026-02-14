@@ -306,7 +306,7 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
         // 4. Call Server Action
         const result = await createProductAction(parsed.data);
 
-        if (result.success) {
+        if (result.ok) {
           toast.success(`"${productName}" added successfully!`);
           resetForm();
           onSuccess?.();

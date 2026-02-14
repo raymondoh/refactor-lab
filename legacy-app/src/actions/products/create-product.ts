@@ -1,68 +1,70 @@
+// src/actions/products/create-product.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
-
-import { requireAdmin } from "@/actions/_helpers/require-admin";
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { adminActivityService } from "@/lib/services/admin-activity-service";
-
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { productSchema } from "@/schemas/product";
+import { validatedAdminAction } from "@/actions/_helpers/action-wrapper";
+import { ok, fail } from "@/lib/services/service-result";
 import type { z } from "zod";
 
 type ProductCreateInput = z.infer<typeof productSchema>;
 
-// Create product (admin only)
-export async function createProductAction(data: ProductCreateInput) {
-  const gate = await requireAdmin();
-  if (!gate.success) {
-    return { success: false as const, error: gate.error };
-  }
-
+/**
+ * Refactored createProductAction using the validatedAdminAction wrapper.
+ * The wrapper automatically handles authentication and admin role checks.
+ */
+export const createProductAction = validatedAdminAction(async (data: ProductCreateInput, userId: string) => {
   try {
-    // Optional: validate here to keep the action strict (service also validates defensively)
+    // 1) Validation (keeps the action strict)
     const parsed = productSchema.safeParse(data);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Invalid product data";
-      return { success: false as const, error: msg };
+      return fail("VALIDATION", msg);
     }
 
+    // 2) Run the addition
     const result = await adminProductService.addProduct(parsed.data);
+
     if (!result.success) {
-      // best-effort log
+      // Best-effort log for failure
       try {
         await adminActivityService.logActivity({
-          userId: gate.userId,
+          userId,
           type: "create_product",
           description: "Failed to create product",
           status: "error",
           metadata: { error: result.error }
         });
-      } catch {}
+      } catch (logErr) {
+        console.error("Activity logging failed:", logErr);
+      }
 
-      return { success: false as const, error: result.error };
+      return fail("UNKNOWN", result.error || "Failed to add product to database");
     }
 
     const productId = result.data.id;
+    const productName = (parsed.data.name || "Unknown Product") as string;
 
-    // best-effort log
+    // 3) Log success (best-effort)
     try {
-      const name = (parsed.data.name || "Unknown Product") as string;
       await adminActivityService.logActivity({
-        userId: gate.userId,
+        userId,
         type: "create_product",
-        description: `Created product: ${name}`,
+        description: `Created product: ${productName}`,
         status: "success",
         metadata: { productId }
       });
     } catch {}
 
+    // 4) Revalidate relevant paths
     revalidatePath("/admin/products");
     revalidatePath("/products");
     revalidatePath("/");
-    // if you have a product detail route by ID/slug, you can add it here later
 
-    return { success: true as const, id: productId };
+    return ok({ id: productId });
   } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
@@ -70,10 +72,10 @@ export async function createProductAction(data: ProductCreateInput) {
         ? error.message
         : "Unknown error creating product";
 
-    // best-effort log
+    // Best-effort error log
     try {
       await adminActivityService.logActivity({
-        userId: gate.userId,
+        userId,
         type: "create_product",
         description: "Error creating product",
         status: "error",
@@ -81,9 +83,9 @@ export async function createProductAction(data: ProductCreateInput) {
       });
     } catch {}
 
-    return { success: false as const, error: message };
+    return fail("UNKNOWN", message);
   }
-}
+});
 
 // Back-compat alias if older code expects `createProduct`
 export { createProductAction as createProduct };

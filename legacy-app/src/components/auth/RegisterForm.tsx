@@ -1,8 +1,6 @@
-// src/components/auth/RegisterForm.tsx
 "use client";
 
-import type React from "react";
-import { useState, useEffect, useRef, startTransition, useActionState } from "react";
+import { useState, useEffect, useRef, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
@@ -16,100 +14,87 @@ import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { SubmitButton } from "@/components/shared/SubmitButton";
 import { UniversalInput } from "@/components/forms/UniversalInput";
 import { UniversalPasswordInput } from "@/components/forms/UniversalPasswordInput";
-import type { RegisterResponse } from "@/types/auth/register";
 
-type RegisterState = RegisterResponse | null;
+// Use the new ServiceResult type for the state
+type RegisterState = Awaited<ReturnType<typeof registerUser>> | null;
 
 export function RegisterForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
   const router = useRouter();
 
+  // Local state for inputs
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formKey, setFormKey] = useState(0);
 
-  // Validation states
+  // Validation UI states
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
-
-  const verificationEmailSent = useRef(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isTransitionPending, startTransition] = useTransition();
 
-  const [state, action, isPending] = useActionState<RegisterState, FormData>(registerUser, null, formKey.toString());
+  // 1. Define the Bridge Action inside the component
+  const registerFormAction = async (_prev: RegisterState, formData: FormData): Promise<RegisterState> => {
+    const emailVal = String(formData.get("email") ?? "");
+    const passwordVal = String(formData.get("password") ?? "");
+    const confirmPasswordVal = String(formData.get("confirmPassword") ?? "");
+
+    return await registerUser({
+      email: emailVal,
+      password: passwordVal,
+      confirmPassword: confirmPasswordVal
+    });
+  };
+
+  // 2. Initialize useActionState
+  const [state, action, isPending] = useActionState(registerFormAction, null);
 
   const registerErrorToastShown = useRef(false);
+  const verificationEmailSent = useRef(false);
 
   const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (value: string) => {
     setter(value);
-    // Reset error state when user types
-    if (state?.message && !state.success) {
+    if (state && !state.ok) {
       setFormKey(prev => prev + 1);
       registerErrorToastShown.current = false;
     }
   };
 
-  // Password validation
-  const validatePassword = (passwordValue: string) => {
-    if (passwordValue.length < 8) {
-      return "Password must be at least 8 characters long";
-    }
-    if (!/(?=.*[a-z])/.test(passwordValue)) {
-      return "Password must contain at least one lowercase letter";
-    }
-    if (!/(?=.*[A-Z])/.test(passwordValue)) {
-      return "Password must contain at least one uppercase letter";
-    }
-    if (!/(?=.*\d)/.test(passwordValue)) {
-      return "Password must contain at least one number";
-    }
+  const validatePassword = (val: string) => {
+    if (val.length < 8) return "Password must be at least 8 characters long";
+    if (!/(?=.*[a-z])/.test(val)) return "Password must contain a lowercase letter";
+    if (!/(?=.*[A-Z])/.test(val)) return "Password must contain an uppercase letter";
+    if (!/(?=.*\d)/.test(val)) return "Password must contain a number";
     return null;
   };
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
-    const error = validatePassword(value);
-    setPasswordError(error);
-
-    // Also check confirm password if it's filled
-    if (confirmPassword && value !== confirmPassword) {
-      setConfirmPasswordError("Passwords do not match");
-    } else if (confirmPassword && value === confirmPassword) {
-      setConfirmPasswordError(null);
-    }
+    setPasswordError(validatePassword(value));
+    if (confirmPassword && value !== confirmPassword) setConfirmPasswordError("Passwords do not match");
+    else setConfirmPasswordError(null);
   };
 
   const handleConfirmPasswordChange = (value: string) => {
     setConfirmPassword(value);
-    if (password && value !== password) {
-      setConfirmPasswordError("Passwords do not match");
-    } else {
-      setConfirmPasswordError(null);
-    }
+    setConfirmPasswordError(password && value !== password ? "Passwords do not match" : null);
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Validate passwords before submission
-    const passwordValidationError = validatePassword(password);
-    if (passwordValidationError) {
-      setPasswordError(passwordValidationError);
-      toast.error("Please fix password requirements");
+    const passErr = validatePassword(password);
+    if (passErr) {
+      setPasswordError(passErr);
       return;
     }
 
     if (password !== confirmPassword) {
       setConfirmPasswordError("Passwords do not match");
-      toast.error("Passwords do not match");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("email", email);
-    formData.append("password", password);
-    formData.append("confirmPassword", confirmPassword);
-    formData.append("isRegistration", "true");
-
+    const formData = new FormData(event.currentTarget);
     startTransition(() => {
       action(formData);
     });
@@ -118,61 +103,53 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
   useEffect(() => {
     if (!state || registerErrorToastShown.current) return;
 
-    if (state.success && !verificationEmailSent.current) {
+    if (state.ok && !verificationEmailSent.current) {
       verificationEmailSent.current = true;
       (async () => {
         try {
           setIsLoggingIn(true);
 
-          // 1. create a session-less login so we can get a custom token
-          const loginFormData = new FormData();
-          loginFormData.append("email", email);
-          loginFormData.append("password", password);
-          loginFormData.append("isRegistration", "true");
-          loginFormData.append("skipSession", "true");
+          const { signInWithEmailAndPassword } = await import("firebase/auth");
 
-          const loginRes = await loginUser(null, loginFormData);
+          // 1) Sign in (real Firebase session)
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-          if (!loginRes?.success || !loginRes.data?.customToken) {
-            throw new Error("Could not sign in to send verification e-mail");
-          }
+          // 2) Force token refresh (helps avoid weird timing issues)
+          await userCredential.user.getIdToken(true);
 
-          // 2. exchange token with Firebase client SDK
-          const cred = await signInWithCustomToken(auth, loginRes.data.customToken);
+          // 3) Send verification email
+          await sendEmailVerification(userCredential.user, getVerificationSettings());
 
-          // 3. ask Firebase to send the message
-          await sendEmailVerification(cred.user, getVerificationSettings());
-          // ADD THIS: Sign out immediately so they aren't "partially logged in"
-          // while unverified. This forces the clean verification flow.
           await auth.signOut();
-
-          toast.success("Verification e-mail sent! Check your inbox.");
+          toast.success("Account created! Verification email sent.");
           router.push("/verify-email");
         } catch (err) {
-          console.error("[REGISTER] verification flow: ", err);
-          toast.error("Could not send verification e-mail.");
+          console.error("[REGISTER] verification flow:", err?.code, err?.message, err);
+          toast.error("Account created, but could not send verification email.");
+          router.push("/login");
         } finally {
           setIsLoggingIn(false);
         }
       })();
-    } else if (state?.message && !state.success && !registerErrorToastShown.current) {
+    } else if (!state.ok && !registerErrorToastShown.current) {
       registerErrorToastShown.current = true;
-      toast.error(state.message || "Registration failed.");
+      toast.error(state.error || "Registration failed.");
     }
   }, [state, email, password, router]);
 
   return (
-    <div className={`w-full ${className}`} {...props}>
+    <div className={`w-full ${className}`} {...props} key={formKey}>
       <form onSubmit={handleSubmit} className="space-y-6">
-        {state?.message && !state.success && (
+        {state && !state.ok && (
           <Alert variant="destructive">
             <AlertCircle className="h-6 w-6" />
-            <AlertDescription className="text-base">{state.message}</AlertDescription>
+            <AlertDescription className="text-base">{state.error}</AlertDescription>
           </Alert>
         )}
 
         <UniversalInput
           id="email"
+          name="email"
           label="Email"
           value={email}
           onChange={handleInputChange(setEmail)}
@@ -183,17 +160,19 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
 
         <UniversalPasswordInput
           id="password"
+          name="password"
           label="Password"
           value={password}
           onChange={handlePasswordChange}
           placeholder="Create a strong password"
           required
           error={passwordError}
-          helpText="Must be at least 8 characters with uppercase, lowercase, and number"
+          helpText="8+ characters, uppercase, lowercase, and number"
         />
 
         <UniversalPasswordInput
           id="confirmPassword"
+          name="confirmPassword"
           label="Confirm Password"
           value={confirmPassword}
           onChange={handleConfirmPasswordChange}
@@ -203,8 +182,8 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
         />
 
         <SubmitButton
-          isLoading={isPending || isLoggingIn}
-          loadingText={isLoggingIn ? "Sending verification email..." : "Creating account..."}
+          isLoading={isPending || isTransitionPending || isLoggingIn}
+          loadingText={isLoggingIn ? "Sending email..." : "Creating account..."}
           className="w-full h-14 text-lg font-bold"
           disabled={!!passwordError || !!confirmPasswordError || isLoggingIn}>
           Create Account
@@ -221,7 +200,7 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
           </div>
           <GoogleAuthButton
             mode="signup"
-            className="mt-4 h-14 text-base font-medium bg-secondary hover:bg-secondary/80 text-white dark:text-white transition-colors"
+            className="mt-4 h-14 text-base font-medium bg-secondary hover:bg-secondary/80 text-white transition-colors"
           />
         </div>
 

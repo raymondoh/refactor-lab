@@ -3,25 +3,24 @@
 
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { requireAdmin } from "@/actions/_helpers/require-admin";
+import { validatedAdminAction } from "@/actions/_helpers/action-wrapper";
+import { ok, fail } from "@/lib/services/service-result";
 import type { ProductFilterOptions } from "@/types/filters/product-filters";
 
-// Get all products with optional filters (ADMIN)
-export async function getAllProductsAction(filters?: ProductFilterOptions) {
+/**
+ * Get all products with optional filters (ADMIN)
+ * Refactored to use the validatedAdminAction wrapper for consistent security and response shapes.
+ */
+export const getAllProductsAction = validatedAdminAction(async (filters: ProductFilterOptions | undefined) => {
   try {
-    const gate = await requireAdmin();
-    if (!gate.success) {
-      return { success: false as const, error: gate.error };
-    }
-
     const result = await adminProductService.getAllProducts(filters);
 
-    // Maintain existing return shape expected by callers
     if (!result.success) {
-      return { success: false as const, error: result.error };
+      return fail("UNKNOWN", result.error || "Failed to fetch products from database");
     }
 
-    return { success: true as const, data: result.data };
+    // FIX: result.data is already SerializedProduct[], so we assign it directly to the key
+    return ok({ products: result.data });
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
@@ -29,9 +28,9 @@ export async function getAllProductsAction(filters?: ProductFilterOptions) {
         ? error.message
         : "Unknown error fetching products";
 
-    return { success: false as const, error: message };
+    return fail("UNKNOWN", message);
   }
-}
+});
 
 // Backward compatibility exports
 export { getAllProductsAction as getAllProductsFromDB };

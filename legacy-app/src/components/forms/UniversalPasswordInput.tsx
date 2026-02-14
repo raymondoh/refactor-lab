@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 
 interface UniversalPasswordInputProps {
   id: string;
+  name?: string;
   label: string;
+  disabled?: boolean;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -23,8 +25,10 @@ interface UniversalPasswordInputProps {
 
 export function UniversalPasswordInput({
   id,
+  name,
   label,
   value,
+  disabled,
   onChange,
   placeholder = "Enter your password",
   required = false,
@@ -60,6 +64,8 @@ export function UniversalPasswordInput({
       <div className="relative">
         <Input
           id={id}
+          name={name}
+          disabled={disabled}
           type={showPassword ? "text" : "password"}
           value={value}
           onChange={e => onChange(e.target.value)}

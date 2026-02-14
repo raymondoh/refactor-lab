@@ -296,9 +296,13 @@ export function UpdateProductForm({ product }: UpdateProductFormProps) {
         console.log("Submitting product data:", JSON.stringify(productData, null, 2));
 
         // Update product
-        const result = await updateProduct(product.id, productData);
+        // NEW: Pass as a single object
+        const result = await updateProduct({
+          id: product.id,
+          data: productData
+        });
 
-        if (result.success) {
+        if (result.ok) {
           toast.success(`"${productName}" updated successfully! Redirecting...`);
           router.refresh();
           setTimeout(() => router.push("/admin/products"), 2000);

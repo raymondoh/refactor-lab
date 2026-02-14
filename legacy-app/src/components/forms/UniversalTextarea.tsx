@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface UniversalTextareaProps {
   id: string;
+  name?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -20,6 +21,7 @@ interface UniversalTextareaProps {
 
 export function UniversalTextarea({
   id,
+  name,
   label,
   value,
   onChange,
@@ -50,6 +52,7 @@ export function UniversalTextarea({
       </Label>
       <Textarea
         id={id}
+        name={name}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}

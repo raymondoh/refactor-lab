@@ -7,6 +7,7 @@ import { forwardRef } from "react";
 
 interface UniversalInputProps {
   id: string;
+  name?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -26,6 +27,8 @@ export const UniversalInput = forwardRef<HTMLInputElement, UniversalInputProps>(
   (
     {
       id,
+      name,
+      disabled,
       label,
       value,
       onChange,
@@ -62,7 +65,9 @@ export const UniversalInput = forwardRef<HTMLInputElement, UniversalInputProps>(
         <Input
           ref={ref}
           id={id}
+          name={name}
           type={type}
+          disabled={disabled}
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}

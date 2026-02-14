@@ -7,4 +7,5 @@ export * from "./email-verification";
 export * from "./password";
 export * from "./reset-password";
 export * from "./login";
+export * from "./delete";
 // export * from "./firebase-auth";

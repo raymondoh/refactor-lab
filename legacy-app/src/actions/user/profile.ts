@@ -1,185 +1,45 @@
 // src/actions/user/profile.ts
 "use server";
 
-// ================= Imports =================
-import { serverTimestamp } from "@/utils/date-server";
-import { profileUpdateSchema } from "@/schemas/user";
-import { logActivity } from "@/firebase/actions";
-import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
-import { logger } from "@/utils/logger";
+import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { userProfileService } from "@/lib/services/user-profile-service";
+import { profileUpdateSchema } from "@/schemas/user/profile";
+import { ok, fail } from "@/lib/services/service-result";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import type { z } from "zod";
 
-import type { GetProfileResponse, UpdateUserProfileResponse } from "@/types/user/profile";
-
-// ================= User Profile Actions =================
+type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
 
 /**
- * Get the current user's profile
+ * Updates the current user's profile.
+ * Uses the auth session to ensure users can only update their own data.
  */
-export async function getProfile(): Promise<GetProfileResponse> {
-  console.log("[Action] getProfile: START");
-
-  try {
-    const { auth } = await import("@/auth");
-    const session = await auth();
-
-    console.log("[Action] getProfile: Session user from auth():", session?.user);
-
-    if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
-    }
-
-    // ✅ Service is now pure — pass userId in
-    const profileResult = await userProfileService.getProfileByUserId(session.user.id);
-
-    if (!profileResult.success) {
-      logger({
-        type: "warn",
-        message: "Failed to fetch user profile via service",
-        metadata: { error: profileResult.error },
-        context: "user-profile"
-      });
-
-      return { success: false, error: profileResult.error };
-    }
-
-    // ✅ Service returns SerializedUser already
-    const user = profileResult.data.user;
-
-    return {
-      success: true,
-      user
-    };
-  } catch (error) {
-    const message = isFirebaseError(error) ? firebaseError(error) : "Failed to get profile";
-
-    logger({
-      type: "error",
-      message: "Error in getProfile",
-      metadata: { error: message },
-      context: "user-profile"
-    });
-
-    console.error("[Action] getProfile: Error details:", error);
-    return { success: false, error: message };
-  } finally {
-    console.log("[Action] getProfile: END");
+export async function updateProfileAction(data: ProfileUpdateInput) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return fail("UNAUTHENTICATED", "You must be logged in to update your profile.");
   }
-}
-
-/**
- * Update the current user's profile
- */
-export async function updateUserProfile(_: unknown, formData: FormData): Promise<UpdateUserProfileResponse> {
-  console.log("[Action] updateUserProfile: START");
 
   try {
-    const { auth } = await import("@/auth");
-    const session = await auth();
-
-    console.log("[Action] updateUserProfile: Session user from auth():", session?.user);
-
-    if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+    const parsed = profileUpdateSchema.safeParse(data);
+    if (!parsed.success) {
+      return fail("VALIDATION", parsed.error.issues[0]?.message ?? "Invalid profile data");
     }
 
-    const firstName = formData.get("firstName") as string;
-    const lastName = formData.get("lastName") as string;
-    const displayName = formData.get("displayName") as string;
-    const bio = formData.get("bio") as string;
-    const imageUrl = formData.get("imageUrl") as string | null;
-
-    console.log("[Action] updateUserProfile: Received formData:", {
-      firstName,
-      lastName,
-      displayName,
-      bio,
-      imageUrl
-    });
-
-    const result = profileUpdateSchema.safeParse({ firstName, lastName, displayName: displayName || undefined, bio });
+    const result = await userProfileService.updateProfileByUserId(session.user.id, parsed.data);
 
     if (!result.success) {
-      const errorMessage = result.error.issues[0]?.message || "Invalid form data";
-
-      logger({
-        type: "warn",
-        message: "Profile update validation failed",
-        metadata: { error: errorMessage, issues: result.error.issues },
-        context: "user-profile"
-      });
-
-      console.error("[Action] updateUserProfile: Validation errors:", result.error.issues);
-      return { success: false, error: errorMessage };
+      return fail("UNKNOWN", result.error || "Failed to update profile");
     }
 
-    // ✅ 1) Update Firebase Auth profile via service (pure — pass userId in)
-    const authUpdate: { displayName?: string; photoURL?: string } = {};
-    if (displayName) authUpdate.displayName = displayName;
-    if (imageUrl) authUpdate.photoURL = imageUrl;
+    revalidatePath("/user/profile");
+    revalidatePath("/admin/profile");
 
-    if (Object.keys(authUpdate).length > 0) {
-      const authResult = await userProfileService.updateAuthProfileByUserId(session.user.id, authUpdate);
-      if (!authResult.success) {
-        logger({
-          type: "error",
-          message: "Failed to update Auth profile via service",
-          metadata: { error: authResult.error },
-          context: "user-profile"
-        });
-        return { success: false, error: authResult.error };
-      }
-    }
-
-    // ✅ 2) Update Firestore profile via service (pure — pass userId in)
-    const updateData: Record<string, unknown> = { updatedAt: serverTimestamp() };
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (displayName !== undefined && displayName !== "") updateData.displayName = displayName;
-    if (bio !== undefined) updateData.bio = bio;
-    if (imageUrl) updateData.picture = imageUrl;
-
-    console.log("[Action] updateUserProfile: updateData:", updateData);
-
-    const profileUpdateResult = await userProfileService.updateProfileByUserId(session.user.id, updateData);
-    if (!profileUpdateResult.success) {
-      logger({
-        type: "error",
-        message: "Failed to update Firestore profile via service",
-        metadata: { error: profileUpdateResult.error },
-        context: "user-profile"
-      });
-      return { success: false, error: profileUpdateResult.error };
-    }
-
-    await logActivity({
-      userId: session.user.id,
-      type: "profile_update",
-      description: "Profile updated",
-      status: "success"
-    });
-
-    logger({
-      type: "info",
-      message: "Profile updated successfully",
-      metadata: { userId: session.user.id },
-      context: "user-profile"
-    });
-
-    return { success: true };
+    return ok({ success: true });
   } catch (error) {
-    const message = isFirebaseError(error) ? firebaseError(error) : "Failed to update profile";
-
-    logger({
-      type: "error",
-      message: "Error updating user profile",
-      metadata: { error: message },
-      context: "user-profile"
-    });
-
-    console.error("[Action] updateUserProfile: Error details:", error);
-    return { success: false, error: message };
-  } finally {
-    console.log("[Action] updateUserProfile: END");
+    const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred";
+    return fail("UNKNOWN", message);
   }
 }
+export { updateProfileAction as updateUserProfile };

@@ -4,9 +4,12 @@
 import { adminDataPrivacyService } from "@/lib/services/admin-data-privacy-service";
 import { adminAuthService } from "@/lib/services/admin-auth-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/actions";
-import type { DeleteAccountState } from "@/types/user/admin"; // <-- or wherever you placed it
+import { logServerEvent } from "@/lib/services/logging-service";
+import { ok, fail } from "@/lib/services/service-result";
 
+/**
+ * Helper to parse truthy values from FormData
+ */
 function isTruthyFormValue(v: FormDataEntryValue | null): boolean {
   if (typeof v !== "string") return false;
   const s = v.toLowerCase();
@@ -14,71 +17,77 @@ function isTruthyFormValue(v: FormDataEntryValue | null): boolean {
 }
 
 /**
- * User self-service deletion:
- * - If immediateDelete=true -> FULL delete of *their own* account (auth + user doc) + cleanup.
- * - Else -> mark deletionRequested flag only.
+ * User self-service account deletion.
+ * Refactored to use ServiceResult and dynamic auth import.
  */
-export async function requestAccountDeletion(
-  _prevState: DeleteAccountState | null,
-  formData: FormData
-): Promise<DeleteAccountState> {
+export async function requestAccountDeletionAction(formData: FormData) {
   try {
+    // 1) Dynamic import of auth inside the function scope for Edge compatibility
     const { auth } = await import("@/auth");
     const session = await auth();
 
     if (!session?.user?.id) {
-      return { success: false, error: "Not authenticated" };
+      return fail("UNAUTHENTICATED", "You must be logged in to delete your account.");
     }
 
     const userId = session.user.id;
 
+    // 2) Validation
     const confirm = String(formData.get("confirm") ?? "");
     if (confirm !== "DELETE") {
-      return { success: false, error: "Please type DELETE to confirm" };
+      return fail("VALIDATION", "Please type DELETE to confirm the deletion.");
     }
 
     const immediateDelete = isTruthyFormValue(formData.get("immediateDelete"));
 
-    // best-effort activity log
-    try {
-      await logActivity({
-        userId,
-        type: "account-deletion-request",
-        description: immediateDelete ? "Account deletion requested (immediate)" : "Account deletion requested",
-        status: "info",
-        metadata: { immediateDelete }
-      });
-    } catch {}
-
+    // 3) Conditional Deletion Logic
     if (!immediateDelete) {
+      // Mark for future deletion
       const res = await adminDataPrivacyService.markDeletionRequested(userId);
-      if (!res.success) return { success: false, error: res.error || "Failed to submit deletion request" };
+      if (!res.success) return fail("UNKNOWN", res.error || "Failed to submit deletion request.");
 
-      return { success: true, message: "Account deletion request submitted" };
+      await logServerEvent({
+        type: `deletion:requested`,
+        message: `User ${userId} requested account deletion`,
+        userId,
+        context: "data-privacy"
+      });
+
+      return ok({ message: "Account deletion request submitted." });
     }
 
-    // IMMEDIATE delete: cleanup + delete auth/doc
+    // 4) IMMEDIATE delete: cleanup + delete auth/doc
+    // Run cleanup of likes and profile images first
     const cleanupRes = await adminDataPrivacyService.deleteUserLikesAndProfileImage(userId);
     if (!cleanupRes.success) {
-      return { success: false, error: cleanupRes.error || "Failed to cleanup user data" };
+      return fail("UNKNOWN", cleanupRes.error || "Failed to cleanup user data.");
     }
 
-    // Optional: delete user storage folder (non-fatal)
+    // Best-effort storage cleanup (non-fatal)
     await adminDataPrivacyService.deleteUserStorageFolder(`users/${userId}/`).catch(() => {});
 
+    // Final step: Delete the Auth record and the User document
     const delRes = await adminAuthService.deleteUserAuthAndDoc(userId);
     if (!delRes.success) {
-      return { success: false, error: delRes.error || "Failed to delete account" };
+      return fail("UNKNOWN", delRes.error || "Failed to delete account auth.");
     }
 
-    return { success: true, message: "Account deleted", shouldRedirect: true };
+    await logServerEvent({
+      type: `deletion:immediate`,
+      message: `User ${userId} deleted their own account immediately`,
+      context: "data-privacy"
+    });
+
+    return ok({ message: "Account deleted", shouldRedirect: true });
   } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
-        : "Unknown error requesting account deletion";
-    console.error("Error requesting account deletion:", message);
-    return { success: false, error: message };
+        : "An unexpected error occurred during account deletion.";
+
+    return fail("UNKNOWN", message);
   }
 }
+// Add this to the bottom of src/actions/data-privacy/deletion.ts
+export { requestAccountDeletionAction as requestAccountDeletion };

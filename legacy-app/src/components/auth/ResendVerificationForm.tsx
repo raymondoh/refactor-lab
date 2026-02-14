@@ -1,14 +1,13 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, CheckCircle } from "lucide-react";
+import { Loader2, Mail, CheckCircle, AlertCircle } from "lucide-react";
 import { resendVerification } from "@/actions/auth/resend-verification";
 import { toast } from "sonner";
 
@@ -22,34 +21,30 @@ export function ResendVerificationForm() {
     setIsLoading(true);
     setMessage(null);
 
-    const formData = new FormData();
-    formData.append("email", email);
-
     try {
-      const result = await resendVerification(formData);
+      // FIX: Passing the raw string directly as the refactored action expects
+      const result = await resendVerification(email);
 
-      if (result.success) {
+      // FIX: Checking .ok instead of .success
+      if (result.ok) {
+        const successText = result.data.message || "Verification email sent successfully";
         setMessage({
           type: "success",
-          text: result.message || "Verification email sent successfully"
+          text: successText
         });
-        toast.success("Verification email sent!");
+        toast.success(successText);
         setEmail(""); // Clear the form
       } else {
+        // FIX: Accessing .error from the failure state
         setMessage({
           type: "error",
-          text: result.error || "Failed to send verification email"
+          text: result.error
         });
-        toast.error(result.error || "Failed to send verification email");
+        toast.error(result.error);
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-
-      setMessage({
-        type: "error",
-        text: errorMessage
-      });
-
+      setMessage({ type: "error", text: errorMessage });
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -89,7 +84,7 @@ export function ResendVerificationForm() {
 
           {message && (
             <Alert variant={message.type === "error" ? "destructive" : "default"}>
-              {message.type === "success" ? <CheckCircle className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+              {message.type === "success" ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               <AlertDescription>{message.text}</AlertDescription>
             </Alert>
           )}

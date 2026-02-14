@@ -2,46 +2,45 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-
-import { requireAdmin } from "@/actions/_helpers/require-admin";
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { adminActivityService } from "@/lib/services/admin-activity-service";
-
 import { deleteProductImages } from "@/lib/services/storage-service";
 import { getProductImageRefs } from "@/utils/product-images";
-
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { validatedAdminAction } from "@/actions/_helpers/action-wrapper";
+import { ok, fail } from "@/lib/services/service-result";
 
-// Delete product (admin only)
-export async function deleteProductAction(productId: string) {
-  // 1) Admin gate (caller validation lives in actions, not services)
-  const gate = await requireAdmin();
-  if (!gate.success) {
-    return { success: false as const, error: gate.error };
-  }
-
+/**
+ * Refactored deleteProductAction using the validatedAdminAction wrapper.
+ * The wrapper handles authentication and admin role checks automatically.
+ */
+export const deleteProductAction = validatedAdminAction(async (productId: string, userId: string) => {
   try {
-    // 2) Fetch product first so we can delete images best-effort + log name
+    // 1) Fetch product first so we can delete images best-effort + log name
     const found = await adminProductService.getProductDoc(productId);
+
     if (!found.success) {
-      // best-effort log
+      // Best-effort log for missing product
       try {
         await adminActivityService.logActivity({
-          userId: gate.userId,
+          userId,
           type: "delete_product",
           description: "Failed to delete product (not found)",
           status: "error",
           metadata: { productId, error: found.error }
         });
-      } catch {}
+      } catch (logErr) {
+        console.error("Activity logging failed:", logErr);
+      }
 
-      return { success: false as const, error: found.error };
+      return fail("NOT_FOUND", found.error || "Product not found");
     }
 
+    // Access the product data correctly from the service response
     const product = found.data.product;
     const productName = product.name || "Unknown Product";
 
-    // 3) Best-effort: delete associated storage objects (do not block product deletion)
+    // 2) Best-effort: delete associated storage objects (do not block product deletion)
     try {
       const refs = getProductImageRefs(product);
       const del = await deleteProductImages(refs);
@@ -52,13 +51,14 @@ export async function deleteProductAction(productId: string) {
       console.warn("deleteProductAction: image cleanup threw:", e);
     }
 
-    // 4) Delete Firestore doc
+    // 3) Delete Firestore doc
     const result = await adminProductService.deleteProductDoc(productId);
+
     if (!result.success) {
-      // best-effort log
+      // Best-effort log for failed deletion
       try {
         await adminActivityService.logActivity({
-          userId: gate.userId,
+          userId,
           type: "delete_product",
           description: `Failed to delete product: ${productName}`,
           status: "error",
@@ -66,13 +66,13 @@ export async function deleteProductAction(productId: string) {
         });
       } catch {}
 
-      return { success: false as const, error: result.error };
+      return fail("UNKNOWN", result.error || "Failed to delete product doc");
     }
 
-    // 5) Log success (best-effort)
+    // 4) Log success (best-effort)
     try {
       await adminActivityService.logActivity({
-        userId: gate.userId,
+        userId,
         type: "delete_product",
         description: `Deleted product: ${productName}`,
         status: "warning",
@@ -80,13 +80,12 @@ export async function deleteProductAction(productId: string) {
       });
     } catch {}
 
-    // 6) Revalidate relevant paths
+    // 5) Revalidate relevant paths
     revalidatePath("/admin/products");
     revalidatePath("/products");
     revalidatePath(`/products/${productId}`);
 
-    // Maintain legacy return shape
-    return { success: true as const };
+    return ok({ success: true });
   } catch (error: unknown) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
@@ -94,10 +93,10 @@ export async function deleteProductAction(productId: string) {
         ? error.message
         : "Unknown error deleting product";
 
-    // best-effort log
+    // Best-effort error log
     try {
       await adminActivityService.logActivity({
-        userId: gate.userId,
+        userId,
         type: "delete_product",
         description: "Error deleting product",
         status: "error",
@@ -105,9 +104,9 @@ export async function deleteProductAction(productId: string) {
       });
     } catch {}
 
-    return { success: false as const, error: message };
+    return fail("UNKNOWN", message);
   }
-}
+});
 
 // Export for backward compatibility
 export { deleteProductAction as deleteProductFromDb };

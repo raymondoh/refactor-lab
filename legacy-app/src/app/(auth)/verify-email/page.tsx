@@ -13,7 +13,6 @@ export const metadata: Metadata = {
 export default function VerifyEmailPage() {
   return (
     <div className="max-w-md mx-auto">
-      {/* We keep the title but ditch the confusing subtitle */}
       <AuthHeader title="Confirm your account" />
       <div className="mt-2">
         <VerifyEmailForm />

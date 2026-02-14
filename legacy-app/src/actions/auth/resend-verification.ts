@@ -1,61 +1,70 @@
-// ===============================
-// 📂 src/actions/auth/resend-verification.ts
-// ===============================
-
 "use server";
 
 import { adminAuthService } from "@/lib/services/admin-auth-service";
+import { ok, fail } from "@/lib/services/service-result";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import { logActivity } from "@/firebase/actions";
-import { z } from "zod";
+import { logServerEvent } from "@/lib/services/logging-service";
 
-// Schema for email verification request
-const emailVerificationRequestSchema = z.object({
-  email: z.string().email("Please enter a valid email address")
-});
+// Example: Resend (adjust if using another provider)
+import { resend } from "@/lib/email/resend"; // your configured resend instance
 
-// Resend email verification
-export async function resendVerification(formData: FormData) {
+export async function resendVerificationAction(email: string) {
+  if (!email) {
+    return fail("VALIDATION", "Email address is required.");
+  }
+
   try {
-    const email = formData.get("email") as string;
-    const validatedFields = emailVerificationRequestSchema.safeParse({ email });
+    // 1) Generate Firebase verification link
+    const result = await adminAuthService.generateEmailVerificationLink(email);
 
-    if (!validatedFields.success) {
-      return { success: false, error: "Please enter a valid email address" };
+    if (!result.success || !result.data?.link) {
+      const code = result.status === 404 ? "NOT_FOUND" : "UNKNOWN";
+
+      return fail(code, result.error || "Could not generate verification link.");
     }
 
-    // 1) Generate verification link (service-driven)
-    // NOTE: add generateEmailVerificationLink to adminAuthService (see below)
-    const linkRes = await adminAuthService.generateEmailVerificationLink(email);
-    if (!linkRes.success) {
-      return { success: false, error: linkRes.error };
-    }
+    const verificationLink = result.data.link;
 
-    const verificationLink = linkRes.data.link;
+    // 2) Send email using Resend
+    await resend.emails.send({
+      from: "MotoStix <no-reply@motostix.com>",
+      to: email,
+      subject: "Verify your email address",
+      html: `
+        <p>Welcome to MotoStix.</p>
 
-    // In a real app, you would send this link via email
-    console.log("Email verification link:", verificationLink);
+        <p>Please verify your email by clicking the link below:</p>
 
-    // 2) Fetch user for logging (service-driven)
-    const userRes = await adminAuthService.getUserByEmail(email);
-    if (userRes.success) {
-      await logActivity({
-        userId: userRes.data.uid,
-        type: "email-verification-resend",
-        description: "Email verification resent",
-        status: "success"
-      });
-    }
+        <p>
+          <a href="${verificationLink}">
+            Verify your email
+          </a>
+        </p>
 
-    return { success: true, message: "Verification email sent successfully" };
+        <p>This link will expire automatically.</p>
+      `
+    });
+
+    // 3) Log event
+    await logServerEvent({
+      type: "auth:resend-verification",
+      message: `Verification email resent: ${email}`,
+      context: "auth"
+    });
+
+    return ok({
+      success: true,
+      message: "Verification email sent successfully."
+    });
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
-        : "Unknown error resending verification email";
+        : "Unexpected error";
 
-    console.error("Error resending verification email:", message);
-    return { success: false, error: message };
+    return fail("UNKNOWN", message);
   }
 }
+
+export { resendVerificationAction as resendVerification };

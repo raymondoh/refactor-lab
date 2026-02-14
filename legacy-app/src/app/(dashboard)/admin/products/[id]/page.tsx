@@ -23,7 +23,8 @@ export default async function AdminProductEditPage({ params }: { params: Promise
 
     const result = await getProductByIdAction(id);
 
-    if (!result.success) {
+    // 1. Check if the result failed
+    if (!result.ok) {
       redirect("/admin/products");
     }
 
@@ -32,7 +33,9 @@ export default async function AdminProductEditPage({ params }: { params: Promise
       redirect("/admin/products");
     }
 
-    const product = result.product;
+    // 2. Destructure product from data.
+    // We use result.data because in the 'ok' state, that's where the payload lives.
+    const { product } = result.data;
 
     return (
       <DashboardShell>

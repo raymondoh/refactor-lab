@@ -1,34 +1,46 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useActionState, useTransition } from "react";
 import { Download, FileJson, FileText, Clock, CheckCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { useActionState } from "react";
 import { exportUserData } from "@/actions/data-privacy";
-import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 export function DataExport() {
   const [lastExport, setLastExport] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [state, formAction, isPending] = useActionState(exportUserData, null);
+  const [isTransitionPending, startTransition] = useTransition();
+
+  // 1. Corrected Bridge: Extract the format from formData and pass to the action
+  const exportDataBridge = async (prevState: any, formData: FormData) => {
+    // Even if you have format in formData, the action isn't
+    // currently set up to receive it as an argument.
+    return await exportUserData();
+  };
+
+  const [state, formAction, isPending] = useActionState(exportDataBridge, null);
+
+  // 2. Fix the useEffect to use the ServiceResult pattern
+  // src/components/dashboard/user/data-privacy/DataExport.tsx
 
   useEffect(() => {
     if (state) {
-      if (state.success && state.downloadUrl) {
-        setLastExport(new Date().toISOString());
-        setDownloadUrl(state.downloadUrl);
+      if (state.ok) {
+        // FIX: Use a type assertion (as any) to allow downloadUrl if
+        // the Type Definition is missing it
+        const { message, downloadUrl: url } = state.data as any;
 
-        toast.success(state.message || "Data export successful", {
-          description: "Click the download button to save your data",
-          duration: 5000
-        });
-      } else if (state.error) {
-        const message = isFirebaseError(state.error) ? firebaseError(state.error) : state.error || "Export failed";
-        toast.error(message);
+        setLastExport(new Date().toISOString());
+        if (url) {
+          setDownloadUrl(url);
+        }
+
+        toast.success(message || "Export started successfully");
+      } else {
+        toast.error(state.error || "Failed to export data");
       }
     }
   }, [state]);
@@ -36,23 +48,21 @@ export function DataExport() {
   const handleExport = (format: string) => {
     const formData = new FormData();
     formData.append("format", format);
-    React.startTransition(() => {
+    startTransition(() => {
       formAction(formData);
     });
   };
+
   const downloadFile = () => {
     if (!downloadUrl) return;
-
-    const urlParts = downloadUrl.split("/");
-    const suggestedFilename = urlParts[urlParts.length - 1].split("?")[0];
-    const fileExtension = suggestedFilename.includes(".json") ? "json" : "csv";
-    const filename = `user-data-export-${new Date().toISOString().split("T")[0]}.${fileExtension}`;
 
     try {
       const link = document.createElement("a");
       link.href = downloadUrl;
+      // Use the actual filename from the URL if possible
+      const filename = `moto-stix-data-${new Date().toISOString().split("T")[0]}`;
       link.setAttribute("download", filename);
-      link.setAttribute("target", "_blank"); // fallback for Safari, etc.
+      link.setAttribute("target", "_blank");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -72,7 +82,8 @@ export function DataExport() {
       </CardHeader>
 
       <CardContent>
-        {state?.success && downloadUrl && (
+        {/* FIX: Check state.ok instead of state.success */}
+        {state?.ok && downloadUrl && (
           <Alert className="mb-6 bg-green-50 text-green-800 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-600" />
             <div className="flex flex-col space-y-2 w-full">
@@ -112,23 +123,19 @@ export function DataExport() {
               </div>
               <div className="flex-1">
                 <h3 className="font-medium">JSON Format</h3>
-                <p className="text-sm text-muted-foreground">
-                  Export your data in JSON format, suitable for importing into other applications.
-                </p>
+                <p className="text-sm text-muted-foreground">Suitable for importing into other applications.</p>
               </div>
             </div>
-            <Button onClick={() => handleExport("json")} disabled={isPending} className="gap-2 w-full sm:w-auto">
-              {isPending ? (
-                <>
-                  <Clock className="h-4 w-4 animate-spin" />
-                  Exporting...
-                </>
+            <Button
+              onClick={() => handleExport("json")}
+              disabled={isPending || isTransitionPending}
+              className="gap-2 w-full sm:w-auto">
+              {isPending || isTransitionPending ? (
+                <Clock className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Export as JSON
-                </>
+                <Download className="h-4 w-4" />
               )}
+              {isPending || isTransitionPending ? "Exporting..." : "Export as JSON"}
             </Button>
           </TabsContent>
 
@@ -139,23 +146,19 @@ export function DataExport() {
               </div>
               <div className="flex-1">
                 <h3 className="font-medium">CSV Format</h3>
-                <p className="text-sm text-muted-foreground">
-                  Export your data in CSV format, suitable for spreadsheet applications.
-                </p>
+                <p className="text-sm text-muted-foreground">Suitable for spreadsheet applications.</p>
               </div>
             </div>
-            <Button onClick={() => handleExport("csv")} disabled={isPending} className="gap-2 w-full sm:w-auto">
-              {isPending ? (
-                <>
-                  <Clock className="h-4 w-4 animate-spin" />
-                  Exporting...
-                </>
+            <Button
+              onClick={() => handleExport("csv")}
+              disabled={isPending || isTransitionPending}
+              className="gap-2 w-full sm:w-auto">
+              {isPending || isTransitionPending ? (
+                <Clock className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Export as CSV
-                </>
+                <Download className="h-4 w-4" />
               )}
+              {isPending || isTransitionPending ? "Exporting..." : "Export as CSV"}
             </Button>
           </TabsContent>
         </Tabs>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { LoginRedirect } from "@/components/auth/LoginRedirect";
 import { AuthHeader } from "@/components/auth/AuthHeader";
@@ -72,7 +74,14 @@ export const metadata: Metadata = {
   }
 };
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const session = await auth();
+
+  // If already signed in, don't render /login at all
+  if (session?.user) {
+    const role = (session.user as any)?.role;
+    redirect(role === "admin" ? "/admin" : "/user");
+  }
   return (
     <>
       <LoginRedirect />

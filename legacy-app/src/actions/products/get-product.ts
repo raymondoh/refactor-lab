@@ -3,27 +3,54 @@
 
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { validatedAdminAction } from "@/actions/_helpers/action-wrapper";
+import { ok, fail } from "@/lib/services/service-result";
 
-// Get product by ID
-export async function getProductByIdAction(id: string) {
+/**
+ * Get product by ID (ADMIN)
+ * Refactored to use the validatedAdminAction wrapper for consistent security and response shapes.
+ */
+export const getProductByIdAction = validatedAdminAction(async (id: string) => {
   try {
     const result = await adminProductService.getProductById(id);
 
     if (!result.success) {
-      return { success: false as const, error: result.error };
+      return fail("NOT_FOUND", result.error || "Product not found");
     }
 
-    // Maintain legacy return shape: { success, product }
-    return { success: true as const, product: result.data.product };
+    // Return the product using the standardized ok utility
+    return ok({ product: result.data.product });
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
         : "Unknown error fetching product";
-    return { success: false as const, error: message };
+
+    return fail("UNKNOWN", message);
   }
-}
+});
+// ADD THIS: A public version for the storefront
+export const getPublicProductById = async (id: string) => {
+  try {
+    // Calling the service directly, bypassing the admin-only wrapper
+    const result = await adminProductService.getProductById(id);
+
+    if (!result.success) {
+      return fail("NOT_FOUND", result.error || "Product not found");
+    }
+
+    return ok({ product: result.data.product });
+  } catch (error) {
+    const message = isFirebaseError(error)
+      ? firebaseError(error)
+      : error instanceof Error
+        ? error.message
+        : "Unknown error fetching product";
+
+    return fail("UNKNOWN", message);
+  }
+};
 
 // Export for backward compatibility
 export { getProductByIdAction as getProductByIdFromDb };

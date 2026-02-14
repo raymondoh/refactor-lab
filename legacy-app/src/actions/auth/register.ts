@@ -1,147 +1,124 @@
-// legacy-app/src/actions/auth/register.ts
+// src/actions/auth/register.ts
 "use server";
 
 import { adminAuthService } from "@/lib/services/admin-auth-service";
-import { serverTimestamp } from "@/utils/date-server";
-import { logActivity } from "@/firebase/actions";
-import { registerSchema } from "@/schemas";
-import { firebaseError, isFirebaseError } from "@/utils/firebase-error";
+import { registerSchema } from "@/schemas/auth/register";
+import { ok, fail } from "@/lib/services/service-result";
+import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { hashPassword } from "@/utils/hashPassword";
-import { logServerEvent, logger } from "@/utils/logger";
-import type { Auth } from "@/types";
+import { serverTimestamp } from "@/utils/date-server";
+import { logServerEvent } from "@/lib/services/logging-service";
+import type { z } from "zod";
 
-export async function registerUser(
-  _prevState: Auth.RegisterState | null,
-  formData: FormData
-): Promise<Auth.RegisterState> {
-  //const name = formData.get("name") as string;
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
+type RegisterInput = z.infer<typeof registerSchema>;
 
-  const validationResult = registerSchema.safeParse({ email, password, confirmPassword });
-  if (!validationResult.success) {
-    const errorMessage = validationResult.error.issues[0]?.message || "Invalid form data";
-    logger({ type: "warn", message: `Registration validation failed: ${errorMessage}`, context: "auth" });
-    return {
-      success: false,
-      message: errorMessage,
-      error: errorMessage
-    };
-  }
-
+/**
+ * Handles user registration using the new ServiceResult architecture.
+ * Centralizes role assignment, password hashing, and Firestore document creation.
+ *
+ * First user becomes admin:
+ * - We determine "first user" BEFORE creating the Auth user.
+ * - We additionally fail-safe by checking for existing Firestore user docs (if available).
+ *
+ * Note: In a high-concurrency scenario, two signups could race. For most apps/dev,
+ * this is acceptable; if you need strictness, enforce it with a transaction/lock.
+ */
+export async function registerAction(data: RegisterInput) {
   try {
+    // 1) Validation
+    const parsed = registerSchema.safeParse(data);
+    if (!parsed.success) {
+      return fail("VALIDATION", parsed.error.issues[0]?.message ?? "Invalid registration data.");
+    }
+
+    const { email, password } = parsed.data;
+
+    // 2) Determine role BEFORE creating the user
+    //    (countUsers after creation will never be 0)
+    let isFirstUser = false;
+
+    try {
+      const countRes = await adminAuthService.countUsers();
+      // If the project has zero auth users at this moment, treat as first user.
+      isFirstUser = Boolean(countRes.success && countRes.data.count === 0);
+    } catch {
+      // If count fails, fall back to non-admin (safe default)
+      isFirstUser = false;
+    }
+
+    const role: "admin" | "user" = isFirstUser ? "admin" : "user";
+
+    // 3) Hashing (Legacy logic preserved for Firestore doc)
     const passwordHash = await hashPassword(password);
 
-    // 1) Create Auth user (service-driven)
+    // 4) Create Auth user (service-driven)
     const createRes = await adminAuthService.createAuthUser({
       email,
       password,
-      //displayName: name || email.split("@")[0],
       emailVerified: false
     });
 
     if (!createRes.success) {
-      // Preserve your special case
-      if (createRes.error.includes("email-already-exists")) {
-        const msg = "Email already in use. Please try logging in instead.";
-        return { success: false, message: msg, error: msg };
-      }
+      const isDuplicate =
+        createRes.error.includes("email-already-exists") || createRes.error.includes("already in use");
 
-      return { success: false, message: createRes.error, error: createRes.error };
+      return fail(
+        isDuplicate ? "VALIDATION" : "UNKNOWN",
+        isDuplicate ? "Email already in use. Please try logging in instead." : createRes.error
+      );
     }
 
     const userId = createRes.data.uid;
 
-    logger({ type: "info", message: `User created in Auth: ${email}`, context: "auth" });
-
-    // 2) Determine role (service-driven count)
-    const countRes = await adminAuthService.countUsers();
-    if (!countRes.success) {
-      return { success: false, message: countRes.error, error: countRes.error };
-    }
-
-    const isFirstUser = countRes.data.count === 0;
-    const role = isFirstUser ? "admin" : "user";
-
-    // 3) Promote first user (service-driven)
-    if (isFirstUser) {
-      const claimRes = await adminAuthService.setUserRoleClaim(userId, "admin");
-      if (!claimRes.success) {
-        return { success: false, message: claimRes.error, error: claimRes.error };
+    // 5) If first user, set admin claim (best-effort)
+    if (role === "admin") {
+      try {
+        await adminAuthService.setUserRoleClaim(userId, "admin");
+      } catch (error) {
+        // If claim fails, we still proceed, but log it so you can fix env/permissions.
+        console.error("[REGISTER] Failed to set admin claim for first user:", error);
       }
-
-      logger({ type: "info", message: `First user promoted to admin: ${email}`, context: "auth" });
     }
 
-    // 4) Create Firestore user doc (service-driven)
+    // 6) Create Firestore User Doc
     const docRes = await adminAuthService.createUserDoc(userId, {
-      //name: name || email.split("@")[0],
       email,
       role,
       passwordHash,
       emailVerified: false,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
 
     if (!docRes.success) {
-      return { success: false, message: docRes.error, error: docRes.error };
+      return fail("UNKNOWN", "Account created but profile initialization failed.");
     }
 
-    // 5) Log activity (best-effort)
-    try {
-      await logActivity({
-        userId,
-        type: "register",
-        description: "Account created, email verification required",
-        status: "success"
-      });
-    } catch (logError) {
-      logger({
-        type: "error",
-        message: "Failed to log activity for registration",
-        metadata: { logError },
-        context: "auth"
-      });
-    }
-
+    // 7) Standardized Logging
     await logServerEvent({
       type: "auth:register",
-      message: `User registered: ${email}`,
+      message: `User registered: ${email} (Role: ${role})`,
       userId,
-      metadata: { uid: userId, email, role },
-      context: "auth"
+      context: "auth",
+      metadata: { role }
     });
 
-    return {
+    return ok({
       success: true,
-      message: "Registration successful! Please verify your email.",
-      data: {
-        userId,
-        email,
-        role,
-        requiresVerification: true,
-        password
-      }
-    };
-  } catch (error: unknown) {
-    logger({ type: "error", message: "Registration error", metadata: { error }, context: "auth" });
-
-    const message = isFirebaseError(error) ? firebaseError(error) : "Registration failed";
+      message: "Registration successful! Please verify your email to continue."
+    });
+  } catch (error) {
+    const message = isFirebaseError(error) ? firebaseError(error) : "An unexpected error occurred during registration.";
 
     await logServerEvent({
-      type: "auth:register_error",
-      message: `Registration error: ${email}`,
-      metadata: {
-        error: isFirebaseError(error) ? error.code : String(error)
-      },
-      context: "auth"
+      type: "error",
+      message: `Registration failed for ${(data as any)?.email ?? "unknown email"}`,
+      context: "auth",
+      metadata: { error: message }
     });
 
-    return {
-      success: false,
-      message: "An error occurred during registration. Please try again.",
-      error: message
-    };
+    return fail("UNKNOWN", message);
   }
 }
+
+export { registerAction as registerUser };

@@ -1,9 +1,14 @@
+// src/actions/products/get-related-products.ts
 "use server";
 
 import { adminProductService } from "@/lib/services/admin-product-service";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { ok, fail } from "@/lib/services/service-result";
 
-// Get related products
+/**
+ * Get related products (Public Action)
+ * Refactored to return the standardized ServiceResult shape (ok/fail).
+ */
 export async function getRelatedProductsAction(params: {
   productId: string;
   category?: string;
@@ -18,18 +23,19 @@ export async function getRelatedProductsAction(params: {
     const result = await adminProductService.getRelatedProducts(params);
 
     if (!result.success) {
-      return { success: false as const, error: result.error };
+      return fail("NOT_FOUND", result.error || "Could not find related products");
     }
 
-    // Maintain legacy return shape: { success, products }
-    return { success: true as const, products: result.data };
+    // Standardized return: { ok: true, data: { products: [...] } }
+    return ok({ products: result.data });
   } catch (error) {
     const message = isFirebaseError(error)
       ? firebaseError(error)
       : error instanceof Error
         ? error.message
         : "Unknown error fetching related products";
-    return { success: false as const, error: message };
+
+    return fail("UNKNOWN", message);
   }
 }
 
