@@ -34,6 +34,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProductAction } from "@/actions/products/create-product";
 import { productSchema } from "@/schemas/product";
+import { slugifyProductName } from "@/lib/urls/product-url";
+
 import type { z } from "zod";
 
 interface ProductFormProps {
@@ -242,6 +244,7 @@ export function AddProductForm({ onSuccess }: ProductFormProps) {
 
         // 2. Prepare Typed Payload
         const payload: ProductCreateInput = {
+          slug: slugifyProductName(productName),
           name: productName.trim(),
           description,
           price: Number.parseFloat(price),

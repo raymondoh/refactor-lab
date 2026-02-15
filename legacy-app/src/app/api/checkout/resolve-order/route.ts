@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 
     const orderResult = await adminOrderService.getOrderByPaymentIntentId(paymentIntentId);
 
-    if (!orderResult.success) {
+    if (!orderResult.ok) {
       return NextResponse.json({ error: orderResult.error }, { status: orderResult.status ?? 500 });
     }
 

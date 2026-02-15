@@ -1,6 +1,7 @@
+// src/lib/services/admin-accounts-service.ts
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { ServiceResponse } from "@/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 
 export const adminAccountsService = {
   /**
@@ -10,7 +11,7 @@ export const adminAccountsService = {
   async createGoogleAccountLink(input: {
     userId: string;
     providerAccountId: string;
-  }): Promise<ServiceResponse<{ id: string }>> {
+  }): Promise<ServiceResult<{ id: string }>> {
     try {
       const db = getAdminFirestore();
 
@@ -30,14 +31,14 @@ export const adminAccountsService = {
         updatedAt: new Date()
       });
 
-      return { success: true, data: { id: docRef.id } };
+      return ok({ id: docRef.id });
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
           : "Unknown error creating provider account link";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", message, 500);
     }
   }
 };

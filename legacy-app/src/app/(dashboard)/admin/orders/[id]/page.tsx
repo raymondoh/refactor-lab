@@ -22,7 +22,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
     const result = await adminOrderService.getOrderById(id);
 
-    if (!result.success || !result.data) {
+    if (!result.ok || !result.data) {
       redirect("/admin/orders");
     }
 

@@ -25,7 +25,7 @@ export default async function AdminProfilePage() {
     // ✅ Fetch profile via service (avoids UserService.getCurrentUser dependency)
     const profileResult = await userProfileService.getProfileByUserId(session.user.id);
 
-    if (!profileResult.success) {
+    if (!profileResult.ok) {
       console.error("Error loading admin profile:", profileResult.error);
       return (
         <DashboardShell>

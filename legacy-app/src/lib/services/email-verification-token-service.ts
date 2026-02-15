@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { serverTimestamp } from "@/utils/date-server";
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 export type VerifyResult =
@@ -19,7 +19,7 @@ function randomToken(bytes = 32): string {
 }
 
 export const emailVerificationTokenService = {
-  async createEmailVerificationToken(email: string): Promise<ServiceResponse<{ token: string }>> {
+  async createEmailVerificationToken(email: string): Promise<ServiceResult<{ token: string }>> {
     try {
       const db = getAdminFirestore();
 
@@ -37,18 +37,18 @@ export const emailVerificationTokenService = {
         consumedAt: null
       });
 
-      return { success: true, data: { token } };
+      return ok({ token });
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
           : "Unknown error creating email verification token";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", message, 500);
     }
   },
 
-  async verifyAndConsumeEmailVerificationToken(token: string): Promise<ServiceResponse<VerifyResult>> {
+  async verifyAndConsumeEmailVerificationToken(token: string): Promise<ServiceResult<VerifyResult>> {
     try {
       const db = getAdminFirestore();
       const tokenHash = sha256(token);
@@ -56,35 +56,37 @@ export const emailVerificationTokenService = {
       const snap = await db.collection("emailVerificationTokens").where("tokenHash", "==", tokenHash).limit(1).get();
 
       if (snap.empty) {
-        return { success: true, data: { valid: false, error: "Invalid or expired token" } };
+        return ok({ valid: false, error: "Invalid or expired token" });
       }
 
       const doc = snap.docs[0]!;
-      const data = doc.data() as any;
+      const data = doc.data() as unknown as Record<string, unknown>;
 
       const email = typeof data.email === "string" ? data.email : null;
+
       const expiresAt: Date | null =
-        data.expiresAt?.toDate?.() ?? (data.expiresAt instanceof Date ? data.expiresAt : null);
-      const consumedAt: Date | null = data.consumedAt?.toDate?.() ?? null;
+        (data.expiresAt as any)?.toDate?.() ?? (data.expiresAt instanceof Date ? data.expiresAt : null);
 
-      if (!email) return { success: true, data: { valid: false, error: "Invalid or expired token" } };
+      const consumedAt: Date | null = (data.consumedAt as any)?.toDate?.() ?? null;
 
-      if (consumedAt) return { success: true, data: { valid: false, reason: "consumed" } };
+      if (!email) return ok({ valid: false, error: "Invalid or expired token" });
+
+      if (consumedAt) return ok({ valid: false, reason: "consumed" });
 
       if (expiresAt && expiresAt.getTime() < Date.now()) {
-        return { success: true, data: { valid: false, reason: "expired" } };
+        return ok({ valid: false, reason: "expired" });
       }
 
       await doc.ref.update({ consumedAt: serverTimestamp() });
 
-      return { success: true, data: { valid: true, email } };
+      return ok({ valid: true, email });
     } catch (error) {
       const message = isFirebaseError(error)
         ? firebaseError(error)
         : error instanceof Error
           ? error.message
           : "Unknown error verifying token";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", message, 500);
     }
   }
 };

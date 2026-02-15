@@ -7,7 +7,6 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { logActivity } from "@/firebase/actions";
 import { revalidatePath } from "next/cache";
 import type { SerializedUser } from "@/types/models/user";
-import { requireAdmin } from "@/actions/_helpers/require-admin";
 
 // Get deletion requests
 export async function getDeletionRequests() {
@@ -22,7 +21,7 @@ export async function getDeletionRequests() {
     // ✅ Admin check via service
     const adminRes = await adminUserService.getUserById(session.user.id);
 
-    if (!adminRes.success || !adminRes.data) {
+    if (!adminRes.ok || !adminRes.data) {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
@@ -35,7 +34,7 @@ export async function getDeletionRequests() {
 
     // ✅ List requests via data-privacy service
     const listRes = await adminDataPrivacyService.listDeletionRequests();
-    if (!listRes.success) {
+    if (!listRes.ok) {
       return { success: false, error: listRes.error };
     }
 
@@ -65,7 +64,7 @@ export async function processDeletionRequest(userId: string, action: "approve" |
     // ✅ Admin check via service
     const adminRes = await adminUserService.getUserById(session.user.id);
 
-    if (!adminRes.success || !adminRes.data) {
+    if (!adminRes.ok || !adminRes.data) {
       return { success: false, error: "Unauthorized. Admin access required." };
     }
 
@@ -96,7 +95,7 @@ export async function processDeletionRequest(userId: string, action: "approve" |
         deletionRejectedBy: session.user.id
       });
 
-      if (!rejectRes.success) {
+      if (!rejectRes.ok) {
         return { success: false, error: rejectRes.error };
       }
 

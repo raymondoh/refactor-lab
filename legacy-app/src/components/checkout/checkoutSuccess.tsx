@@ -46,7 +46,7 @@ export function CheckoutSuccess({ orderId }: CheckoutSuccessProps) {
             </Button>
           ) : (
             <Button
-              onClick={() => router.push("/login?callbackUrl=/user/orders")}
+              onClick={() => router.push("/login?callbackUrl=/user/orders&redirect=checkout")}
               className="h-12 px-6 text-base font-medium">
               <LogIn className="mr-2 h-4 w-4" />
               Sign in to view orders

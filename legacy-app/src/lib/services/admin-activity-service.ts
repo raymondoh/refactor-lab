@@ -3,7 +3,8 @@ import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { Timestamp } from "firebase-admin/firestore";
 
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import type { ServiceResult } from "@/lib/services/service-result";
+import { ok, fail } from "@/lib/services/service-result";
 
 /**
  * For metadata, use unknown (not any). This keeps it flexible but type-safe.
@@ -63,6 +64,15 @@ function mapDocToActivityLog(doc: FirebaseFirestore.QueryDocumentSnapshot): Acti
   };
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
+function clampLimit(limit: number, fallback = 100) {
+  if (!Number.isFinite(limit)) return fallback;
+  return Math.max(1, Math.min(500, Math.floor(limit)));
+}
+
 export type LogActivityInput = {
   userId: string;
   type: string;
@@ -72,7 +82,11 @@ export type LogActivityInput = {
 };
 
 export const adminActivityService = {
-  async logActivity(input: LogActivityInput): Promise<ServiceResponse<{ id: string }>> {
+  async logActivity(input: LogActivityInput): Promise<ServiceResult<{ id: string }>> {
+    if (!input?.userId) return fail("VALIDATION", "User ID is required", 400);
+    if (!input?.type) return fail("VALIDATION", "Activity type is required", 400);
+    if (!input?.description) return fail("VALIDATION", "Activity description is required", 400);
+
     try {
       const db = getAdminFirestore();
       const ref = db.collection("activity").doc();
@@ -86,66 +100,51 @@ export const adminActivityService = {
         metadata: input.metadata ?? {}
       });
 
-      return { success: true, data: { id: ref.id } };
+      return ok({ id: ref.id });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error logging activity";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error logging activity"), 500);
     }
   },
 
-  async getAllActivityLogs(limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
+  async getAllActivityLogs(limit = 100): Promise<ServiceResult<{ logs: ActivityLog[] }>> {
+    const safeLimit = clampLimit(limit, 100);
+
     try {
       const db = getAdminFirestore();
-      const snap = await db.collection("activity").orderBy("timestamp", "desc").limit(limit).get();
+      const snap = await db.collection("activity").orderBy("timestamp", "desc").limit(safeLimit).get();
 
-      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+      return ok({ logs: snap.docs.map(mapDocToActivityLog) });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching activity logs";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching activity logs"), 500);
     }
   },
 
-  async getUserActivityLogs(userId: string, limit = 100): Promise<ServiceResponse<{ logs: ActivityLog[] }>> {
+  async getUserActivityLogs(userId: string, limit = 100): Promise<ServiceResult<{ logs: ActivityLog[] }>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+    const safeLimit = clampLimit(limit, 100);
+
     try {
       const db = getAdminFirestore();
       const snap = await db
         .collection("activity")
         .where("userId", "==", userId)
         .orderBy("timestamp", "desc")
-        .limit(limit)
+        .limit(safeLimit)
         .get();
 
-      return { success: true, data: { logs: snap.docs.map(mapDocToActivityLog) } };
+      return ok({ logs: snap.docs.map(mapDocToActivityLog) });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching user activity logs";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching user activity logs"), 500);
     }
   },
 
-  async countAll(): Promise<ServiceResponse<{ total: number }>> {
+  async countAll(): Promise<ServiceResult<{ total: number }>> {
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("activity").count().get();
-      return { success: true, data: { total: snap.data().count } };
+      return ok({ total: snap.data().count });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error counting activity logs";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error counting activity logs"), 500);
     }
   }
 };

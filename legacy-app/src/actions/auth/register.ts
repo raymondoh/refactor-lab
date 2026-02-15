@@ -40,7 +40,7 @@ export async function registerAction(data: RegisterInput) {
     try {
       const countRes = await adminAuthService.countUsers();
       // If the project has zero auth users at this moment, treat as first user.
-      isFirstUser = Boolean(countRes.success && countRes.data.count === 0);
+      isFirstUser = Boolean(countRes.ok && countRes.data.count === 0);
     } catch {
       // If count fails, fall back to non-admin (safe default)
       isFirstUser = false;
@@ -58,7 +58,7 @@ export async function registerAction(data: RegisterInput) {
       emailVerified: false
     });
 
-    if (!createRes.success) {
+    if (!createRes.ok) {
       const isDuplicate =
         createRes.error.includes("email-already-exists") || createRes.error.includes("already in use");
 
@@ -90,7 +90,7 @@ export async function registerAction(data: RegisterInput) {
       updatedAt: serverTimestamp()
     });
 
-    if (!docRes.success) {
+    if (!docRes.ok) {
       return fail("UNKNOWN", "Account created but profile initialization failed.");
     }
 

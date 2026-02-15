@@ -17,7 +17,7 @@ export function CheckoutSummary({ subtotal, tax, shipping, total }: CheckoutSumm
   const currency = DEFAULT_CURRENCY;
 
   return (
-    <div className="rounded-xl border border-input/40 p-6 shadow-sm">
+    <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
       <h2 className="mb-6 text-xl font-semibold tracking-tight">Order Summary</h2>
 
       <div className="space-y-3 text-sm">

@@ -152,7 +152,7 @@ export const authFullOptions: NextAuthConfig = {
           const { adminAuthService } = await import("@/lib/services/admin-auth-service");
 
           const decodedRes = await adminAuthService.verifyIdToken(credentials.idToken);
-          if (!decodedRes.success) throw new Error("Invalid ID token");
+          if (!decodedRes.ok) throw new Error("Invalid ID token");
 
           // decodedRes.data is unknown-ish; narrow safely
           const decodedToken = decodedRes.data as unknown;
@@ -163,7 +163,7 @@ export const authFullOptions: NextAuthConfig = {
           if (!email) throw new Error("No email in token");
 
           const authUserRes = await adminAuthService.getAuthUserById(uid);
-          if (!authUserRes.success) throw new Error("Invalid ID token");
+          if (!authUserRes.ok) throw new Error("Invalid ID token");
 
           // ✅ Block login until email is verified
           // (Admins created via backoffice should still have emailVerified=true,
@@ -285,7 +285,7 @@ export const authFullOptions: NextAuthConfig = {
           const { userRepo } = await import("@/lib/repos/user-repo");
           const userRes = await userRepo.getUserById(t.uid);
 
-          if (userRes.success && userRes.data?.user) {
+          if (userRes.ok && userRes.data?.user) {
             const firestoreUser = userRes.data.user as FirestoreUser;
 
             t.firstName = firestoreUser.firstName ?? undefined;

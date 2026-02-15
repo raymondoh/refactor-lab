@@ -29,7 +29,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-5">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-5">
                 <h3 className="text-white text-xl font-bold">Car Stickers</h3>
                 <Link
                   href={carSection.url}
@@ -53,7 +53,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-5">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-5">
                 <h3 className="text-white text-xl font-bold">Bike Stickers</h3>
                 <Link
                   href={bikeSection.url}
@@ -90,7 +90,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-6">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-6">
                 <h3 className="text-white text-xl font-bold">Custom Designs</h3>
                 <Link
                   href={customSection.url}
@@ -109,7 +109,7 @@ export default function StickerGridSectionsStatic() {
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/80 to-transparent p-6">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent p-5">
                 <h3 className="text-white text-xl font-bold">Vintage Collection</h3>
                 <Link
                   href={vintageSection.url}

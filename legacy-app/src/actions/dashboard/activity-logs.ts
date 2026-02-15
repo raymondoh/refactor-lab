@@ -22,7 +22,7 @@ function asString(v: unknown): string | undefined {
  */
 async function enrichActivityLogs(logs: ActivityLogWithId[]): Promise<SerializedActivity[]> {
   const usersResult = await adminUserService.getUsersLookup();
-  if (!usersResult.success) {
+  if (!usersResult.ok) {
     throw new Error(usersResult.error);
   }
 
@@ -71,7 +71,7 @@ export async function fetchAllActivityLogs(limit = 100): Promise<ActivityLogsRes
     }
 
     const result = await adminActivityService.getAllActivityLogs(limit);
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false, error: result.error };
     }
 
@@ -112,7 +112,7 @@ export async function fetchUserActivityLogs(userId?: string, limit = 100): Promi
     }
 
     const result = await adminActivityService.getUserActivityLogs(targetUserId, limit);
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false, error: result.error };
     }
 

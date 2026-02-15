@@ -17,7 +17,7 @@ export async function updateOrderStatusAction(orderId: string, status: Order["st
 
     // ✅ services are session-agnostic; actions pass adminId explicitly
     const result = await adminOrderService.updateOrderStatus(orderId, gate.userId, status);
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false, error: result.error, status: result.status };
     }
 

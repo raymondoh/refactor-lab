@@ -22,7 +22,7 @@ export async function getRelatedProductsAction(params: {
   try {
     const result = await adminProductService.getRelatedProducts(params);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("NOT_FOUND", result.error || "Could not find related products");
     }
 

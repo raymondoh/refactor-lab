@@ -43,7 +43,7 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
       emailVerified: false
     });
 
-    if (!authRes.success) {
+    if (!authRes.ok) {
       return { success: false, error: authRes.error };
     }
 
@@ -59,7 +59,7 @@ export async function createUser({ email, password, name, role }: CreateUserInpu
       updatedAt: new Date()
     });
 
-    if (!docRes.success) {
+    if (!docRes.ok) {
       return { success: false, error: docRes.error };
     }
 
@@ -109,7 +109,7 @@ export async function fetchUsers(limit = 10, offset = 0): Promise<FetchUsersResp
 
   const result = await adminUserService.listUsers(limit, offset);
 
-  if (!result.success) {
+  if (!result.ok) {
     logger({
       type: "error",
       message: "Error in fetchUsers",
@@ -138,7 +138,7 @@ export async function fetchUserById(userId: string): Promise<FetchUserByIdRespon
 
   const result = await adminUserService.getUserById(userId);
 
-  if (!result.success) {
+  if (!result.ok) {
     logger({
       type: "error",
       message: "Error in fetchUserById",
@@ -165,7 +165,7 @@ export async function updateUser(userId: string, userData: AdminUpdateUserInput)
   try {
     const result = await adminUserService.updateUser(userId, userData);
 
-    if (!result.success) {
+    if (!result.ok) {
       logger({
         type: "error",
         message: "Error in updateUser",
@@ -234,7 +234,7 @@ export async function deleteUserDoc(userId: string): Promise<DeleteUserResponse>
   try {
     const result = await adminUserService.deleteUserDoc(userId);
 
-    if (!result.success) {
+    if (!result.ok) {
       logger({
         type: "error",
         message: "Error in deleteUserDoc",
@@ -301,7 +301,7 @@ export async function deleteUserAsAdmin(userId: string): Promise<DeleteUserResul
   try {
     const res = await adminUserService.deleteUserFully(userId);
 
-    if (!res.success) {
+    if (!res.ok) {
       logger({
         type: "error",
         message: "Error in deleteUserAsAdmin",

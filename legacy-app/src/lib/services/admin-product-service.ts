@@ -6,13 +6,14 @@
 import "server-only";
 
 import type { DocumentData } from "firebase-admin/firestore";
-import type { ServiceResponse } from "@/lib/services/types/service-response";
 import { Timestamp } from "firebase-admin/firestore";
+
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
+import { slugifyProductName } from "@/lib/urls/product-url";
 
 import type { Product, ProductFilterOptions } from "@/types/product";
-
 import { serializeProduct, serializeProductArray } from "@/utils/serializeProduct";
 import { productSchema, productUpdateSchema } from "@/schemas/product";
 import { normalizeCategory, normalizeSubcategory } from "@/config/categories";
@@ -47,6 +48,7 @@ function toMillisSafe(v: unknown): number {
   const m = (v as CreatedAtSortable).toMillis;
   return typeof m === "function" ? m.call(v) : 0;
 }
+
 function asTimestampOrString(v: unknown, fallback: Timestamp | string): Timestamp | string {
   if (v instanceof Timestamp) return v;
   if (typeof v === "string") return v;
@@ -57,6 +59,10 @@ function asTimestampOrStringOptional(v: unknown): Timestamp | string | undefined
   if (v instanceof Timestamp) return v;
   if (typeof v === "string") return v;
   return undefined;
+}
+
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
 }
 
 function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
@@ -75,6 +81,7 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
 
   return {
     id: doc.id,
+    slug: asString(data["slug"]),
     name: asString(data["name"]),
     description: asString(data["description"]),
     details: asString(data["details"]),
@@ -95,7 +102,8 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     color: asString(data["color"]),
     baseColor: asString(data["baseColor"]),
     colorDisplayName: asString(data["colorDisplayName"]),
-    stickySide: data["stickySide"] === "Front" || data["stickySide"] === "Back" ? data["stickySide"] : undefined,
+    stickySide:
+      data["stickySide"] === "Front" || data["stickySide"] === "Back" ? (data["stickySide"] as any) : undefined,
     size: asString(data["size"]),
     image,
     additionalImages: additionalImagesStrings,
@@ -118,7 +126,6 @@ function mapDocToProduct(doc: FirebaseFirestore.DocumentSnapshot): Product {
     isNewArrival: asBoolean(data["isNewArrival"], false),
     createdAt: asTimestampOrString(data["createdAt"], Timestamp.now()),
     updatedAt: asTimestampOrStringOptional(data["updatedAt"]),
-
     averageRating: asNumber(data["averageRating"], 0),
     reviewCount: asNumber(data["reviewCount"], 0)
   };
@@ -130,7 +137,7 @@ export const adminProductService = {
   // ===================
   async listProducts(
     filters?: ProductFilterOptions & { limit?: number }
-  ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  ): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     // If any filters (including query) are provided, use filter path
     if (filters && Object.keys(filters).some(key => key !== "limit")) {
       return adminProductService.filterProducts(filters);
@@ -146,14 +153,10 @@ export const adminProductService = {
 
       const snapshot = await q.get();
       const products = snapshot.docs.map(mapDocToProduct);
-      return { success: true, data: serializeProductArray(products) };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching products";
-      return { success: false, error: message, status: 500 };
+
+      return ok(serializeProductArray(products));
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching products"), 500);
     }
   },
 
@@ -162,7 +165,7 @@ export const adminProductService = {
   // ===================
   async filterProducts(
     filters: ProductFilterOptions
-  ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  ): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     try {
       // Normalize category/subcategory
       if (filters.category) {
@@ -237,14 +240,9 @@ export const adminProductService = {
         products = products.filter(p => (p.tags || []).some(tag => wanted.has(String(tag).toLowerCase())));
       }
 
-      return { success: true, data: serializeProductArray(products) };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching filtered products";
-      return { success: false, error: message, status: 500 };
+      return ok(serializeProductArray(products));
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching filtered products"), 500);
     }
   },
 
@@ -253,17 +251,17 @@ export const adminProductService = {
   // ===================
   async getAllProducts(
     filters?: ProductFilterOptions & { limit?: number }
-  ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  ): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     return adminProductService.listProducts(filters);
   },
 
   async getFilteredProducts(
     filters: ProductFilterOptions
-  ): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  ): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     return adminProductService.filterProducts(filters);
   },
 
-  async getFeaturedProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  async getFeaturedProducts(limit = 10): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     try {
       const db = getAdminFirestore();
 
@@ -274,27 +272,23 @@ export const adminProductService = {
           .orderBy("createdAt", "desc")
           .limit(limit)
           .get();
+
         const products = snap.docs.map(mapDocToProduct);
-        return { success: true, data: serializeProductArray(products) };
+        return ok(serializeProductArray(products));
       } catch {
+        // fallback: load more and filter in-memory
         const all = await adminProductService.listProducts({ limit: limit * 4 });
-        if (!all.success) return all;
+        if (!all.ok) return all;
 
         const featured = all.data.filter(p => p.isFeatured === true).slice(0, limit);
-
-        return { success: true, data: featured };
+        return ok(serializeProductArray(featured as unknown as Product[]));
       }
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching featured products";
-      return { success: false, error: message, status: 500 };
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching featured products"), 500);
     }
   },
 
-  async getOnSaleProducts(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  async getOnSaleProducts(limit = 10): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     try {
       const db = getAdminFirestore();
 
@@ -307,38 +301,34 @@ export const adminProductService = {
           .get();
 
         const products = snap.docs.map(mapDocToProduct);
-        return { success: true, data: serializeProductArray(products) };
+        return ok(serializeProductArray(products));
       } catch {
         const snap = await db.collection("products").where("onSale", "==", true).limit(limit).get();
         const products = snap.docs.map(mapDocToProduct);
 
         products.sort((a, b) => toMillisSafe(b.createdAt) - toMillisSafe(a.createdAt));
-
-        return { success: true, data: serializeProductArray(products.slice(0, limit)) };
+        return ok(serializeProductArray(products.slice(0, limit)));
       }
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching sale products";
-      return { success: false, error: message, status: 500 };
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching sale products"), 500);
     }
   },
 
-  async getNewArrivals(limit = 10): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  async getNewArrivals(limit = 10): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     const res = await adminProductService.filterProducts({ isNewArrival: true } as ProductFilterOptions);
-    if (!res.success) return res;
-    return { success: true, data: res.data.slice(0, limit) };
+    if (!res.ok) return res;
+
+    const sliced = res.data.slice(0, limit);
+    return ok(serializeProductArray(sliced as unknown as Product[]));
   },
 
-  async getThemedProducts(limit = 6): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  async getThemedProducts(limit = 6): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     const res = await adminProductService.listProducts({ limit: limit * 4 });
-    if (!res.success) return res;
+    if (!res.ok) return res;
 
     const themed = res.data.filter(p => Array.isArray(p.designThemes) && p.designThemes.length > 0).slice(0, limit);
 
-    return { success: true, data: themed };
+    return ok(serializeProductArray(themed as unknown as Product[]));
   },
 
   async getRelatedProducts(params: {
@@ -350,7 +340,7 @@ export const adminProductService = {
     brand?: string;
     tags?: string[];
     limit?: number;
-  }): Promise<ServiceResponse<ReturnType<typeof serializeProductArray>>> {
+  }): Promise<ServiceResult<ReturnType<typeof serializeProductArray>>> {
     const { productId, category, subcategory, designTheme, productType, brand, tags, limit = 4 } = params;
 
     try {
@@ -381,38 +371,37 @@ export const adminProductService = {
 
       if (related.length === 0) {
         const fallback = await adminProductService.listProducts({ limit: limit + 6 });
-        if (!fallback.success) return fallback;
+        if (!fallback.ok) return fallback;
 
         const fb = fallback.data.filter(p => p.id !== productId).slice(0, limit);
-
-        return { success: true, data: fb };
+        return ok(serializeProductArray(fb as unknown as Product[]));
       }
 
-      return { success: true, data: serializeProductArray(related.slice(0, limit)) };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching related products";
-      return { success: false, error: message, status: 500 };
+      return ok(serializeProductArray(related.slice(0, limit)));
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching related products"), 500);
     }
   },
 
   // ===================
   // ADD PRODUCT
   // ===================
-  async addProduct(data: unknown): Promise<ServiceResponse<{ id: string; product: unknown }>> {
+  async addProduct(data: unknown): Promise<ServiceResult<{ id: string; product: unknown }>> {
     try {
       const validationResult = productSchema.safeParse(data);
       if (!validationResult.success) {
-        return { success: false, error: "Validation failed", status: 400 };
+        return fail("VALIDATION", "Validation failed", 400);
       }
-
       const validatedData = validationResult.data;
+
+      // ✅ Ensure slug exists (prefer explicit slug, else derive from name)
+      const slug = slugifyProductName((validatedData as any).slug || validatedData.name);
+
       const db = getAdminFirestore();
+
       const docRef = await db.collection("products").add({
         ...validatedData,
+        slug,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -420,108 +409,105 @@ export const adminProductService = {
       const finalSku = validatedData.sku ?? `SKU-${docRef.id.substring(0, 8).toUpperCase()}`;
       if (!validatedData.sku) await docRef.update({ sku: finalSku });
 
-      return { success: true, data: { id: docRef.id, product: { ...validatedData, sku: finalSku } } };
-    } catch (error) {
-      const message = isFirebaseError(error) ? firebaseError(error) : "Unknown error";
-      return { success: false, error: message, status: 500 };
+      return ok({ id: docRef.id, product: { ...validatedData, sku: finalSku } });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error adding product"), 500);
     }
   },
 
   // ===================
   // GET PRODUCT BY ID
   // ===================
-  async getProductById(id: string): Promise<ServiceResponse<{ product: ReturnType<typeof serializeProduct> }>> {
+  async getProductById(id: string): Promise<ServiceResult<{ product: ReturnType<typeof serializeProduct> }>> {
     try {
       const db = getAdminFirestore();
       const doc = await db.collection("products").doc(id).get();
 
-      if (!doc.exists) return { success: false, error: "Product not found", status: 404 };
+      if (!doc.exists) return fail("NOT_FOUND", "Product not found", 404);
 
       const product = mapDocToProduct(doc);
-      return { success: true, data: { product: serializeProduct(product) } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching product by ID";
-      return { success: false, error: message, status: 500 };
+      return ok({ product: serializeProduct(product) });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching product by ID"), 500);
     }
   },
 
   // ===================
   // UPDATE PRODUCT
   // ===================
-  async updateProduct(id: string, data: unknown): Promise<ServiceResponse<{ id: string }>> {
+  async updateProduct(id: string, data: unknown): Promise<ServiceResult<{ id: string }>> {
     try {
-      if (!id) return { success: false, error: "Product ID is required", status: 400 };
+      if (!id) return fail("BAD_REQUEST", "Product ID is required", 400);
 
       const validationResult = productUpdateSchema.safeParse(data);
       if (!validationResult.success) {
         const errorMessages = validationResult.error.errors
-          .map(err => `${err.path.join(".")}: ${err.message}`)
+          .map((err: { path: (string | number)[]; message: string }) => `${err.path.join(".")}: ${err.message}`)
           .join(", ");
-        return { success: false, error: `Validation failed: ${errorMessages}`, status: 400 };
+
+        return fail("VALIDATION", `Validation failed: ${errorMessages}`, 400);
       }
 
       const validatedData = validationResult.data;
 
-      const updateData: Record<string, unknown> = { ...validatedData, updatedAt: new Date() };
+      // ✅ Slug logic for PATCH updates:
+      // - If slug is provided, normalize it
+      // - Else if name is provided, derive slug from name
+      // - Else, leave slug untouched
+      const patch = validatedData as { slug?: string | null; name?: string | null };
+      const nextSlugSource =
+        typeof patch.slug === "string" && patch.slug.trim().length > 0
+          ? patch.slug
+          : typeof patch.name === "string" && patch.name.trim().length > 0
+            ? patch.name
+            : null;
+
+      const updateData: Record<string, unknown> = {
+        ...validatedData,
+        ...(nextSlugSource ? { slug: slugifyProductName(nextSlugSource) } : {}),
+        updatedAt: new Date()
+      };
+
       Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
 
       const db = getAdminFirestore();
       await db.collection("products").doc(id).update(updateData);
 
-      return { success: true, data: { id } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating product";
-      return { success: false, error: message, status: 500 };
+      return ok({ id });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating product"), 500);
     }
   },
 
   // ===================
   // DELETE PRODUCT helpers
   // ===================
-  async getProductDoc(productId: string): Promise<ServiceResponse<{ product: Product }>> {
+  async getProductDoc(productId: string): Promise<ServiceResult<{ product: Product }>> {
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("products").doc(productId).get();
-      if (!snap.exists) return { success: false, error: "Product not found", status: 404 };
+
+      if (!snap.exists) return fail("NOT_FOUND", "Product not found", 404);
 
       const product = mapDocToProduct(snap);
-      return { success: true, data: { product } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching product";
-      return { success: false, error: message, status: 500 };
+      return ok({ product });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching product"), 500);
     }
   },
 
-  async deleteProductDoc(productId: string): Promise<ServiceResponse<Record<string, never>>> {
+  async deleteProductDoc(productId: string): Promise<ServiceResult<Record<string, never>>> {
     try {
       const db = getAdminFirestore();
       const docRef = db.collection("products").doc(productId);
       const snap = await docRef.get();
 
-      if (!snap.exists) return { success: false, error: "Product not found", status: 404 };
+      if (!snap.exists) return fail("NOT_FOUND", "Product not found", 404);
 
       await docRef.delete();
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error deleting product";
-
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error deleting product"), 500);
     }
   }
 };

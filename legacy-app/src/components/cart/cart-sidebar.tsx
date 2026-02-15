@@ -1,3 +1,4 @@
+// src/components/cart/cart-sidebar.tsx
 "use client";
 
 import { useCart } from "@/contexts/CartContext";
@@ -22,7 +23,7 @@ export function CartSidebar() {
 
   return (
     <Sheet open={isOpen} onOpenChange={closeCart}>
-      <SheetContent className="w-full sm:max-w-md flex flex-col">
+      <SheetContent className="w-full sm:max-w-md flex flex-col bg-popover text-popover-foreground">
         <SheetHeader>
           <SheetTitle>Your Cart ({itemCount})</SheetTitle>
         </SheetHeader>
@@ -36,7 +37,7 @@ export function CartSidebar() {
                 ))}
               </div>
             </div>
-            <div className="mt-auto border-t pt-4">
+            <div className="mt-auto border-t border-border/60 pt-4">
               {/* 3. Add the "Continue Shopping" and "Clear Cart" buttons */}
               <div className="flex justify-between items-center text-sm mb-4">
                 <Button variant="ghost" className="text-muted-foreground" onClick={closeCart} asChild>

@@ -16,7 +16,7 @@ export default async function UserOrderDetailPage({ params }: { params: Promise<
 
     const result = await adminOrderService.getOrderById(id);
 
-    if (!result.success) return notFound();
+    if (!result.ok) return notFound();
 
     const order = result.data;
 

@@ -1,21 +1,30 @@
 // src/actions/categories/admin-categories.ts
 "use server";
 
-import { adminCategoryService } from "@/lib/services/admin-category-service";
 import { requireAdmin } from "@/actions/_helpers/require-admin";
+import { adminCategoryService, type FeaturedCategory } from "@/lib/services/admin-category-service";
+import { fail, type ServiceResult } from "@/lib/services/service-result";
+import type { CategoryData } from "@/config/categories";
 
-export async function getCategoriesAction() {
-  // If you truly want *public-safe* categories here, no gate needed.
-  // But since this is an admin page, keep it consistent and gate anyway.
-  const gate = await requireAdmin();
-  if (!gate.success) return gate;
-
-  return adminCategoryService.getCategories();
+function gateToFail(gate: { success: false; error: string; status?: number }): ServiceResult<never> {
+  const code = gate.status === 401 ? "UNAUTHENTICATED" : "FORBIDDEN";
+  return fail(code, gate.error, gate.status);
 }
 
-export async function getFeaturedCategoriesAction() {
+export async function getCategoriesAction(): Promise<ServiceResult<{ categories: CategoryData[] }>> {
   const gate = await requireAdmin();
-  if (!gate.success) return gate;
+  if (!gate.success) return gateToFail(gate);
+
+  // choose one
+  return adminCategoryService.getCategoriesWithCounts();
+  // return adminCategoryService.getCategories();
+}
+
+export async function getFeaturedCategoriesAction(): Promise<
+  ServiceResult<{ featuredCategories: FeaturedCategory[] }>
+> {
+  const gate = await requireAdmin();
+  if (!gate.success) return gateToFail(gate);
 
   return adminCategoryService.getFeaturedCategories();
 }

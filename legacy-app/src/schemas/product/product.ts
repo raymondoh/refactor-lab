@@ -1,10 +1,23 @@
 // src/schemas/product/product.ts
 import { z } from "zod";
+import { slugifyProductName } from "@/lib/urls/product-url";
 
-export const productSchema = z.object({
+/**
+ * 1) Base object schema (must remain a ZodObject so .partial() works)
+ */
+export const productBaseSchema = z.object({
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Slug cannot be empty")
+    .optional()
+    .nullable()
+    .transform(v => (typeof v === "string" && v.trim().length ? v.trim() : undefined)),
+
   /* Basic product information */
   name: z.string().min(3, "Product name must be at least 3 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
+
+  description: z.string().optional(),
   price: z.coerce.number().positive("Price must be a positive number"),
   salePrice: z.coerce.number().positive("Sale price must be a positive number").optional().nullable(),
 
@@ -51,28 +64,27 @@ export const productSchema = z.object({
   inStock: z.boolean().default(true).optional()
 });
 
-/* Types inferred from the main schema */
+/**
+ * 2) Create schema (adds slug auto-generation)
+ *    This keeps your current behavior: slug is always normalized on create.
+ */
+export const productSchema = productBaseSchema.transform(val => {
+  const slugSource = val.slug?.trim() || val.name;
+  return {
+    ...val,
+    slug: slugifyProductName(slugSource)
+  };
+});
+
+/* Types inferred from the create schema */
 export type ProductInput = z.infer<typeof productSchema>;
 
-/* ─────────── partial schema for PATCH-style updates ─────────── */
-export const productUpdateSchema = productSchema.partial();
+/**
+ * 3) Update schema
+ *    IMPORTANT: use base schema for partial() so it stays a ZodObject.
+ *
+ *    Note: this does NOT auto-generate slug (updates are partial by design).
+ *    You can generate slug in the service/action if `name` or `slug` changes.
+ */
+export const productUpdateSchema = productBaseSchema.partial();
 export type UpdateProductInput = z.infer<typeof productUpdateSchema>;
-
-/* ──────────────────────────────────────────────────────────
-   DEPRECATED ALIASES - Will be removed in future version
-   Use the main exports above instead
-   ────────────────────────────────────────────────────────── */
-// @deprecated Use productSchema instead
-// export const createProductSchema = productSchema
-
-// @deprecated Use productUpdateSchema instead
-// export const updateProductSchemaLegacy = productUpdateSchema
-
-// @deprecated Use ProductInput instead
-// export type ProductFormValues = ProductInput
-
-// @deprecated Use ProductInput instead
-// export type CreateProductInput = ProductInput
-
-// @deprecated Use UpdateProductInput instead
-// export type ProductUpdateValues = UpdateProductInput

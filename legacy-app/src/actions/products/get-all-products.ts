@@ -15,7 +15,7 @@ export const getAllProductsAction = validatedAdminAction(async (filters: Product
   try {
     const result = await adminProductService.getAllProducts(filters);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("UNKNOWN", result.error || "Failed to fetch products from database");
     }
 

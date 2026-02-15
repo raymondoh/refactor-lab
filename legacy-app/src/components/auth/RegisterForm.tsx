@@ -123,8 +123,14 @@ export function RegisterForm({ className, ...props }: React.ComponentPropsWithou
           await auth.signOut();
           toast.success("Account created! Verification email sent.");
           router.push("/verify-email");
-        } catch (err) {
-          console.error("[REGISTER] verification flow:", err?.code, err?.message, err);
+        } catch (err: unknown) {
+          const e = err as { code?: unknown; message?: unknown };
+
+          const code = typeof e.code === "string" ? e.code : undefined;
+          const message = typeof e.message === "string" ? e.message : undefined;
+
+          console.error("[REGISTER] verification flow:", code, message, err);
+
           toast.error("Account created, but could not send verification email.");
           router.push("/login");
         } finally {

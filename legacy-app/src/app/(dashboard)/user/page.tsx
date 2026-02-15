@@ -52,7 +52,7 @@ export default async function UserDashboardOverviewPage() {
 
     // If profile fetch failed, don’t redirect to login (that causes loops).
     // Better: show not-authorized or a generic error page.
-    if (!profileResult.success) {
+    if (!profileResult.ok) {
       redirect("/not-authorized");
     }
 

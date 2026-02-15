@@ -23,7 +23,7 @@ export default async function AdminUserTabsPage({ params }: { params: Promise<{ 
     // 2) Fetch the target user (service is admin-gated)
     const userResult = await adminUserService.getUserById(userId);
 
-    if (!userResult.success) {
+    if (!userResult.ok) {
       // Handle unauthorized / not found (service should provide status)
       if (userResult.status === 401) redirect("/login");
       if (userResult.status === 403) redirect("/not-authorized");

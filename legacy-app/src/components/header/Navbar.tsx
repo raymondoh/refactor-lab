@@ -63,24 +63,10 @@ const NavLinks = ({ setOpen, isMobile }: { setOpen?: (open: boolean) => void; is
       key={item.href}
       href={item.href}
       className={cn(
-        // Universal base styles
         "font-bold uppercase tracking-wide transition-colors",
+        isMobile ? "w-full text-left text-lg py-3 px-6 flex items-center" : "text-sm py-2 px-3",
 
-        // --- Desktop vs. Mobile specific styles ---
-        isMobile
-          ? // Mobile base styles
-            "w-full text-left text-lg py-3 px-6 flex items-center"
-          : // Desktop base styles (no border)
-            "text-sm py-2 px-3",
-
-        // --- Active/Inactive state styling ---
-        isActive(item.href)
-          ? // Active state for both mobile and desktop is now just the text color
-            "text-accent"
-          : // Inactive state
-            isMobile
-            ? "text-muted-foreground" // Inactive on Mobile
-            : "text-muted-foreground hover:text-accent" // Inactive on Desktop (with hover effect)
+        isActive(item.href) ? "text-primary" : "text-muted-foreground hover:text-primary"
       )}
       onClick={() => setOpen?.(false)}>
       {isMobile && (
@@ -305,11 +291,13 @@ const UserMenu = () => {
           {isLoggedIn ? (
             <UserAvatar src={user?.image} name={user?.name} email={user?.email} className="h-8 w-8" />
           ) : (
-            <User className="h-5 w-5 text-black dark:text-white" />
+            <User className="h-5 w-5 text-foreground" />
           )}
         </HeaderIconButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="bg-popover text-popover-foreground border border-border shadow-md">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-[16rem] bg-popover text-popover-foreground border border-border shadow-md">
         {status === "loading" ? (
           <DropdownMenuItem disabled className="flex justify-center items-center py-3">
             <Skeleton className="h-4 w-3/4" />

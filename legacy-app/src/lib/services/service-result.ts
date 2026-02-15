@@ -1,4 +1,12 @@
-export type ServiceErrorCode = "UNAUTHENTICATED" | "FORBIDDEN" | "VALIDATION" | "NOT_FOUND" | "UNKNOWN";
+// src/lib/services/service-result.ts
+export type ServiceErrorCode =
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "VALIDATION"
+  | "NOT_FOUND"
+  | "RATE_LIMIT"
+  | "UNKNOWN"
+  | "BAD_REQUEST";
 
 export type ServiceResult<T> =
   | { ok: true; data: T }

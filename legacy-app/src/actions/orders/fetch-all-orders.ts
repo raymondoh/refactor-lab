@@ -13,7 +13,7 @@ export async function fetchAllOrders() {
 
     const result = await adminOrderService.getAllOrders();
 
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false as const, error: result.error };
     }
 

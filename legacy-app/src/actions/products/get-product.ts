@@ -14,7 +14,7 @@ export const getProductByIdAction = validatedAdminAction(async (id: string) => {
   try {
     const result = await adminProductService.getProductById(id);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("NOT_FOUND", result.error || "Product not found");
     }
 
@@ -36,7 +36,7 @@ export const getPublicProductById = async (id: string) => {
     // Calling the service directly, bypassing the admin-only wrapper
     const result = await adminProductService.getProductById(id);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("NOT_FOUND", result.error || "Product not found");
     }
 

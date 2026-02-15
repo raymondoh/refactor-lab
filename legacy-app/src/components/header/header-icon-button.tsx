@@ -1,4 +1,3 @@
-// HeaderIconButton.displayName = "HeaderIconButton";
 import { cn } from "@/lib/utils";
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 
@@ -12,13 +11,25 @@ export const HeaderIconButton = forwardRef<HTMLButtonElement, HeaderIconButtonPr
       <button
         ref={ref}
         className={cn(
-          "h-10 w-10 rounded-full", // Keep this rounded
-          "flex items-center justify-center",
-          "bg-background text-foreground",
+          // shape + layout
+          "h-10 w-10 rounded-full flex items-center justify-center",
+
+          // ✅ token-based “chip” surface
+          // light: subtle gray-blue chip
+          // dark: navy chip
+          "bg-secondary text-foreground border border-border/60 shadow-sm",
+
+          // interactions
           "transition-colors duration-200",
-          "hover:bg-muted/50",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-          active && "bg-primary/10 text-primary",
+          "hover:bg-muted hover:border-border",
+          "active:scale-[0.98]",
+
+          // focus
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+
+          // active state (current page / open state)
+          active && "bg-primary/12 text-primary border-primary/30",
+
           className
         )}
         {...props}>

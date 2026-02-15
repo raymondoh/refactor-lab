@@ -9,6 +9,7 @@ import type { Product } from "@/types/models/product";
 import { ProductLikeButton } from "./ProductLikeButton";
 import { ProductCardButton } from "./ProductCardButton";
 import { formatPrice } from "@/lib/utils";
+import { getProductHref } from "@/lib/urls/product-url";
 // Highlight: Import the StarRatingDisplay component
 import { StarRatingDisplay } from "./ratings/StarRatingDisplay";
 
@@ -20,6 +21,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const displayPrice = product.salePrice || product.price;
   const isOnSale = product.onSale && product.salePrice && product.salePrice < product.price;
 
+  const productHref = getProductHref(product);
   return (
     <Card
       className="group overflow-hidden transition-all duration-300 
@@ -53,7 +55,7 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
 
       <CardContent className="p-4 flex flex-col flex-1">
-        <Link href={`/products/${product.id}`} className="block">
+        <Link href={productHref} className="block">
           <h3 className="font-semibold text-sm mb-2 truncate group-hover:text-primary transition-colors">
             {product.name}
           </h3>

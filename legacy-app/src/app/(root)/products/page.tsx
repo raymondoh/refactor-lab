@@ -71,7 +71,7 @@ const ProductsPage = async ({ searchParams }: ProductsPageProps) => {
     const initialProducts = productsResult.success ? (productsResult.data as Product[]) || [] : [];
     // Fetch Categories using the refactored service
     const categoriesRes = await adminCategoryService.getCategories();
-    const categoriesToShow = categoriesRes.success ? categoriesRes.data.categories : [];
+    const categoriesToShow = categoriesRes.ok ? categoriesRes.data.categories : [];
 
     return (
       <ProductsProvider

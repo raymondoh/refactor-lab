@@ -44,7 +44,7 @@ export async function requestAccountDeletionAction(formData: FormData) {
     if (!immediateDelete) {
       // Mark for future deletion
       const res = await adminDataPrivacyService.markDeletionRequested(userId);
-      if (!res.success) return fail("UNKNOWN", res.error || "Failed to submit deletion request.");
+      if (!res.ok) return fail("UNKNOWN", res.error || "Failed to submit deletion request.");
 
       await logServerEvent({
         type: `deletion:requested`,
@@ -59,7 +59,7 @@ export async function requestAccountDeletionAction(formData: FormData) {
     // 4) IMMEDIATE delete: cleanup + delete auth/doc
     // Run cleanup of likes and profile images first
     const cleanupRes = await adminDataPrivacyService.deleteUserLikesAndProfileImage(userId);
-    if (!cleanupRes.success) {
+    if (!cleanupRes.ok) {
       return fail("UNKNOWN", cleanupRes.error || "Failed to cleanup user data.");
     }
 
@@ -68,7 +68,7 @@ export async function requestAccountDeletionAction(formData: FormData) {
 
     // Final step: Delete the Auth record and the User document
     const delRes = await adminAuthService.deleteUserAuthAndDoc(userId);
-    if (!delRes.success) {
+    if (!delRes.ok) {
       return fail("UNKNOWN", delRes.error || "Failed to delete account auth.");
     }
 

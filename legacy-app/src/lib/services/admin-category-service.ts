@@ -13,13 +13,13 @@ import {
   normalizeCategory
 } from "@/config/categories";
 
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 
 /* ---------------------------------- */
 /* Helpers */
 /* ---------------------------------- */
 
-type FeaturedCategory = {
+export type FeaturedCategory = {
   name: string;
   image: string;
   slug: string;
@@ -36,6 +36,10 @@ function getCategoryImage(category: string): string | undefined {
   return categoryImages[category];
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 /* ---------------------------------- */
 /* Service (Firestore-only; caller gates admin) */
 /* ---------------------------------- */
@@ -44,7 +48,7 @@ export const adminCategoryService = {
   /**
    * Public-safe: Get base category definitions without counts
    */
-  async getCategories(): Promise<ServiceResponse<{ categories: Category[] }>> {
+  async getCategories(): Promise<ServiceResult<{ categories: Category[] }>> {
     try {
       const data: Category[] = categories.map(category => {
         const id = category.toLowerCase().replace(/\s+/g, "-");
@@ -57,21 +61,16 @@ export const adminCategoryService = {
         };
       });
 
-      return { success: true, data: { categories: data } };
+      return ok({ categories: data });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Failed to fetch categories";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Failed to fetch categories"), 500);
     }
   },
 
   /**
    * Admin-only (caller must gate): Optimized count() aggregation per category
    */
-  async getCategoriesWithCounts(): Promise<ServiceResponse<{ categories: Category[] }>> {
+  async getCategoriesWithCounts(): Promise<ServiceResult<{ categories: Category[] }>> {
     try {
       const db = getAdminFirestore();
 
@@ -82,13 +81,10 @@ export const adminCategoryService = {
         })
       );
 
-      const countsMap = categoryCounts.reduce(
-        (acc, curr) => {
-          acc[curr.category] = curr.count;
-          return acc;
-        },
-        {} as Record<string, number>
-      );
+      const countsMap = categoryCounts.reduce<Record<string, number>>((acc, curr) => {
+        acc[curr.category] = curr.count;
+        return acc;
+      }, {});
 
       const data: Category[] = categories.map(category => {
         const id = category.toLowerCase().replace(/\s+/g, "-");
@@ -101,60 +97,50 @@ export const adminCategoryService = {
         };
       });
 
-      return { success: true, data: { categories: data } };
+      return ok({ categories: data });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Error counting categories";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Error counting categories"), 500);
     }
   },
 
   /**
    * Get subcategories for a specific category
    */
-  async getSubcategories(categoryParam: string): Promise<ServiceResponse<{ subcategories: string[] }>> {
+  async getSubcategories(categoryParam: string): Promise<ServiceResult<{ subcategories: string[] }>> {
     try {
       const normalized = normalizeCategory(categoryParam);
-      if (!normalized) return { success: true, data: { subcategories: [] } };
+      if (!normalized) return ok({ subcategories: [] });
 
       const list = subcategories[normalized as keyof typeof subcategories];
-      return { success: true, data: { subcategories: list ? [...list] : [] } };
+      return ok({ subcategories: list ? [...list] : [] });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Error fetching subcategories";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Error fetching subcategories"), 500);
     }
   },
 
   /**
    * Static lookup methods for config-driven values
    */
-  async getDesignThemes(): Promise<ServiceResponse<{ designThemes: string[] }>> {
-    return { success: true, data: { designThemes: [...designThemes] } };
+  async getDesignThemes(): Promise<ServiceResult<{ designThemes: string[] }>> {
+    return ok({ designThemes: [...designThemes] });
   },
 
-  async getProductTypes(): Promise<ServiceResponse<{ productTypes: string[] }>> {
-    return { success: true, data: { productTypes: [...productTypes] } };
+  async getProductTypes(): Promise<ServiceResult<{ productTypes: string[] }>> {
+    return ok({ productTypes: [...productTypes] });
   },
 
-  async getMaterials(): Promise<ServiceResponse<{ materials: string[] }>> {
-    return { success: true, data: { materials: [...materials] } };
+  async getMaterials(): Promise<ServiceResult<{ materials: string[] }>> {
+    return ok({ materials: [...materials] });
   },
 
-  async getPlacements(): Promise<ServiceResponse<{ placements: string[] }>> {
-    return { success: true, data: { placements: [...placements] } };
+  async getPlacements(): Promise<ServiceResult<{ placements: string[] }>> {
+    return ok({ placements: [...placements] });
   },
 
   /**
    * Admin-only (caller must gate): Featured category counts using Firestore count() aggregation
    */
-  async getFeaturedCategories(): Promise<ServiceResponse<{ featuredCategories: FeaturedCategory[] }>> {
+  async getFeaturedCategories(): Promise<ServiceResult<{ featuredCategories: FeaturedCategory[] }>> {
     try {
       const featuredCategories: FeaturedCategory[] = [
         { name: "Sport Bike Decals", image: "/bike.jpg", slug: "sport-bike", count: 0 },
@@ -185,14 +171,9 @@ export const adminCategoryService = {
         })
       );
 
-      return { success: true, data: { featuredCategories } };
+      return ok({ featuredCategories });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Error counting featured categories";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Error counting featured categories"), 500);
     }
   }
 };

@@ -38,7 +38,7 @@ export async function updateEmailVerificationStatus({
   try {
     // 1) Check Firebase Auth user record (service-driven)
     const authUserRes = await adminAuthService.getAuthUserById(userId);
-    if (authUserRes.success) {
+    if (authUserRes.ok) {
       if (verified && !authUserRes.data.emailVerified) {
         logger({
           type: "warn",
@@ -55,7 +55,7 @@ export async function updateEmailVerificationStatus({
       updatedAt: serverTimestamp()
     });
 
-    if (!updateRes.success) {
+    if (!updateRes.ok) {
       return { success: false, error: updateRes.error };
     }
 

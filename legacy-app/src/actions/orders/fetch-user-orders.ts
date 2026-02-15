@@ -30,7 +30,7 @@ export async function fetchUserOrders(userId: string): Promise<FetchUserOrdersRe
     }
 
     const result = await adminOrderService.getUserOrders(userId);
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false, error: result.error, status: result.status };
     }
 

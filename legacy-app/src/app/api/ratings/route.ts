@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       title
     });
 
-    if (!result.success) {
+    if (!result.ok) {
       return NextResponse.json(
         { success: false, error: result.error },
         { status: result.status ?? 500, headers: NO_STORE_HEADERS }

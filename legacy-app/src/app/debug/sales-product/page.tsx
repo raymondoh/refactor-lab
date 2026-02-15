@@ -1,12 +1,18 @@
+// src/app/debug/sales-product/page.tsx
+import "server-only";
+
 import { adminProductService } from "@/lib/services/admin-product-service";
+
+type DataOf<R> = R extends { ok: true; data: infer D } ? D : never;
 
 export default async function SaleProductsDebugPage() {
   const saleProducts = await adminProductService.getOnSaleProducts(10);
   const allProducts = await adminProductService.getAllProducts({ limit: 5 });
 
-  // Ensure these are ALWAYS arrays, even on failure
-  const saleItems = saleProducts.success && saleProducts.data ? saleProducts.data : [];
-  const allItems = allProducts.success && allProducts.data ? allProducts.data : [];
+  // ✅ Always arrays, fully typed, no referencing `.data` on the union
+  const saleItems: DataOf<typeof saleProducts> = saleProducts.ok ? saleProducts.data : [];
+  const allItems: DataOf<typeof allProducts> = allProducts.ok ? allProducts.data : [];
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Sale Products Debug</h1>
@@ -15,27 +21,26 @@ export default async function SaleProductsDebugPage() {
         {/* Sale Products Results */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">getOnSaleProducts() Results</h2>
+
           <div className="space-y-2">
             <p>
-              <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
+              <strong>Success:</strong> {saleProducts.ok ? "✅ Yes" : "❌ No"}
             </p>
             <p>
-              {/* Replace saleProducts.data.length with saleItems.length */}
               <strong>Count:</strong> {saleItems.length}
             </p>
-            {!saleProducts.success && (
+
+            {!saleProducts.ok && (
               <p className="text-red-600">
                 <strong>Error:</strong> {saleProducts.error}
               </p>
             )}
           </div>
 
-          {/* Use saleItems.length for the conditional check */}
           {saleItems.length > 0 && (
             <div className="mt-4">
               <h3 className="font-semibold mb-2">Sale Products:</h3>
               <div className="space-y-2 text-sm">
-                {/* Use saleItems.map instead of saleProducts.data.map */}
                 {saleItems.map(product => (
                   <div key={product.id} className="p-2 bg-gray-50 rounded">
                     <p>
@@ -60,13 +65,20 @@ export default async function SaleProductsDebugPage() {
         {/* All Products Sample */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4">Sample Products (for comparison)</h2>
+
           <div className="space-y-2">
             <p>
-              <strong>Success:</strong> {allProducts.success ? "✅ Yes" : "❌ No"}
+              <strong>Success:</strong> {allProducts.ok ? "✅ Yes" : "❌ No"}
             </p>
             <p>
               <strong>Count:</strong> {allItems.length}
             </p>
+
+            {!allProducts.ok && (
+              <p className="text-red-600">
+                <strong>Error:</strong> {allProducts.error}
+              </p>
+            )}
           </div>
 
           {allItems.length > 0 && (

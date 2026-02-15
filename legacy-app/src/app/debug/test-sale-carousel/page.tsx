@@ -10,7 +10,7 @@ export default async function TestSaleCarouselPage() {
   const fetchTime = new Date().toISOString();
 
   // Step A: Create a safe array and serialize it to fix the type mismatch (SerializedProduct[] vs Product[])
-  const saleItems = saleProducts.success && saleProducts.data ? serializeProductArray(saleProducts.data) : [];
+  const saleItems = saleProducts.ok && saleProducts.data ? serializeProductArray(saleProducts.data) : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -26,9 +26,9 @@ export default async function TestSaleCarouselPage() {
             <strong>Sale products found:</strong> {saleItems.length}
           </p>
           <p>
-            <strong>Success:</strong> {saleProducts.success ? "✅ Yes" : "❌ No"}
+            <strong>Success:</strong> {saleProducts.ok ? "✅ Yes" : "❌ No"}
           </p>
-          {!saleProducts.success && (
+          {!saleProducts.ok && (
             <p className="text-red-600">
               <strong>Error:</strong> {saleProducts.error}
             </p>
@@ -48,7 +48,7 @@ export default async function TestSaleCarouselPage() {
           <div className="text-center py-16">
             <h2 className="text-2xl font-semibold mb-4">No Sale Products Found</h2>
             <p className="text-muted-foreground">
-              {saleProducts.success ? "There are currently no products on sale." : `Error: ${saleProducts.error}`}
+              {saleProducts.ok ? "There are currently no products on sale." : `Error: ${saleProducts.error}`}
             </p>
           </div>
         )}

@@ -19,7 +19,7 @@ export const deleteProductAction = validatedAdminAction(async (productId: string
     // 1) Fetch product first so we can delete images best-effort + log name
     const found = await adminProductService.getProductDoc(productId);
 
-    if (!found.success) {
+    if (!found.ok) {
       // Best-effort log for missing product
       try {
         await adminActivityService.logActivity({
@@ -54,7 +54,7 @@ export const deleteProductAction = validatedAdminAction(async (productId: string
     // 3) Delete Firestore doc
     const result = await adminProductService.deleteProductDoc(productId);
 
-    if (!result.success) {
+    if (!result.ok) {
       // Best-effort log for failed deletion
       try {
         await adminActivityService.logActivity({

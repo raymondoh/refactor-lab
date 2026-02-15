@@ -5,9 +5,9 @@ import { getUserImage } from "@/utils/get-user-image";
 import { Timestamp, type DocumentSnapshot } from "firebase-admin/firestore";
 import { serializeUser } from "@/utils/serializeUser";
 
-// FIXED: Changed from "@/types/user/common" to "@/types/models/user"
 import type { SerializedUser } from "@/types/models/user";
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import type { ServiceResult } from "@/lib/services/service-result";
+import { ok, fail } from "@/lib/services/service-result";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
 function isoOrValue(value: unknown) {
@@ -21,7 +21,7 @@ function mapDocToSerializedUser(doc: DocumentSnapshot): SerializedUser {
     id: doc.id,
     ...data,
     image: getUserImage(data),
-    createdAt: isoOrValue(data.createdAt) as string, // Cast to string
+    createdAt: isoOrValue(data.createdAt) as string,
     updatedAt: isoOrValue(data.updatedAt) as string,
     lastLoginAt: isoOrValue(data.lastLoginAt) as string,
     emailVerified: Boolean(data.emailVerified)
@@ -30,29 +30,28 @@ function mapDocToSerializedUser(doc: DocumentSnapshot): SerializedUser {
   return serializeUser(rawUser);
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 export const userRepo = {
-  async getUserById(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
-    if (!userId) return { success: false, error: "User ID is required", status: 400 };
+  async getUserById(userId: string): Promise<ServiceResult<{ user: SerializedUser }>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
 
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").doc(userId).get();
 
-      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
+      if (!snap.exists) return fail("NOT_FOUND", "User not found", 404);
 
       const user = mapDocToSerializedUser(snap);
-      return { success: true, data: { user } };
+      return ok({ user });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching user";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching user"), 500);
     }
   },
 
-  async listUsers(limit = 20, offset = 0): Promise<ServiceResponse<{ users: SerializedUser[]; total: number }>> {
+  async listUsers(limit = 20, offset = 0): Promise<ServiceResult<{ users: SerializedUser[]; total: number }>> {
     const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.floor(limit))) : 20;
     const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
 
@@ -64,14 +63,9 @@ export const userRepo = {
       const total = totalSnap.data().count;
 
       const users = usersSnap.docs.map(mapDocToSerializedUser);
-      return { success: true, data: { users, total } };
+      return ok({ users, total });
     } catch (error: unknown) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching users";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching users"), 500);
     }
   }
 };

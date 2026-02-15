@@ -30,7 +30,7 @@ export default async function AdminUsersPage() {
     // ✅ Fetch users via admin service (avoids UserService.getUserRole issues)
     const usersResult = await adminUserService.listUsers(10, 0);
 
-    if (!usersResult.success) {
+    if (!usersResult.ok) {
       console.error("Error fetching users:", usersResult.error);
       return (
         <DashboardShell>

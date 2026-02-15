@@ -27,7 +27,7 @@ export function CartItemCard({ item }: CartItemCardProps) {
 
   return (
     <div className="flex items-start gap-4">
-      <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border">
+      <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted">
         <Image
           src={product.image || "/placeholder.svg"}
           alt={product.name}
@@ -60,9 +60,9 @@ export function CartItemCard({ item }: CartItemCardProps) {
               <span className="sr-only">Increase quantity</span>
             </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               size="icon"
-              className="h-8 w-8 text-destructive rounded-md text-white"
+              className="h-8 w-8 rounded-md"
               onClick={() => removeItem(product.id)}>
               <Trash2 className="h-4 w-4" />
               <span className="sr-only">Remove item</span>

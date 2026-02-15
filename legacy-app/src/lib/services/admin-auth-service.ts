@@ -1,7 +1,8 @@
 // src/lib/services/admin-auth-service.ts
 import { getAdminAuth, getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { ServiceResponse } from "@/types/service-response";
+import type { ServiceResult, ServiceErrorCode } from "@/lib/services/service-result";
+import { ok, fail } from "@/lib/services/service-result";
 import bcryptjs from "bcryptjs";
 import type { UserRole } from "@/types/models/user";
 import type { DecodedIdToken } from "firebase-admin/auth";
@@ -19,8 +20,17 @@ type EmptyData = Record<string, never>;
 
 type UserDoc = { id: string } & Record<string, unknown>;
 
+function codeFromStatus(status?: number): ServiceErrorCode {
+  if (status === 400) return "VALIDATION";
+  if (status === 401) return "UNAUTHENTICATED";
+  if (status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 429) return "RATE_LIMIT";
+  return "UNKNOWN";
+}
+
 export const adminAuthService = {
-  async getUserByEmail(email: string): Promise<ServiceResponse<{ uid: string; role?: UserRole }>> {
+  async getUserByEmail(email: string): Promise<ServiceResult<{ uid: string; role?: UserRole }>> {
     try {
       const auth = getAdminAuth();
       const db = getAdminFirestore();
@@ -32,13 +42,13 @@ export const adminAuthService = {
       const data = snap.data() as Record<string, unknown> | undefined;
       const role = snap.exists ? toUserRole(data?.role) : undefined;
 
-      return { success: true, data: { uid: userRecord.uid, role } };
+      return ok({ uid: userRecord.uid, role });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error"), 500);
     }
   },
 
-  async markEmailVerified(userId: string): Promise<ServiceResponse<EmptyData>> {
+  async markEmailVerified(userId: string): Promise<ServiceResult<EmptyData>> {
     try {
       const auth = getAdminAuth();
       const db = getAdminFirestore();
@@ -46,64 +56,58 @@ export const adminAuthService = {
       await auth.updateUser(userId, { emailVerified: true });
       await db.collection("users").doc(userId).update({ emailVerified: true });
 
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error verifying email"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error verifying email"), 500);
     }
   },
 
   async getAuthUserByEmail(
     email: string
-  ): Promise<ServiceResponse<{ uid: string; emailVerified: boolean; displayName?: string | null }>> {
+  ): Promise<ServiceResult<{ uid: string; emailVerified: boolean; displayName?: string | null }>> {
     try {
       const auth = getAdminAuth();
       const userRecord = await auth.getUserByEmail(email);
 
-      return {
-        success: true,
-        data: {
-          uid: userRecord.uid,
-          emailVerified: userRecord.emailVerified,
-          displayName: userRecord.displayName ?? null
-        }
-      };
+      return ok({
+        uid: userRecord.uid,
+        emailVerified: userRecord.emailVerified,
+        displayName: userRecord.displayName ?? null
+      });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error getting auth user by email"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error getting auth user by email"), 500);
     }
   },
 
-  async verifyPasswordHash(
-    userId: string,
-    password: string
-  ): Promise<ServiceResponse<{ ok: boolean; role?: UserRole }>> {
+  async verifyPasswordHash(userId: string, password: string): Promise<ServiceResult<{ ok: boolean; role?: UserRole }>> {
     try {
       const db = getAdminFirestore();
       const userDoc = await db.collection("users").doc(userId).get();
       const userData = userDoc.data() as Record<string, unknown> | undefined;
 
       const hash = typeof userData?.passwordHash === "string" ? userData.passwordHash : undefined;
-      if (!hash) return { success: true, data: { ok: false } };
+      if (!hash) return ok({ ok: false });
 
-      const ok = await bcryptjs.compare(password, hash);
+      const match = await bcryptjs.compare(password, hash);
       const role = toUserRole(userData?.role);
 
-      return { success: true, data: { ok, role } };
+      return ok({ ok: match, role });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error verifying password hash"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error verifying password hash"), 500);
     }
   },
 
-  async createCustomToken(userId: string): Promise<ServiceResponse<{ token: string }>> {
+  async createCustomToken(userId: string): Promise<ServiceResult<{ token: string }>> {
     try {
       const auth = getAdminAuth();
       const token = await auth.createCustomToken(userId);
-      return { success: true, data: { token } };
+      return ok({ token });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error creating custom token"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating custom token"), 500);
     }
   },
 
-  async deleteUserAuthAndDoc(userId: string): Promise<ServiceResponse<EmptyData>> {
+  async deleteUserAuthAndDoc(userId: string): Promise<ServiceResult<EmptyData>> {
     try {
       const auth = getAdminAuth();
       const db = getAdminFirestore();
@@ -118,37 +122,37 @@ export const adminAuthService = {
 
       await auth.deleteUser(userId);
 
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error deleting user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error deleting user"), 500);
     }
   },
 
   async updateAuthUser(
     userId: string,
     data: { email?: string; displayName?: string; password?: string; photoURL?: string; emailVerified?: boolean }
-  ): Promise<ServiceResponse<EmptyData>> {
+  ): Promise<ServiceResult<EmptyData>> {
     try {
       const auth = getAdminAuth();
       await auth.updateUser(userId, data);
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error updating auth user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating auth user"), 500);
     }
   },
 
-  async setUserRoleClaim(userId: string, role: UserRole): Promise<ServiceResponse<EmptyData>> {
+  async setUserRoleClaim(userId: string, role: UserRole): Promise<ServiceResult<EmptyData>> {
     try {
       const auth = getAdminAuth();
       await auth.setCustomUserClaims(userId, { role });
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error setting role claim"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error setting role claim"), 500);
     }
   },
 
   async getAuthUserById(userId: string): Promise<
-    ServiceResponse<{
+    ServiceResult<{
       uid: string;
       email?: string;
       displayName?: string;
@@ -160,40 +164,37 @@ export const adminAuthService = {
       const auth = getAdminAuth();
       const u = await auth.getUser(userId);
 
-      return {
-        success: true,
-        data: {
-          uid: u.uid,
-          email: u.email ?? undefined,
-          displayName: u.displayName ?? undefined,
-          photoURL: u.photoURL ?? undefined,
-          emailVerified: u.emailVerified
-        }
-      };
+      return ok({
+        uid: u.uid,
+        email: u.email ?? undefined,
+        displayName: u.displayName ?? undefined,
+        photoURL: u.photoURL ?? undefined,
+        emailVerified: u.emailVerified
+      });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error getting auth user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error getting auth user"), 500);
     }
   },
 
-  async getUserDocById(userId: string): Promise<ServiceResponse<{ user: UserDoc | null }>> {
+  async getUserDocById(userId: string): Promise<ServiceResult<{ user: UserDoc | null }>> {
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").doc(userId).get();
 
       const data = snap.data() as Record<string, unknown> | undefined;
-      return { success: true, data: { user: snap.exists ? { id: snap.id, ...(data ?? {}) } : null } };
+      return ok({ user: snap.exists ? { id: snap.id, ...(data ?? {}) } : null });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error fetching user doc"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching user doc"), 500);
     }
   },
 
-  async updateUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<EmptyData>> {
+  async updateUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResult<EmptyData>> {
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).update(data);
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error updating user doc"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating user doc"), 500);
     }
   },
 
@@ -203,13 +204,13 @@ export const adminAuthService = {
     password: string;
     displayName?: string;
     emailVerified?: boolean;
-  }): Promise<ServiceResponse<{ uid: string }>> {
+  }): Promise<ServiceResult<{ uid: string }>> {
     try {
       const auth = getAdminAuth();
       const user = await auth.createUser(data);
-      return { success: true, data: { uid: user.uid } };
+      return ok({ uid: user.uid });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error creating auth user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating auth user"), 500);
     }
   },
 
@@ -218,7 +219,7 @@ export const adminAuthService = {
     displayName?: string;
     photoURL?: string;
     emailVerified?: boolean;
-  }): Promise<ServiceResponse<{ uid: string }>> {
+  }): Promise<ServiceResult<{ uid: string }>> {
     try {
       const auth = getAdminAuth();
 
@@ -229,9 +230,9 @@ export const adminAuthService = {
         emailVerified: data.emailVerified ?? true
       });
 
-      return { success: true, data: { uid: user.uid } };
+      return ok({ uid: user.uid });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error creating provider auth user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating provider auth user"), 500);
     }
   },
 
@@ -242,7 +243,7 @@ export const adminAuthService = {
     displayName?: string;
     photoURL?: string;
     emailVerified?: boolean;
-  }): Promise<ServiceResponse<{ uid: string }>> {
+  }): Promise<ServiceResult<{ uid: string }>> {
     try {
       const auth = getAdminAuth();
       const u = await auth.createUser({
@@ -252,82 +253,75 @@ export const adminAuthService = {
         photoURL: input.photoURL,
         emailVerified: input.emailVerified ?? true
       });
-      return { success: true, data: { uid: u.uid } };
+      return ok({ uid: u.uid });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error creating auth user"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating auth user"), 500);
     }
   },
 
-  async countUsers(): Promise<ServiceResponse<{ count: number }>> {
+  async countUsers(): Promise<ServiceResult<{ count: number }>> {
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").count().get();
-      return { success: true, data: { count: snap.data().count } };
+      return ok({ count: snap.data().count });
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error counting users"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error counting users"), 500);
     }
   },
 
-  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResponse<EmptyData>> {
+  async createUserDoc(userId: string, data: Record<string, unknown>): Promise<ServiceResult<EmptyData>> {
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).set(data);
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error creating user doc"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating user doc"), 500);
     }
   },
 
-  async generateEmailVerificationLink(email: string): Promise<ServiceResponse<{ link: string }>> {
+  async generateEmailVerificationLink(email: string): Promise<ServiceResult<{ link: string }>> {
     try {
       const auth = getAdminAuth();
       const link = await auth.generateEmailVerificationLink(email);
-      return { success: true, data: { link } };
+      return ok({ link });
     } catch (error: unknown) {
-      return {
-        success: false,
-        error: errMessage(error, "Unknown error generating email verification link"),
-        status: 500
-      };
+      return fail("UNKNOWN", errMessage(error, "Unknown error generating email verification link"), 500);
     }
   },
 
-  async verifyIdToken(token: string): Promise<ServiceResponse<DecodedIdToken>> {
+  async verifyIdToken(token: string): Promise<ServiceResult<DecodedIdToken>> {
     try {
       const auth = getAdminAuth();
       const decodedToken = await auth.verifyIdToken(token);
-      return { success: true, data: decodedToken };
+      return ok(decodedToken);
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error verifying ID token"), status: 500 };
+      return fail("UNAUTHENTICATED", errMessage(error, "Unknown error verifying ID token"), 401);
     }
   },
 
-  async deleteStorageObject(objectPath: string): Promise<ServiceResponse<EmptyData>> {
+  async deleteStorageObject(objectPath: string): Promise<ServiceResult<EmptyData>> {
     try {
       const bucket = getAdminStorage().bucket();
       await bucket.file(objectPath).delete({ ignoreNotFound: true });
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error deleting storage object"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error deleting storage object"), 500);
     }
   },
+
   /**
    * Verifies a Firebase Out-of-Band (OOB) code via the Google Identity Toolkit REST API.
-   * This handles the "applyActionCode" logic on the server side.
+   * Uses the resetPassword endpoint as a "peek" (works for verify email codes too).
    */
-  /**
-   * Verifies a Firebase Out-of-Band (OOB) code via the Google Identity Toolkit REST API.
-   * Uses the confirmEmail endpoint specifically designed for verification links.
-   */
-  async checkActionCode(oobCode: string): Promise<ServiceResponse<{ email: string; operation: string; uid: string }>> {
-    if (!oobCode) return { success: false, error: "No code provided", status: 400 };
+  async checkActionCode(oobCode: string): Promise<ServiceResult<{ email: string; operation: string; uid: string }>> {
+    if (!oobCode) return fail("VALIDATION", "No code provided", 400);
 
     try {
       const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+      if (!apiKey) {
+        return fail("UNKNOWN", "Missing Firebase API key.", 500);
+      }
 
-      // We use the 'resetPassword' check endpoint - strangely, this is the most
-      // reliable way in the Firebase REST API to simply "peek" at what an oobCode
-      // belongs to (it works for email verification codes too).
       const url = `https://identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=${apiKey}`;
 
       const res = await fetch(url, {
@@ -338,27 +332,28 @@ export const adminAuthService = {
 
       const data = await res.json();
 
-      // If this still 404s, it's an API Key or Google Project settings issue.
       if (!res.ok) {
-        console.error("[checkActionCode] REST Error:", data.error);
-        return { success: false, error: "Verification link is invalid or expired.", status: 400 };
+        console.error("[checkActionCode] REST Error:", data?.error);
+        return fail("VALIDATION", "Verification link is invalid or expired.", 400);
+      }
+
+      const email = typeof data?.email === "string" ? data.email : "";
+      if (!email) {
+        return fail("UNKNOWN", "Internal verification error.", 500);
       }
 
       // Now that we have the email safely, get the UID via Admin SDK
       const auth = getAdminAuth();
-      const userRecord = await auth.getUserByEmail(data.email);
+      const userRecord = await auth.getUserByEmail(email);
 
-      return {
-        success: true,
-        data: {
-          email: data.email,
-          uid: userRecord.uid,
-          operation: "VERIFY_EMAIL"
-        }
-      };
+      return ok({
+        email,
+        uid: userRecord.uid,
+        operation: "VERIFY_EMAIL"
+      });
     } catch (error: unknown) {
       console.error("[checkActionCode] Admin/Network Error:", error);
-      return { success: false, error: "Internal verification error.", status: 500 };
+      return fail("UNKNOWN", "Internal verification error.", 500);
     }
   }
 };

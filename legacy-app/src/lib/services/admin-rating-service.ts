@@ -1,9 +1,11 @@
 // src/lib/services/admin-rating-service.ts
+import "server-only";
+
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 
 export type UpsertReviewInput = {
   productId: string;
@@ -19,20 +21,24 @@ function isValidRating(value: unknown): value is number {
   return Number.isInteger(n) && n >= 1 && n <= 5;
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 export const adminRatingService = {
   async upsertReviewAndRecomputeProductAggregates(
     input: UpsertReviewInput
-  ): Promise<ServiceResponse<{ productId: string }>> {
+  ): Promise<ServiceResult<{ productId: string }>> {
     try {
       const db = getAdminFirestore();
       const { productId, userId } = input;
 
       if (!productId || !userId) {
-        return { success: false, error: "Missing productId or userId", status: 400 };
+        return fail("BAD_REQUEST", "Missing productId or userId", 400);
       }
 
       if (!isValidRating(input.rating)) {
-        return { success: false, error: "Invalid rating", status: 400 };
+        return fail("BAD_REQUEST", "Invalid rating", 400);
       }
 
       const rating = Number(input.rating);
@@ -82,16 +88,11 @@ export const adminRatingService = {
         tx.update(productRef, { averageRating: avg, reviewCount: count, updatedAt: now });
       });
 
-      return { success: true, data: { productId } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating rating";
-
+      return ok({ productId });
+    } catch (error: unknown) {
+      const message = errMessage(error, "Unknown error updating rating");
       const status = message.toLowerCase().includes("product not found") ? 404 : 500;
-      return { success: false, error: message, status };
+      return fail(status === 404 ? "NOT_FOUND" : "UNKNOWN", message, status);
     }
   }
 };

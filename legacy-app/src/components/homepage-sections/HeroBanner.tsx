@@ -43,7 +43,8 @@ export function HeroBanner({ className }: HeroBannerProps) {
       </div>
 
       {/* Overlay (navy-toned, not pure black) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-background/40" />
+      {/* <div className="absolute inset-0 bg-background/20 dark:bg-black/50" /> */}
+      <div className="absolute inset-0 bg-primary/10 dark:bg-black/50" />
 
       {/* Content */}
       <div className="relative z-10 text-center text-white px-4 max-w-5xl mx-auto pt-16 md:pt-0">

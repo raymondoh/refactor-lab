@@ -27,7 +27,7 @@ export async function deleteUserAccount(userId: string) {
 
     const res = await adminUserService.deleteUserFully(userId);
 
-    if (!res.success) {
+    if (!res.ok) {
       return { success: false, error: res.error || "Failed to delete user account" };
     }
 

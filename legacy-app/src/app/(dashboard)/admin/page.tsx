@@ -54,7 +54,7 @@ export default async function AdminDashboardOverviewPage() {
     try {
       // ✅ Users stats via service
       const stats = await adminUserService.getAdminUserStats();
-      if (!stats.success) {
+      if (!stats.ok) {
         console.error("Error fetching admin user stats:", stats.error);
       } else {
         const { totalUsers } = stats.data;
@@ -63,9 +63,9 @@ export default async function AdminDashboardOverviewPage() {
 
       // ✅ Activity count via service
       const activityCountResult = await adminActivityService.countAll();
-      systemStats.totalActivities = activityCountResult.success ? activityCountResult.data.total : 0;
+      systemStats.totalActivities = activityCountResult.ok ? activityCountResult.data.total : 0;
 
-      if (!activityCountResult.success) {
+      if (!activityCountResult.ok) {
         console.error("Error fetching activity count:", activityCountResult.error);
       }
     } catch (error) {

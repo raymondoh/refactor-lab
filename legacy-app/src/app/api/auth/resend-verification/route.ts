@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const userRes = await adminAuthService.getUserByEmail(email);
 
     // If user not found -> generic success (but allow dev token)
-    if (!userRes.success) {
+    if (!userRes.ok) {
       if (process.env.NODE_ENV === "development") {
         try {
           const token = await tokenService.createEmailVerificationToken(email);
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // ✅ Check emailVerified via service
     const authUserRes = await adminAuthService.getAuthUserById(userId);
-    const emailVerified = authUserRes.success ? !!authUserRes.data.emailVerified : false;
+    const emailVerified = authUserRes.ok ? !!authUserRes.data.emailVerified : false;
 
     if (emailVerified) {
       if (process.env.NODE_ENV === "development") {

@@ -173,7 +173,7 @@ async function handleCheckoutSessionPaid(sessionId: string) {
   };
 
   const result = await adminOrderService.createOrder(orderData);
-  if (!result.success) throw new Error(result.error);
+  if (!result.ok) throw new Error(result.error);
 
   const orderId = result.data.orderId;
 

@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const res = await adminCategoryService.getFeaturedCategories();
 
-    if (!res.success) {
+    if (!res.ok) {
       return NextResponse.json({ success: false, error: res.error }, { status: res.status ?? 500 });
     }
 

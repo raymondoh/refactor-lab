@@ -10,7 +10,8 @@ import { orderSchema } from "@/schemas/order";
 import type { Order, OrderData } from "@/types/order";
 import { logServerEvent } from "@/lib/services/logging-service";
 
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import type { ServiceResult } from "@/lib/services/service-result";
+import { ok, fail } from "@/lib/services/service-result";
 
 // Server timestamp helper
 export const serverTimestamp = () => FieldValue.serverTimestamp();
@@ -98,7 +99,7 @@ function errMessage(error: unknown, fallback: string) {
  * Callable by webhooks (System) or admin actions (Session).
  * No requireAdmin gate here; security is handled by the caller.
  */
-async function _createOrderInternal(orderData: OrderData): Promise<ServiceResponse<{ orderId: string }>> {
+async function _createOrderInternal(orderData: OrderData): Promise<ServiceResult<{ orderId: string }>> {
   const db = getAdminFirestore();
 
   try {
@@ -112,7 +113,7 @@ async function _createOrderInternal(orderData: OrderData): Promise<ServiceRespon
       .get();
 
     if (!existing.empty) {
-      return { success: true, data: { orderId: existing.docs[0].id } };
+      return ok({ orderId: existing.docs[0].id });
     }
 
     const orderRef = await db.collection("orders").add({
@@ -123,16 +124,18 @@ async function _createOrderInternal(orderData: OrderData): Promise<ServiceRespon
       updatedAt: serverTimestamp()
     });
 
-    return { success: true, data: { orderId: orderRef.id } };
+    return ok({ orderId: orderRef.id });
   } catch (error: unknown) {
     const message = errMessage(error, "Failed to create order");
+
     await logServerEvent({
       type: "error",
       message: `Order Creation Error: ${message}`,
       context: "order:system",
       metadata: { orderData, error }
     });
-    return { success: false, error: message, status: 500 };
+
+    return fail("UNKNOWN", message, 500);
   }
 }
 
@@ -160,41 +163,45 @@ export const adminOrderService = {
    * USER: Fetch personal orders (caller must ensure user is authenticated
    * and is requesting their own orders).
    */
-  async getUserOrders(userId: string): Promise<ServiceResponse<Order[]>> {
+  async getUserOrders(userId: string): Promise<ServiceResult<Order[]>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").where("userId", "==", userId).orderBy("createdAt", "desc").get();
 
-      return { success: true, data: snapshot.docs.map(mapDocToOrder) };
+      return ok(snapshot.docs.map(mapDocToOrder));
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error"), 500);
     }
   },
 
   /**
    * ADMIN: Fetch all orders for management (caller must perform admin gate (requireAdmin helper)).
    */
-  async getAllOrders(): Promise<ServiceResponse<Order[]>> {
+  async getAllOrders(): Promise<ServiceResult<Order[]>> {
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").orderBy("createdAt", "desc").get();
-      return { success: true, data: snapshot.docs.map(mapDocToOrder) };
+      return ok(snapshot.docs.map(mapDocToOrder));
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error"), 500);
     }
   },
 
   /**
    * ADMIN: Fetch single order (caller must perform admin gate (requireAdmin helper)).
    */
-  async getOrderById(id: string): Promise<ServiceResponse<Order | null>> {
+  async getOrderById(id: string): Promise<ServiceResult<Order | null>> {
+    if (!id) return fail("VALIDATION", "Order ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       const doc = await db.collection("orders").doc(id).get();
-      if (!doc.exists) return { success: true, data: null };
-      return { success: true, data: mapDocToOrder(doc) };
+      if (!doc.exists) return ok(null);
+      return ok(mapDocToOrder(doc));
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error"), 500);
     }
   },
 
@@ -206,10 +213,18 @@ export const adminOrderService = {
     adminId: string,
     orderId: string,
     status: Order["status"]
-  ): Promise<ServiceResponse<EmptyData>> {
+  ): Promise<ServiceResult<EmptyData>> {
+    if (!adminId) return fail("VALIDATION", "Admin ID is required", 400);
+    if (!orderId) return fail("VALIDATION", "Order ID is required", 400);
+
     try {
       const db = getAdminFirestore();
-      await db.collection("orders").doc(orderId).update({
+
+      const ref = db.collection("orders").doc(orderId);
+      const snap = await ref.get();
+      if (!snap.exists) return fail("NOT_FOUND", "Order not found", 404);
+
+      await ref.update({
         status,
         updatedAt: serverTimestamp()
       });
@@ -221,24 +236,26 @@ export const adminOrderService = {
         metadata: { orderId, status, adminId }
       });
 
-      return { success: true, data: {} };
+      return ok({});
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Unknown error"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error"), 500);
     }
   },
 
   /**
    * SYSTEM/ADMIN: Lookup by paymentIntentId (no gate; caller decides).
    */
-  async getOrderByPaymentIntentId(paymentIntentId: string): Promise<ServiceResponse<Order | null>> {
+  async getOrderByPaymentIntentId(paymentIntentId: string): Promise<ServiceResult<Order | null>> {
+    if (!paymentIntentId) return fail("VALIDATION", "paymentIntentId is required", 400);
+
     try {
       const db = getAdminFirestore();
       const snapshot = await db.collection("orders").where("paymentIntentId", "==", paymentIntentId).limit(1).get();
 
-      if (snapshot.empty) return { success: true, data: null };
-      return { success: true, data: mapDocToOrder(snapshot.docs[0]) };
+      if (snapshot.empty) return ok(null);
+      return ok(mapDocToOrder(snapshot.docs[0]));
     } catch (error: unknown) {
-      return { success: false, error: errMessage(error, "Failed to fetch order"), status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Failed to fetch order"), 500);
     }
   }
 };

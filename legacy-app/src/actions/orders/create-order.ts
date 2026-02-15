@@ -13,7 +13,7 @@ export async function createOrder(orderData: OrderData) {
 
     const result = await adminOrderService.createOrder(orderData);
 
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false as const, error: result.error };
     }
 

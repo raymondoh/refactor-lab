@@ -21,7 +21,7 @@ export default async function UserProfilePage() {
     const userResult = await userProfileService.getProfileByUserId(session.user.id);
 
     // Handle error case
-    if (!userResult.success) {
+    if (!userResult.ok) {
       console.error("Error getting current user:", userResult.error);
       return (
         <DashboardShell>

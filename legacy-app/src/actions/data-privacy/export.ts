@@ -17,7 +17,7 @@ export async function requestDataExportAction() {
     // FIX: Changed from requestExport to exportUserData based on build error hint
     const result = await adminDataPrivacyService.exportUserData(session.user.id);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("UNKNOWN", result.error || "Could not process export request.");
     }
 

@@ -1,8 +1,7 @@
-// src/app/(root)/products/[id]/page.tsx
+// src/app/(root)/products/[slugId]/page.tsx
 
-import { notFound } from "next/navigation";
-import { getRelatedProducts } from "@/actions/products";
-import { getPublicProductById as getProductById } from "@/actions/products";
+import { notFound, redirect } from "next/navigation"; // Added redirect
+import { getRelatedProducts, getPublicProductById as getProductById } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -11,19 +10,20 @@ import { ProductGallery, ProductInfo, ProductTabs, RelatedProducts } from "@/com
 import type { Metadata, ResolvingMetadata } from "next";
 import { siteConfig } from "@/config/siteConfig";
 
+// Combined imports from your consolidated library
+import { extractProductId, getProductHref, isCanonicalProductSlug } from "@/lib/urls/product-url";
+
 // ---------- Metadata ----------
 interface MetadataProps {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  params: Promise<{ slugId: string }>;
 }
 
 export async function generateMetadata(props: MetadataProps, parent: ResolvingMetadata): Promise<Metadata> {
-  const { id } = await props.params;
+  const { slugId } = await props.params;
+  const id = extractProductId(slugId);
 
   const result = await getProductById(id);
 
-  // FIX: In the new ServiceResult shape, we check result.ok
-  // and the data payload is inside result.data
   if (!result.ok) {
     return {
       title: "Product Not Found | MotoStix",
@@ -33,13 +33,12 @@ export async function generateMetadata(props: MetadataProps, parent: ResolvingMe
 
   const { product } = result.data;
   const previousImages = (await parent).openGraph?.images || [];
+  const productUrl = `${siteConfig.url}${getProductHref(product)}`;
 
   const baseDescription = product.description || `High-quality ${product.name} sticker from MotoStix`;
   const enhancedDescription = `${baseDescription}${product.category ? ` | ${product.category} category` : ""}${
     product.price ? ` | Starting at $${product.price}` : ""
   } | Fast shipping & premium quality guaranteed.`;
-
-  const productUrl = `${siteConfig.url}/products/${product.id}`;
 
   return {
     title: `${product.name} - Premium Custom Stickers | ${siteConfig.name}`,
@@ -55,26 +54,29 @@ export async function generateMetadata(props: MetadataProps, parent: ResolvingMe
 }
 
 // ---------- Page ----------
-// Define the specific interface for this page's props
 interface ProductPageProps {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  params: Promise<{ slugId: string }>;
 }
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {
-  const { id } = await params;
-  console.log("Fetching product with ID:", id);
+  const { slugId } = await params;
+  const id = extractProductId(slugId);
 
   const result = await getProductById(id);
 
-  // FIX: Ensure we check result.ok. Once true, TS knows result.data exists.
   if (!result.ok) {
-    console.error("Fetch failed because:", result.error);
     notFound();
   }
 
   const { product } = result.data;
-  const productUrl = `${siteConfig.url}/products/${product.id}`;
+
+  // ✅ SEO Protection: Redirect if the slug part of the URL is non-canonical
+  // Example: /products/old-name--abc123 -> /products/new-name--abc123
+  if (!isCanonicalProductSlug(slugId, product)) {
+    redirect(getProductHref(product));
+  }
+
+  const productUrl = `${siteConfig.url}${getProductHref(product)}`;
 
   const relatedResult = await getRelatedProducts({
     productId: product.id,
@@ -82,7 +84,6 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     limit: 4
   });
 
-  // FIX: Unpack related products array from relatedResult.data
   const relatedProducts = relatedResult.ok ? relatedResult.data.products : [];
 
   return (
@@ -95,21 +96,23 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             <div className="text-sm text-muted-foreground mb-3">
               <Link href="/" className="hover:text-foreground">
                 Home
-              </Link>{" "}
-              /{" "}
+              </Link>
+              {" / "}
               <Link href="/products" className="hover:text-foreground">
                 Products
               </Link>
               {product.category && (
                 <>
-                  {" "}
-                  /{" "}
-                  <Link href={`/products?category=${product.category.toLowerCase()}`} className="hover:text-foreground">
+                  {" / "}
+                  <Link
+                    href={`/products?category=${String(product.category).toLowerCase()}`}
+                    className="hover:text-foreground">
                     {product.category}
                   </Link>
                 </>
               )}
             </div>
+
             <Button variant="outline" asChild className="rounded-full">
               <Link href="/products">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -131,7 +134,6 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         </div>
       </section>
 
-      {/* FIX: Simplified conditional rendering for Related Products */}
       {relatedProducts.length > 0 && (
         <section className="py-12 md:py-16 w-full bg-background">
           <div className="container mx-auto px-4">

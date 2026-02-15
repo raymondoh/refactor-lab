@@ -1,10 +1,12 @@
 // src/lib/services/user-service.ts
+import "server-only";
+
 import { getAdminFirestore } from "@/lib/firebase/admin/initialize";
 import { Timestamp } from "firebase-admin/firestore";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { getUserImage } from "@/utils/get-user-image";
 
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 import type { User, UserRole } from "@/types/user";
 
 type FirestoreUserDoc = Record<string, unknown>;
@@ -26,6 +28,7 @@ function asBoolean(v: unknown, fallback = false): boolean {
 
 function toIsoIfTimestamp(v: unknown): string | undefined {
   if (v instanceof Timestamp) return v.toDate().toISOString();
+  if (v instanceof Date) return v.toISOString();
   if (typeof v === "string") return v;
   return undefined;
 }
@@ -37,9 +40,13 @@ function mapDocToUser(doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFir
   const data = asRecord(doc.data());
   const image = getUserImage(data);
 
+  // Avoid spreading unknown into User shape (keeps types + UI safer)
   return {
     id: doc.id,
-    ...(data as unknown as Omit<User, "id">),
+    email: asString(data["email"]),
+    name: typeof data["name"] === "string" ? data["name"] : undefined,
+    displayName: typeof data["displayName"] === "string" ? data["displayName"] : undefined,
+    role: (typeof data["role"] === "string" ? data["role"] : "user") as UserRole,
     image,
     createdAt: toIsoIfTimestamp(data["createdAt"]) ?? "",
     updatedAt: toIsoIfTimestamp(data["updatedAt"]),
@@ -48,14 +55,20 @@ function mapDocToUser(doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFir
   } as User;
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 export const userService = {
   /**
    * Get users with pagination (Firestore-only)
    */
-  async getUsers(limit = 10, startAfter?: string): Promise<ServiceResponse<{ users: User[]; lastVisible?: string }>> {
+  async getUsers(limit = 10, startAfter?: string): Promise<ServiceResult<{ users: User[]; lastVisible?: string }>> {
     try {
       const db = getAdminFirestore();
-      let query = db.collection("users").orderBy("createdAt", "desc").limit(limit);
+      const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.floor(limit))) : 10;
+
+      let query = db.collection("users").orderBy("createdAt", "desc").limit(safeLimit);
 
       if (startAfter) {
         const lastDoc = await db.collection("users").doc(startAfter).get();
@@ -66,63 +79,49 @@ export const userService = {
       const users = snapshot.docs.map(mapDocToUser);
       const lastVisible = snapshot.docs[snapshot.docs.length - 1]?.id;
 
-      return { success: true, data: { users, lastVisible } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error occurred while fetching users";
-
-      return { success: false, error: message, status: 500 };
+      return ok({ users, lastVisible });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error occurred while fetching users"), 500);
     }
   },
 
   /**
    * Fetch a single user by their ID
    */
-  async getUserById(userId: string): Promise<ServiceResponse<{ user: User }>> {
+  async getUserById(userId: string): Promise<ServiceResult<{ user: User }>> {
+    if (!userId) return fail("BAD_REQUEST", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       const snap = await db.collection("users").doc(userId).get();
 
-      if (!snap.exists) return { success: false, error: "User not found", status: 404 };
+      if (!snap.exists) return fail("NOT_FOUND", "User not found", 404);
 
       const user = mapDocToUser(snap);
-      return { success: true, data: { user } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching user";
-
-      return { success: false, error: message, status: 500 };
+      return ok({ user });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching user"), 500);
     }
   },
 
   /**
    * Get user role (Firestore-only)
    */
-  async getUserRole(userId: string): Promise<ServiceResponse<{ role: UserRole }>> {
+  async getUserRole(userId: string): Promise<ServiceResult<{ role: UserRole }>> {
+    if (!userId) return fail("BAD_REQUEST", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       const userDoc = await db.collection("users").doc(userId).get();
 
-      if (!userDoc.exists) return { success: false, error: "User not found", status: 404 };
+      if (!userDoc.exists) return fail("NOT_FOUND", "User not found", 404);
 
       const data = asRecord(userDoc.data());
-      const role = asString(data["role"], "user") as UserRole;
+      const role = (asString(data["role"], "user") as UserRole) || "user";
 
-      return { success: true, data: { role } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error getting user role";
-
-      return { success: false, error: message, status: 500 };
+      return ok({ role });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error getting user role"), 500);
     }
   }
 };

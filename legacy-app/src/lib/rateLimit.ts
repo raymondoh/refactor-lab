@@ -1,10 +1,4 @@
-/**
- * Rate limiting utility using Upstash Redis
- *
- * Requires the `@upstash/redis` package and the environment variables
- * `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to be set.
- */
-
+// src/lib/rateLimit.ts
 import { Redis } from "@upstash/redis";
 
 let redis: Redis | null = null;
@@ -27,35 +21,54 @@ export interface RateLimitResult {
   reset?: string;
 }
 
-export async function rateLimit(identifier: string): Promise<RateLimitResult> {
+type RateLimitOptions = {
+  limit?: number; // allowed requests
+  windowMs?: number; // time window in ms
+  failOpen?: boolean; // if Redis errors, allow (true) or block (false)
+};
+
+export async function rateLimit(identifier: string, options: RateLimitOptions = {}): Promise<RateLimitResult> {
+  const { limit = 5, windowMs = 60 * 1000, failOpen = true } = options;
+
   if (!redis) {
     console.warn("Redis is not configured. Rate limiting is disabled.");
-    return { success: true };
+    return { success: failOpen, limit, remaining: 0 };
   }
 
   const now = Date.now();
-  const rate = 5; // Number of allowed requests
-  const per = 60 * 1000; // Per minute (in milliseconds)
 
   try {
-    const count = await redis.incr(identifier);
-    await redis.expire(identifier, Math.floor(per / 1000));
+    // Use a window-specific key so different windows don't collide
+    const key = `${identifier}:${Math.floor(now / windowMs)}`;
 
+    const count = await redis.incr(key);
+
+    // Ensure expiry is set
     if (count === 1) {
-      await redis.pexpire(identifier, per);
+      await redis.pexpire(key, windowMs);
     }
 
-    const ttl = await redis.pttl(identifier);
-    const reset = Math.floor(now + ttl);
+    const ttl = await redis.pttl(key);
+    const reset = now + Math.max(0, ttl);
 
     return {
-      success: count <= rate,
-      limit: rate,
-      remaining: Math.max(0, rate - count),
+      success: count <= limit,
+      limit,
+      remaining: Math.max(0, limit - count),
       reset: new Date(reset).toISOString()
     };
   } catch (error) {
     console.error("Rate limiting error:", error);
-    return { success: true };
+    return { success: failOpen, limit, remaining: 0 };
   }
 }
+export const rateLimitKeys = {
+  ipOnly(ip: string) {
+    return (ip || "unknown").trim() || "unknown";
+  },
+  ipEmail(ip: string, email: string) {
+    const safeIp = (ip || "unknown").trim() || "unknown";
+    const safeEmail = (email || "unknown").trim().toLowerCase() || "unknown";
+    return `${safeIp}:${safeEmail}`;
+  }
+};

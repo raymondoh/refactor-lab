@@ -30,7 +30,7 @@ export async function updatePassword(_prevState: unknown, formData: FormData) {
     }
 
     const res = await adminAuthService.updateAuthUser(session.user.id, { password: validated.data.newPassword });
-    if (!res.success) return { success: false, error: res.error };
+    if (!res.ok) return { success: false, error: res.error };
 
     await logActivity({
       userId: session.user.id,

@@ -1,3 +1,4 @@
+// src/types/category/category.ts
 /**
  * Category type representing a group of products with the same category
  */

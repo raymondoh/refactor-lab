@@ -29,7 +29,7 @@ export async function updateProfileAction(data: ProfileUpdateInput) {
 
     const result = await userProfileService.updateProfileByUserId(session.user.id, parsed.data);
 
-    if (!result.success) {
+    if (!result.ok) {
       return fail("UNKNOWN", result.error || "Failed to update profile");
     }
 

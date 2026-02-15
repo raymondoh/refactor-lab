@@ -41,10 +41,10 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
 
     // Try by uid
     const byId = await adminAuthService.getAuthUserById(firebaseUid);
-    if (!byId.success) {
+    if (!byId.ok) {
       // Try by email
       const byEmail = await adminAuthService.getAuthUserByEmail(email);
-      if (byEmail.success) {
+      if (byEmail.ok) {
         firebaseUid = byEmail.data.uid;
       } else {
         // Create new auth user with the requested uid (no password)
@@ -56,7 +56,7 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
           emailVerified: true
         });
 
-        if (!created.success) {
+        if (!created.ok) {
           throw new Error(created.error);
         }
 
@@ -73,7 +73,7 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
 
     // 2) Ensure Firestore user doc exists
     const existingUserDocRes = await adminAuthService.getUserDocById(firebaseUid);
-    if (!existingUserDocRes.success) {
+    if (!existingUserDocRes.ok) {
       throw new Error(existingUserDocRes.error);
     }
 
@@ -82,7 +82,7 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
     if (!existingUser) {
       // Determine role (first user = admin)
       const countRes = await adminAuthService.countUsers();
-      if (!countRes.success) throw new Error(countRes.error);
+      if (!countRes.ok) throw new Error(countRes.error);
 
       const isFirstUser = countRes.data.count === 0;
       const role: UserRole = isFirstUser ? "admin" : "user";
@@ -99,11 +99,11 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
         lastLoginAt: serverTimestamp()
       });
 
-      if (!createDocRes.success) throw new Error(createDocRes.error);
+      if (!createDocRes.ok) throw new Error(createDocRes.error);
 
       // Set custom claim
       const claimRes = await adminAuthService.setUserRoleClaim(firebaseUid, role);
-      if (!claimRes.success) throw new Error(claimRes.error);
+      if (!claimRes.ok) throw new Error(claimRes.error);
 
       await logActivity({
         userId: firebaseUid,
@@ -124,7 +124,7 @@ export async function syncUserWithFirebase(userId: string, userData: SyncInput):
       ...(userData.image ? { photoURL: userData.image } : {})
     });
 
-    if (!updateRes.success) throw new Error(updateRes.error);
+    if (!updateRes.ok) throw new Error(updateRes.error);
 
     await logActivity({
       userId: firebaseUid,

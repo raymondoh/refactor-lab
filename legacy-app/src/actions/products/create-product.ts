@@ -8,6 +8,7 @@ import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
 import { productSchema } from "@/schemas/product";
 import { validatedAdminAction } from "@/actions/_helpers/action-wrapper";
 import { ok, fail } from "@/lib/services/service-result";
+import { slugifyProductName } from "@/lib/urls/product-url"; // ✅ add this
 import type { z } from "zod";
 
 type ProductCreateInput = z.infer<typeof productSchema>;
@@ -25,10 +26,18 @@ export const createProductAction = validatedAdminAction(async (data: ProductCrea
       return fail("VALIDATION", msg);
     }
 
-    // 2) Run the addition
-    const result = await adminProductService.addProduct(parsed.data);
+    // 2) Ensure slug exists (canonical, centralized)
+    //    - If admin supplies a slug, normalize it
+    //    - Otherwise generate from name
+    const input = parsed.data;
+    const slug = slugifyProductName(input.slug?.trim() || input.name);
 
-    if (!result.success) {
+    const result = await adminProductService.addProduct({
+      ...input,
+      slug
+    });
+
+    if (!result.ok) {
       // Best-effort log for failure
       try {
         await adminActivityService.logActivity({
@@ -46,7 +55,7 @@ export const createProductAction = validatedAdminAction(async (data: ProductCrea
     }
 
     const productId = result.data.id;
-    const productName = (parsed.data.name || "Unknown Product") as string;
+    const productName = (input.name || "Unknown Product") as string;
 
     // 3) Log success (best-effort)
     try {
@@ -55,7 +64,7 @@ export const createProductAction = validatedAdminAction(async (data: ProductCrea
         type: "create_product",
         description: `Created product: ${productName}`,
         status: "success",
-        metadata: { productId }
+        metadata: { productId, slug }
       });
     } catch {}
 

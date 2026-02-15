@@ -26,7 +26,7 @@ export function CategoriesStatic() {
                     alt={category.name}
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent"></div>
+                  <div className="absolute inset-0 bg-white/10 dark:bg-black/50" />
                 </div>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">

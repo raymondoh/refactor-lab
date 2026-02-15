@@ -22,18 +22,20 @@ export default async function AdminProductsPage() {
     if (!session?.user) redirect("/login");
     if (session.user.role !== "admin") redirect("/not-authorized");
 
-    // ✅ Fetch initial data via actions (actions gate + services do the work)
     const [productsResult, categoriesRes, featuredRes] = await Promise.all([
       getAllProductsAction(undefined),
       getCategoriesAction(),
       getFeaturedCategoriesAction()
     ]);
 
-    // New: We must reach into .data.products to get the actual array
+    // products
     const products = productsResult.ok ? productsResult.data.products : [];
-    const categories = categoriesRes.success ? categoriesRes.data.categories : [];
 
-    const featuredCategories = featuredRes.success
+    // categories
+    const categories = categoriesRes.ok ? categoriesRes.data.categories : [];
+
+    // featured categories
+    const featuredCategories = featuredRes.ok
       ? featuredRes.data.featuredCategories.map(cat => ({
           id: cat.slug,
           name: cat.name,
@@ -52,11 +54,7 @@ export default async function AdminProductsPage() {
         <Separator className="mb-8" />
 
         <div className="w-full overflow-hidden">
-          <AdminProductsClient
-            products={products}
-            categories={categories || []}
-            featuredCategories={featuredCategories}
-          />
+          <AdminProductsClient products={products} categories={categories} featuredCategories={featuredCategories} />
         </div>
       </DashboardShell>
     );

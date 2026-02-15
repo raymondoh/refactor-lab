@@ -14,7 +14,7 @@ export async function logActivity(input: {
 }) {
   const result = await adminActivityService.logActivity(input);
 
-  if (!result.success) {
+  if (!result.ok) {
     console.error("[logActivity] Error:", result.error);
     return { success: false as const, error: result.error };
   }

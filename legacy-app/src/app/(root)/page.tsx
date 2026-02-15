@@ -55,17 +55,6 @@ export default async function HomePage() {
         {/* Featured Categories */}
         <CategoriesStatic />
 
-        {/* Featured Products */}
-        {trendingProducts.length > 0 && (
-          <ProductCarousel
-            products={trendingProducts}
-            title="Trending Stickers"
-            description="Standout picks hand-chosen by our team"
-            viewAllUrl="/products?isFeatured=true"
-            centered={false}
-          />
-        )}
-
         {/* 1. TRENDING PRODUCTS */}
         {trendingProducts.length > 0 && (
           <ProductCarousel

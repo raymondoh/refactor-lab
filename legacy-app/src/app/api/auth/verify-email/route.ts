@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
       // Pull role + uid from your canonical user lookup
       const userRes = await adminAuthService.getUserByEmail(userEmail);
-      if (!userRes.success || !userRes.data) {
+      if (!userRes.ok || !userRes.data) {
         return NextResponse.json({ error: "User not found." }, { status: 404, headers: NO_STORE_HEADERS });
       }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     else if (oobCode) {
       const checkRes = await adminAuthService.checkActionCode(oobCode);
 
-      if (!checkRes.success) {
+      if (!checkRes.ok) {
         return NextResponse.json(
           { error: checkRes.error },
           { status: checkRes.status ?? 400, headers: NO_STORE_HEADERS }
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       // Fetch role (and normalize uid/email if needed) so we can return the correct redirectPath
       if (userEmail) {
         const userRes = await adminAuthService.getUserByEmail(userEmail);
-        if (userRes.success && userRes.data) {
+        if (userRes.ok && userRes.data) {
           userRole = (userRes.data as any)?.role ?? "user";
           // Keep the uid from Auth action code as the source of truth, but fall back if missing
           if (!userId) userId = userRes.data.uid;
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Mark as verified in Firebase Auth (standardizes the bit across both flows)
     const verifyRes = await adminAuthService.markEmailVerified(userId);
-    if (!verifyRes.success) {
+    if (!verifyRes.ok) {
       return NextResponse.json({ error: verifyRes.error }, { status: 500, headers: NO_STORE_HEADERS });
     }
 

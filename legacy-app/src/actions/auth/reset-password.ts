@@ -16,7 +16,7 @@ export async function logPasswordResetActivity({
 
   try {
     const res = await adminAuthService.getUserByEmail(email);
-    if (res.success) {
+    if (res.ok) {
       await logActivity({
         userId: res.data.uid,
         type: "password_reset_requested",
@@ -42,7 +42,7 @@ export async function getUserIdByEmail({ email }: Auth.GetUserIdByEmailInput): P
   if (!email) return { success: false, error: "Email is required" };
 
   const res = await adminAuthService.getUserByEmail(email);
-  if (!res.success) return { success: false, error: res.error };
+  if (!res.ok) return { success: false, error: res.error };
 
   return { success: true, userId: res.data.uid };
 }
@@ -62,7 +62,7 @@ export async function updatePasswordHash({
       updatedAt: serverTimestamp()
     });
 
-    if (!updateRes.success) return { success: false, error: updateRes.error };
+    if (!updateRes.ok) return { success: false, error: updateRes.error };
 
     await logActivity({
       userId,

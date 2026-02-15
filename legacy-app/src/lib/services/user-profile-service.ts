@@ -1,4 +1,5 @@
 // src/lib/services/user-profile-service.ts
+import "server-only";
 
 import { getAdminFirestore, getAdminAuth } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
@@ -8,7 +9,7 @@ import { getUserImage } from "@/utils/get-user-image";
 
 import type { User } from "@/types/user";
 import type { SerializedUser } from "@/types/models/user";
-import type { ServiceResponse } from "@/lib/services/types/service-response";
+import { ok, fail, type ServiceResult } from "@/lib/services/service-result";
 
 // ✅ typed helper
 function dateish(value: unknown): string | Timestamp | Date | undefined {
@@ -18,15 +19,19 @@ function dateish(value: unknown): string | Timestamp | Date | undefined {
   return undefined;
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 export const userProfileService = {
-  async getProfileByUserId(userId: string): Promise<ServiceResponse<{ user: SerializedUser }>> {
+  async getProfileByUserId(userId: string): Promise<ServiceResult<{ user: SerializedUser }>> {
     try {
-      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+      if (!userId) return fail("BAD_REQUEST", "User ID is required", 400);
 
       const db = getAdminFirestore();
       const doc = await db.collection("users").doc(userId).get();
 
-      if (!doc.exists) return { success: false, error: "User not found", status: 404 };
+      if (!doc.exists) return fail("NOT_FOUND", "User not found", 404);
 
       const data = doc.data() as Partial<User> | undefined;
 
@@ -40,24 +45,15 @@ export const userProfileService = {
         emailVerified: Boolean(data?.emailVerified)
       };
 
-      return { success: true, data: { user: serializeUser(rawUser) } };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error fetching profile";
-
-      return { success: false, error: message, status: 500 };
+      return ok({ user: serializeUser(rawUser) });
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error fetching profile"), 500);
     }
   },
 
-  async updateProfileByUserId(
-    userId: string,
-    updateData: Record<string, unknown>
-  ): Promise<ServiceResponse<Record<string, never>>> {
+  async updateProfileByUserId(userId: string, updateData: Record<string, unknown>): Promise<ServiceResult<{}>> {
     try {
-      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+      if (!userId) return fail("BAD_REQUEST", "User ID is required", 400);
 
       const db = getAdminFirestore();
       await db
@@ -65,15 +61,9 @@ export const userProfileService = {
         .doc(userId)
         .update({ ...updateData, updatedAt: new Date() });
 
-      return { success: true, data: {} };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating profile";
-
-      return { success: false, error: message, status: 500 };
+      return ok({});
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating profile"), 500);
     }
   },
 
@@ -83,22 +73,16 @@ export const userProfileService = {
   async updateAuthProfileByUserId(
     userId: string,
     authUpdate: Parameters<ReturnType<typeof getAdminAuth>["updateUser"]>[1]
-  ): Promise<ServiceResponse<Record<string, never>>> {
+  ): Promise<ServiceResult<{}>> {
     try {
-      if (!userId) return { success: false, error: "User ID is required", status: 400 };
+      if (!userId) return fail("BAD_REQUEST", "User ID is required", 400);
 
       const adminAuth = getAdminAuth();
       await adminAuth.updateUser(userId, authUpdate);
 
-      return { success: true, data: {} };
-    } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating auth profile";
-
-      return { success: false, error: message, status: 500 };
+      return ok({});
+    } catch (error: unknown) {
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating auth profile"), 500);
     }
   }
 };

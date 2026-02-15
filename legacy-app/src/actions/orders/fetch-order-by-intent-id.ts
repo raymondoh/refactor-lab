@@ -15,7 +15,7 @@ export async function fetchOrderByPaymentIntentId(paymentIntentId: string) {
 
     const result = await adminOrderService.getOrderByPaymentIntentId(paymentIntentId);
 
-    if (!result.success) {
+    if (!result.ok) {
       return { success: false as const, error: result.error };
     }
 

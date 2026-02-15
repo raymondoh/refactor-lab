@@ -1,7 +1,8 @@
 // src/lib/services/admin-data-privacy-service.ts
 import { getAdminFirestore, getAdminStorage } from "@/lib/firebase/admin/initialize";
 import { isFirebaseError, firebaseError } from "@/utils/firebase-error";
-import type { ServiceResponse } from "@/types/service-response";
+import type { ServiceResult } from "@/lib/services/service-result";
+import { ok, fail } from "@/lib/services/service-result";
 
 // --------------------
 // helpers (no any)
@@ -17,12 +18,18 @@ function getStringField(obj: Record<string, unknown>, key: string): string | und
   return typeof v === "string" ? v : undefined;
 }
 
+function errMessage(error: unknown, fallback: string) {
+  return isFirebaseError(error) ? firebaseError(error) : error instanceof Error ? error.message : fallback;
+}
+
 type ExportedDoc = Record<string, unknown> & { id: string };
 type ExportedUser = (Record<string, unknown> & { id: string }) | null;
 
+type EmptyData = Record<string, never>;
+
 export const adminDataPrivacyService = {
   async listDeletionRequests(): Promise<
-    ServiceResponse<{ users: Array<{ id: string; email?: string; name?: string }> }>
+    ServiceResult<{ users: Array<{ id: string; email?: string; name?: string }> }>
   > {
     try {
       const db = getAdminFirestore();
@@ -33,22 +40,19 @@ export const adminDataPrivacyService = {
         return { id: d.id, email: getStringField(data, "email"), name: getStringField(data, "name") };
       });
 
-      return { success: true, data: { users } };
+      return ok({ users });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error listing deletion requests";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error listing deletion requests"), 500);
     }
   },
 
   async exportUserData(
     userId: string
   ): Promise<
-    ServiceResponse<{ user: ExportedUser; likes: ExportedDoc[]; activity: ExportedDoc[]; orders?: ExportedDoc[] }>
+    ServiceResult<{ user: ExportedUser; likes: ExportedDoc[]; activity: ExportedDoc[]; orders?: ExportedDoc[] }>
   > {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
 
@@ -61,50 +65,35 @@ export const adminDataPrivacyService = {
       const activitySnapshot = await db.collection("activity").where("userId", "==", userId).get();
       const activity = activitySnapshot.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) }) as ExportedDoc);
 
-      // If you later export orders, follow the same pattern:
-      // const ordersSnap = await db.collection("orders").where("userId", "==", userId).get();
-      // const orders = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() ?? {}) })) as ExportedDoc[];
-
-      return { success: true, data: { user, likes, activity } };
+      return ok({ user, likes, activity });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error exporting user data";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error exporting user data"), 500);
     }
   },
 
-  async markDeletionRequested(userId: string): Promise<ServiceResponse<Record<string, never>>> {
+  async markDeletionRequested(userId: string): Promise<ServiceResult<EmptyData>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).update({ deletionRequested: true });
-      return { success: true, data: {} };
+      return ok({});
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error updating deletion flag";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error updating deletion flag"), 500);
     }
   },
 
-  async deleteUserStorageFolder(prefix: string): Promise<ServiceResponse<{ deleted: boolean }>> {
+  async deleteUserStorageFolder(prefix: string): Promise<ServiceResult<{ deleted: boolean }>> {
+    if (!prefix) return fail("VALIDATION", "Storage prefix is required", 400);
+
     // prefix example: `users/${userId}/` depending on your storage paths
     try {
       const storage = getAdminStorage().bucket();
       await storage.deleteFiles({ prefix });
-      return { success: true, data: { deleted: true } };
+      return ok({ deleted: true });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error deleting user storage";
-      // storage cleanup shouldn’t block everything—keep status non-fatal if you like
-      return { success: false, error: message, status: 500 };
+      // storage cleanup shouldn’t block everything—caller can treat as best-effort.
+      return fail("UNKNOWN", errMessage(error, "Unknown error deleting user storage"), 500);
     }
   },
 
@@ -112,7 +101,9 @@ export const adminDataPrivacyService = {
    * Deletes user-owned "likes" docs and attempts to delete the profile image referenced by `users/{userId}.picture`.
    * Does NOT delete the user doc itself (leave that to adminAuthService.deleteUserAuthAndDoc).
    */
-  async deleteUserLikesAndProfileImage(userId: string): Promise<ServiceResponse<Record<string, never>>> {
+  async deleteUserLikesAndProfileImage(userId: string): Promise<ServiceResult<EmptyData>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       const storage = getAdminStorage();
@@ -161,17 +152,15 @@ export const adminDataPrivacyService = {
       const likesSnapshot = await userRef.collection("likes").get();
       await Promise.all(likesSnapshot.docs.map(doc => doc.ref.delete()));
 
-      return { success: true, data: {} };
+      return ok({});
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error deleting user likes/profile image";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error deleting user likes/profile image"), 500);
     }
   },
-  async cancelDeletionRequested(userId: string): Promise<ServiceResponse<Record<string, never>>> {
+
+  async cancelDeletionRequested(userId: string): Promise<ServiceResult<EmptyData>> {
+    if (!userId) return fail("VALIDATION", "User ID is required", 400);
+
     try {
       const db = getAdminFirestore();
       await db.collection("users").doc(userId).update({
@@ -180,14 +169,9 @@ export const adminDataPrivacyService = {
         deletionRejectedAt: null,
         deletionRejectedBy: null
       });
-      return { success: true, data: {} };
+      return ok({});
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error cancelling deletion request";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error cancelling deletion request"), 500);
     }
   },
 
@@ -196,7 +180,12 @@ export const adminDataPrivacyService = {
     fileContent: string;
     contentType: string;
     fileExtension: string;
-  }): Promise<ServiceResponse<{ downloadUrl: string }>> {
+  }): Promise<ServiceResult<{ downloadUrl: string }>> {
+    if (!input?.userId) return fail("VALIDATION", "User ID is required", 400);
+    if (!input.fileContent) return fail("VALIDATION", "File content is required", 400);
+    if (!input.contentType) return fail("VALIDATION", "Content type is required", 400);
+    if (!input.fileExtension) return fail("VALIDATION", "File extension is required", 400);
+
     try {
       const storage = getAdminStorage();
       const fileName = `data-exports/${input.userId}/user-data-${Date.now()}.${input.fileExtension}`;
@@ -211,14 +200,9 @@ export const adminDataPrivacyService = {
         expires: Date.now() + 60 * 60 * 1000 // 1 hour
       });
 
-      return { success: true, data: { downloadUrl: signedUrl } };
+      return ok({ downloadUrl: signedUrl });
     } catch (error) {
-      const message = isFirebaseError(error)
-        ? firebaseError(error)
-        : error instanceof Error
-          ? error.message
-          : "Unknown error creating export file";
-      return { success: false, error: message, status: 500 };
+      return fail("UNKNOWN", errMessage(error, "Unknown error creating export file"), 500);
     }
   }
 };
